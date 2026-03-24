@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+        integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+
+    <style>
+        #map {
+            height: 800px;
+            width: 1200px;
+            display: inline-block;
+        }
+
+        #bikeMilesChart {
+            height: 800px;
+            width: 1200px;
+            display: inline-block;
+        }
+
+        body {
+            text-align: center;
+        }
+    </style>
+
+
+</head>
+
+<body>
+    <h1>Lee's Map</h1>
+    <div id="map"></div>
+    <br>
+</body>
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+
+
+
+<script src="js/strava_api_lee.js"></script>
+<script src="js/Polyline.encoded.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.17.1.min.js"></script>
+
+</html>

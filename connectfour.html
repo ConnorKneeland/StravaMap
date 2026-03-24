@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Mobile Specific Meta -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Favicon-->
+    <link rel="icon" href="img/favicon.ico" />
+    <!-- Author Meta -->
+    <meta name="author" content="Connor Kneeland">
+    <!-- Meta Description -->
+    <meta name="description" content="A personal website built and deployed by Harrison Jansma.">
+    <!-- Meta Keyword -->
+    <meta name="keywords" content="portfolio">
+    <!-- meta character set -->
+    <meta charset="UTF-8">
+    <!-- Site Title -->
+    <title>C. Kneeland</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,400,300,500,600,700" rel="stylesheet">
+    <link rel="stylesheet" href="css/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/connect.css" />
+    <link rel="stylesheet" href="css/linearicons.css">
+    <link rel="stylesheet" href="css/font-awesome.min.css">
+    <link rel="stylesheet" href="css/bootstrap.css">
+    <link rel="stylesheet" href="css/magnific-popup.css">
+    <link rel="stylesheet" href="css/jquery-ui.css">
+    <link rel="stylesheet" href="css/nice-select.css">
+    <link rel="stylesheet" href="css/animate.min.css">
+    <link rel="stylesheet" href="css/main.css">
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous">
+        </script>
+
+    <script src="js/Connect4/bootstrap.bundle.min.js"></script>
+    <script src="js/Connect4/easeljs-NEXT.min.js"></script>
+    <script src="js/Connect4/lodash.core.min.js"></script>
+</head>
+
+<body>
+    <div class="container main-menu">
+        <div class="row align-items-center justify-content-between d-flex">
+            <div class id="logo">
+                <a href="/">
+                    <h3>C.Kneeland</h3>
+                </a>
+            </div>
+            <nav id="nav-menu-container">
+                <ul class="nav-menu">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="about.html">About</a></li>
+                    <li><a href="portfolio.html">Portfolio</a></li>
+                    <li><a href="Connor-Kneeland-Resume.pdf" class="genric-btn primary-border circle"
+                            target="_blank">Resume</a></li>
+                </ul>
+
+            </nav><!-- #nav-menu-container -->
+        </div>
+    </div>
+
+    <section class="about-banner">
+        <div class="container">
+            <div class="row d-flex align-items-center justify-content-center">
+                <div class="col-lg-12" style="padding: 35px 0px; text-align: center;">
+                    <h1 class="text-white">
+                        Connect Four AI Bot
+                    </h1>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="row" style="width:100%; margin-top: 50px;">
+        <div class="col-sm-1 col-md-1 col-lg-2 "></div>
+        <div class="col-sm-10 col-md-7 col-lg-5">
+            <div id="alertsContainer" class="row">
+                <div id="winningAlert" class="col-12 alert alert-info" role="alert"></div>
+                <div id="scoreAlert" class="col-sm-4 col-md-6 alert" role="alert">
+                    Board Score: <span id="score"> 0 </span>
+                </div>
+                <div id="waitingAlert" class="col-sm-8 col-md-6 alert alert-warning" role="alert">
+                    AI is thinking...
+                </div>
+            </div>
+            <canvas id="boardGame" width="500" height="400"></canvas>
+        </div>
+        <div id="settings-box" class="col-sm-12 col-md-4 col-lg-3">
+            <div class="form-group">
+                <label>Algorithm</label>
+                <select class="form-control form-control-sm">
+                    <option>AlphaBeta</option>
+                    <!--<option>Minimax</option>-->
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Depth</label>
+                <select id="depthSelect" class="form-control form-control-sm">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5" selected>5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                </select>
+            </div>
+            <div>
+                <label>Difficulty: </label>
+                <label id="dif" style="font-weight:bold; color: orange;">Hard</label>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>The AI will simulate: </label>
+                <label id="numMoves" style="font-weight:bold; color: #8490ff;">16,807</label>
+                <label>moves ahead</label>
+            </div>
+            <button id="restartGame" type="button" class="btn btn-outline-primary">Restart</button>
+        </div>
+        <div class="col-sm-1 col-md-1 col-lg-2"></div>
+    </div>
+
+    <div class="row" style="width:100%; margin-left: 10px; margin-bottom: 100px;">
+        <div class="col-sm-1 col-md-1 col-lg-2 "></div>
+        <div class="col-sm-10 col-md-7 col-lg-8">
+            <hr>
+            <h3 style="text-decoration: underline;">Explanation</h3>
+            <div style="margin-left: 10px; margin-top: 20px;">
+                <h4>AlphaBeta Pruning Algorithm</h4>
+                <p style="margin-top: 10px;">Currently, the only algorithm that you may play against is the AlphaBeta
+                    Pruning bot. AlphaBeta Pruning is a technique used in game-playing AI to help the computer figure
+                    out the best move to make in a game. It's commonly used in games like Connect Four, where there are
+                    many possible moves that the AI can make, but a quick evaluation is needed to determine which move
+                    will be the most effective.
+                </p>
+                <h4>What is Depth?</h4>
+                <p style="margin-top: 10px;">
+                    Depth allows you to control how many moves the AI bot can "look" ahead. Behind the scenes, it will
+                    simulate that number of moves to determine the next best column on the board to drop a piece. This
+                    allows you to control the difficulty of the AI, so if you set a depth of 1, you should be able to
+                    win easily!
+                </p>
+                <h4>The Strategy</h4>
+                <p style="margin-top: 10px;">
+                    To understand how AlphaBeta Pruning works, think about how you would play a game of Connect Four
+                    against a friend. My assumption is that you would try your best to make moves that provide you with
+                    three or
+                    four-in-a-row's while simultaneously blocking your friend's progression to do the same. In other
+                    words, you maximize your chance of winning while minimizing it for your friend.
+                </p>
+                <p>
+                    This AI works in a similar fashion. To determine the next best move to take, it will look at all of
+                    the possible moves it can take and assign a "score" to each one based on how good or bad it thinks
+                    that move is. From there, it chooses the move with the highest score to maximize its chance of
+                    winning.
+                </p>
+                <p>
+                    But here's where it gets interesting: the AI also looks at all of the possible moves you could take
+                    after it makes it's own move. It assigns a score to each of the moves you could take, and tries to
+                    choose one that minimizes your chance of getting a four-in-a-row. By doing this, it can simulate the
+                    game and "look" ahead multiple moves, allowing the bot to make smart and informed decisions.
+                </p>
+                <div style="margin-bottom: 40px; align-items: center; display: flex; flex-direction: column;">
+                    <img src="img/ConnectFourMoves.png" style="max-width: 100%;">
+                    <h6><i><a href="https://www.kaggle.com/code/alexisbcook/one-step-lookahead">Example of how the AI
+                                bot picks the best move</a></i></h6>
+                </div>
+                <h4>What is Pruning?</h4>
+                <p style="margin-top: 10px;">
+                    In the context of AI, pruning is a way of simplifying a complex problem by removing unncessary or
+                    irrelevant parts of it. This makes it easier and faster for a computer to find a solution to a
+                    problem.
+                </p>
+                <p>
+                    For the Connect Four AI bot, pruning is a necessary technique to include if we want the AI to be
+                    faster and smarter. For example, there are 7 possible columns to drop a piece into, and if the AI
+                    looks even 5
+                    moves ahead, it would have to calculate the "score" of each board state<i><b>
+                            7<sup>5</sup> = 16,807 </b></i> times. That's a lot of computations, and I personally would
+                    not want to play against a slow AI bot. Pruning reduces this number of calculations by
+                    skipping over moves that simply aren't likely to be useful, sharply cutting down the amount of time
+                    between moves and allowing the AI bot to "look" ahead even further.
+                </p>
+                <div style="margin-bottom: 40px; align-items: center; display: flex; flex-direction: column;">
+                    <img src="img/Minmaxab.gif" style="max-width: 50%; margin-bottom: 10px;">
+                    <h6><i><a href="https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning">Animation of how the AI
+                                bot prunes moves</a></i></h6>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Get a reference to the <select> and <label> elements
+        var selectElement = document.querySelector("#depthSelect");
+        var labelElement = document.querySelector("#dif");
+        var movesElement = document.querySelector("#numMoves");
+
+        // Listen for changes to the <select> element
+        selectElement.addEventListener("change", function () {
+            // Update the text of the <label> element
+            if (this.value == 1) {
+                labelElement.innerHTML = "Easy";
+                labelElement.style.color = "green";
+                movesElement.innerHTML = "7";
+            }
+            else if (this.value == 2) {
+                labelElement.innerHTML = "Easy";
+                labelElement.style.color = "green";
+                movesElement.innerHTML = "49";
+            }
+            else if (this.value == 3) {
+                labelElement.innerHTML = "Medium";
+                labelElement.style.color = "#ffd700";
+                movesElement.innerHTML = "343";
+            }
+            else if (this.value == 4) {
+                labelElement.innerHTML = "Medium";
+                labelElement.style.color = "#ffd700";
+                movesElement.innerHTML = "2,401";
+            }
+            else if (this.value == 5) {
+                labelElement.innerHTML = "Hard";
+                labelElement.style.color = "orange";
+                movesElement.innerHTML = "16,807";
+            }
+            else if (this.value == 6) {
+                labelElement.innerHTML = "Hard";
+                labelElement.style.color = "orange";
+                movesElement.innerHTML = "117,649";
+            }
+            else if (this.value == 7) {
+                labelElement.innerHTML = "Expert";
+                labelElement.style.color = "red";
+                movesElement.innerHTML = "823,543";
+            }
+            else if (this.value == 8) {
+                labelElement.innerHTML = "Expert+";
+                labelElement.style.color = "#c20000";
+                movesElement.innerHTML = "5,764,801";
+            }
+
+        });
+
+    </script>
+    <script src="js/Connect4/config.js"></script>
+    <script src="js/Connect4/board.js"></script>
+    <script src="js/Connect4/game.js"></script>
+
+</body>
+
+</html>

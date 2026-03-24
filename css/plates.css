@@ -1,0 +1,185 @@
+body {
+    font-family: "Aptos Narrow", system-ui, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", sans-serif;
+    background-color: #f7f7f7;
+    margin: 0;
+    padding: 20px;
+    color: #222;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 25px;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+
+.controls {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.controls input,
+.controls select {
+    font-family: inherit;
+    padding: 10px;
+    font-size: 15px;
+    margin: 0 8px;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+    min-width: 220px;
+}
+
+table {
+    width: 85%;
+    margin: 0 auto;
+    background: white;
+    border-collapse: collapse;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0px 3px 15px rgba(0,0,0,0.1);
+}
+
+thead {
+    background-color: #222;
+    color: white;
+}
+
+th {
+    padding: 14px;
+    user-select: none;
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+tbody td {
+    padding: 13px 10px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    font-size: 15px;
+}
+
+tbody tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+tbody tr:hover {
+    background: #f0f0f0;
+}
+
+.status-Available {
+    color: #0a7d00;
+    font-weight: 600;
+}
+
+/* Premium tags */
+.tag {
+    display: inline-block;
+    padding: 3px 7px;
+    margin: 2px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+}
+
+.tag-short     { background-color: #555; }
+.tag-repeat    { background-color: #0074D9; }
+.tag-palindrome{ background-color: #B10DC9; }
+.tag-sequence  { background-color: #39CCCC; }
+.tag-lucky     { background-color: #FF4136; }
+.tag-word      { background-color: #FF851B; }
+.tag-sound     { background-color: #2ECC40; }
+.tag-initials  { background-color: #85144b; }
+.tag-substitution { background-color: #9b59b6; }
+
+/* Entire row gold for Numbers Only plates */
+.row-numbersonly {
+    background-color: #FFD700 !important; /* gold */
+    color: #000 !important;
+}
+
+/* Platinum row highlight for pure numbers */
+tr.row-purenumber {
+    background: linear-gradient(90deg, #e5e4e2 0%, #f3f3f3 50%, #dcdcdc 100%) !important;
+    color: #000;
+    font-weight: 600;
+    border-left: 4px solid #b4b3b1;
+}
+
+/* Platinum tag badge */
+.tag-purenumber {
+    background: #e5e4e2;   /* platinum */
+    color: #000;
+    border: 1px solid #b4b3b1;
+}
+
+
+
+.row-numbersonly td {
+    background-color: #FFD700 !important;
+}
+
+
+.tag-numbersonly, .tag-lettersonly {
+    background-color: #FFD700; /* gold */
+    color: #000000;            /* black text for contrast */
+    border: 1px solid #C5A200; /* deeper gold border */
+}
+
+
+.fadeIn {
+    animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* Tag Filter Button Bar */
+.tag-filters {
+    text-align: center;
+    margin: 18px 0 25px;
+}
+
+.tag-filter-btn {
+    font-family: inherit;
+    padding: 6px 12px;
+    margin: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid #aaa;
+    background: #f2f2f2;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag-filter-btn:hover {
+    background: #e6e6e6;
+}
+
+/* Active Toggle State */
+.tag-filter-btn.active {
+    background: #333;
+    color: white;
+    border-color: #000;
+    box-shadow: 0 0 5px rgba(0,0,0,0.2);
+}
+
+/* Clear button style */
+.clear-btn {
+    background: #d9534f;
+    color: white;
+    border-color: #c9302c;
+}
+
+.clear-btn:hover {
+    background: #c9302c;
+}

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Plate Status Viewer</title>
+    <link rel="stylesheet" href="css/plates.css" />
+</head>
+
+<body>
+
+    <h1>Plate Status Viewer</h1>
+    
+    <div class="controls">
+        <input id="searchInput" type="text" placeholder="Search plates (e.g. 0A, 9Z, AF)..." />
+
+        <select id="digitSelect">
+            <option value="all">All Lengths</option>
+            <option value="1">1 Character</option>
+            <option value="2">2 Characters</option>
+            <option value="3">3 Characters</option>
+            <option value="4">4 Characters</option>
+        </select>
+
+        <!--<select id="premiumSelect">
+            <option value="none">All Patterns</option>
+            <option value="na">N/A (No Special Pattern)</option>
+            <option value="purenumber">Pure Number</option>
+            <option value="numbersonly">Numbers Only</option>
+            <option value="lettersonly">Letters Only</option>
+            <option value="short">Short (1–2 chars)</option>
+            <option value="substitution">Word Substitution</option>
+            <option value="repeat">Repeats (AA, 33, AABB)</option>
+            <option value="palindrome">Palindromes</option>
+            <option value="sequence">Sequences (123, ABC)</option>
+            <option value="lucky">Lucky Numbers</option>
+            <option value="word">Dictionary Words</option>
+            <option value="sound">Sound-Alikes</option>
+            <option value="initials">Initials</option>
+        </select>-->
+    </div>
+
+    <div class="tag-filters">
+    <!-- Each button corresponds to a tag -->
+    <button class="tag-filter-btn" data-tag="short">Short</button>
+    <button class="tag-filter-btn" data-tag="repeat">Repeat</button>
+    <button class="tag-filter-btn" data-tag="palindrome">Palindrome</button>
+    <button class="tag-filter-btn" data-tag="sequence">Sequence</button>
+    <button class="tag-filter-btn" data-tag="lucky">Lucky</button>
+    <button class="tag-filter-btn" data-tag="word">Word</button>
+    <button class="tag-filter-btn" data-tag="sound">Sound-Alike</button>
+    <button class="tag-filter-btn" data-tag="initials">Initials</button>
+    <button class="tag-filter-btn" data-tag="substitution">Word Substitution</button>
+    <button class="tag-filter-btn" data-tag="numbersonly">Numbers Only</button>
+    <button class="tag-filter-btn" data-tag="lettersonly">Letters Only</button>
+    <button class="tag-filter-btn" data-tag="purenumber">Pure Number</button>
+
+    <!-- Clear filters -->
+    <button class="tag-filter-btn clear-btn" data-tag="clear">Clear All</button>
+</div>
+
+
+    <table>
+        <thead>
+            <tr>
+                <th id="plateHeader">Plate</th>
+                <th id="statusHeader">Status</th>
+                <th>Tags</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+
+    <script src="js/plates.js"></script>
+</body>
+
+</html>
