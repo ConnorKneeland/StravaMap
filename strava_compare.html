@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+        integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <style>
+        #map { height:100vh; width:100vw; margin:0; padding:0; display:block; }
+        #analytics{ height:100vh; width:100vw; display:none; overflow-y:scroll; padding:24px; box-sizing:border-box; background:#fff; }
+        body{ margin:0; font-family:'Aptos Narrow', sans-serif; overflow:hidden; height:100vh; background:#000; }
+        .glass-panel,.glass-pill,.glass-toggle{ background:rgba(255,255,255,0.18); backdrop-filter:blur(12px) saturate(160%); -webkit-backdrop-filter:blur(12px) saturate(160%); border:1px solid rgba(255,255,255,0.4); border-radius:16px; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.35); font-family:'Aptos Narrow', sans-serif; }
+        #controls{ position:fixed; top:12px; left:12px; z-index:1250; width:min(360px, calc(100vw - 24px)); padding:12px; box-sizing:border-box; }
+        #controls-toggle{ width:100%; display:flex; justify-content:space-between; background:transparent; border:none; color:#fff; font:inherit; cursor:pointer; padding:0; }
+        #controls-body{ margin-top:12px; display:grid; gap:12px; }
+        .section{ display:grid; gap:8px; }
+        .label{ font-size:16px; }
+        .chip-row,.pill-row{ display:flex; flex-wrap:wrap; gap:8px; }
+        .glass-pill{ padding:8px 12px; background:rgba(255,255,255,0.12); border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
+        .glass-pill.inactive{ opacity:0.3; }
+        .color-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+        .input-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .filter-input,.metric-select{ background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); color:#fff; border-radius:10px; font:inherit; padding:8px 10px; }
+        .filter-input::-webkit-calendar-picker-indicator{ filter:invert(1); }
+        .metric-select option{ color:#000; }
+        #leaderboard{ position:fixed; top:72px; right:12px; z-index:1250; width:min(280px, calc(100vw - 24px)); padding:12px; box-sizing:border-box; }
+        #leaderboard-list{ display:grid; gap:8px; margin-top:10px; }
+        .leader-row{ display:grid; grid-template-columns:24px 16px 1fr auto; align-items:center; gap:8px; }
+        #toggle-btn{ position:fixed; top:12px; right:12px; z-index:1300; padding:10px 18px; cursor:pointer; border:none; }
+        .chart-container{ width:100%; height:560px; margin-bottom:32px; }
+        @media(max-width:600px){ #leaderboard{ display:none; } }
+    </style>
+</head>
+
+<body>
+    <div id="controls" class="glass-panel">
+        <button id="controls-toggle" type="button"><span id="controls-label">▼ Filters</span><span id="controls-count">0</span></button>
+        <div id="controls-body">
+            <div class="section">
+                <div class="label">Users</div>
+                <div id="user-chips" class="chip-row"></div>
+            </div>
+            <div class="section">
+                <div class="input-grid">
+                    <label class="label">From<input id="date-from" class="filter-input" type="date" /></label>
+                    <label class="label">To<input id="date-to" class="filter-input" type="date" /></label>
+                </div>
+            </div>
+            <div class="section">
+                <div class="label">Activity Types</div>
+                <div id="type-pills" class="pill-row"></div>
+            </div>
+            <div class="section">
+                <div class="label">Metric</div>
+                <select id="metric-select" class="metric-select">
+                    <option value="distance">distance</option>
+                    <option value="time">time</option>
+                    <option value="count">count</option>
+                    <option value="elevation">elevation</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div id="leaderboard" class="glass-panel">
+        <div>Leaderboard</div>
+        <div id="leaderboard-list"></div>
+    </div>
+    <button id="toggle-btn" class="glass-toggle">Show Analytics</button>
+    <div id="map"></div>
+    <div id="analytics">
+        <div class="chart-container"><div id="comparisonChart"></div></div>
+        <div class="chart-container"><div id="totalsChart"></div></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+        integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+    <script src="https://cdn.plot.ly/plotly-2.17.1.min.js"></script>
+    <script src="js/strava_shared.js"></script>
+    <script>
+        const userOrder = ['connor', 'tim', 'quinn'];
+        const params = new URLSearchParams(window.location.search);
+        const mapDiv = document.getElementById('map');
+        const analyticsDiv = document.getElementById('analytics');
+        const controls = document.getElementById('controls');
+        const leaderboard = document.getElementById('leaderboard');
+        const toggleButton = document.getElementById('toggle-btn');
+        const controlsToggle = document.getElementById('controls-toggle');
+        const controlsLabel = document.getElementById('controls-label');
+        const controlsCount = document.getElementById('controls-count');
+        const controlsBody = document.getElementById('controls-body');
+        const userChips = document.getElementById('user-chips');
+        const typePills = document.getElementById('type-pills');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const metricSelect = document.getElementById('metric-select');
+        const dateFromInput = document.getElementById('date-from');
+        const dateToInput = document.getElementById('date-to');
+        const state = {
+            map: StravaApp.initMap('map', [43.3, -88.6], 7),
+            analyticsVisible: false,
+            filtersCollapsed: false,
+            users: {},
+            filters: { users: new Set(userOrder), types: new Set(), dateFrom: '', dateTo: '', metric: 'distance' }
+        };
+
+        document.title = 'Strava Comparison';
+
+        function getAllActivities() {
+            return userOrder.flatMap(function (slug) {
+                return (state.users[slug] && state.users[slug].activities) || [];
+            });
+        }
+
+        function getFilteredActivities(slug) {
+            return StravaApp.filterActivities((state.users[slug] && state.users[slug].activities) || [], state.filters, slug);
+        }
+
+        function setOverlayVisibility(isMapVisible) {
+            controls.style.display = isMapVisible ? 'block' : 'none';
+            leaderboard.style.display = isMapVisible && window.innerWidth > 600 ? 'block' : 'none';
+        }
+
+        function drawTotalsChart() {
+            const activeUsers = userOrder.filter(function (slug) {
+                return state.filters.users.has(slug);
+            });
+            const values = activeUsers.map(function (slug) {
+                return getFilteredActivities(slug).reduce(function (total, activity) {
+                    return total + StravaApp.getMetricValue(activity, state.filters.metric);
+                }, 0);
+            });
+            const labels = activeUsers.map(function (slug) {
+                return StravaApp.USER_CONFIGS[slug].displayName;
+            });
+            const colors = activeUsers.map(function (slug) {
+                return StravaApp.USER_CONFIGS[slug].color;
+            });
+            window.Plotly.newPlot('totalsChart', [{
+                x: labels,
+                y: values,
+                type: 'bar',
+                marker: { color: colors },
+                text: values.map(function (value) { return StravaApp.formatMetricValue(value, state.filters.metric); }),
+                textposition: 'outside'
+            }], {
+                title: `Total ${state.filters.metric} by User`,
+                yaxis: { title: state.filters.metric }
+            }, { responsive: true });
+        }
+
+        function drawAnalytics() {
+            const chartUsers = userOrder.filter(function (slug) {
+                return state.filters.users.has(slug);
+            }).map(function (slug) {
+                const accumulator = StravaApp.createDataAccumulator();
+                getFilteredActivities(slug).forEach(accumulator.add);
+                return {
+                    name: StravaApp.USER_CONFIGS[slug].displayName,
+                    color: StravaApp.USER_CONFIGS[slug].color,
+                    workoutData: accumulator.workoutData
+                };
+            });
+            StravaApp.drawComparisonChart('comparisonChart', chartUsers);
+            drawTotalsChart();
+        }
+
+        function updateLeaderboard() {
+            const rows = userOrder.filter(function (slug) {
+                return state.filters.users.has(slug);
+            }).map(function (slug) {
+                return {
+                    slug: slug,
+                    name: StravaApp.USER_CONFIGS[slug].displayName,
+                    color: StravaApp.USER_CONFIGS[slug].color,
+                    value: getFilteredActivities(slug).reduce(function (total, activity) {
+                        return total + StravaApp.getMetricValue(activity, state.filters.metric);
+                    }, 0)
+                };
+            }).sort(function (left, right) {
+                return right.value - left.value;
+            });
+
+            leaderboardList.innerHTML = '';
+            rows.forEach(function (row, index) {
+                const element = document.createElement('div');
+                element.className = 'leader-row';
+                element.innerHTML = `<span>${index + 1}</span><span class="color-dot" style="background:${row.color};"></span><span>${row.name}</span><span>${StravaApp.formatMetricValue(row.value, state.filters.metric)}</span>`;
+                leaderboardList.appendChild(element);
+            });
+        }
+
+        function refreshView() {
+            const visibleLayers = StravaApp.applyFilters(state.map, state.filters);
+            controlsCount.textContent = userOrder.reduce(function (total, slug) {
+                return total + getFilteredActivities(slug).length;
+            }, 0);
+            updateLeaderboard();
+            if (state.analyticsVisible) {
+                drawAnalytics();
+            }
+            return visibleLayers;
+        }
+
+        function buildUserChips() {
+            userChips.innerHTML = '';
+            userOrder.forEach(function (slug) {
+                const config = StravaApp.USER_CONFIGS[slug];
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'glass-pill';
+                chip.dataset.slug = slug;
+                chip.innerHTML = `<span class="color-dot" style="background:${config.color};"></span><span>${config.displayName}</span>`;
+                chip.addEventListener('click', function () {
+                    if (state.filters.users.has(slug)) {
+                        state.filters.users.delete(slug);
+                    } else {
+                        state.filters.users.add(slug);
+                    }
+                    chip.classList.toggle('inactive', !state.filters.users.has(slug));
+                    refreshView();
+                });
+                userChips.appendChild(chip);
+            });
+        }
+
+        function buildTypePills(types) {
+            typePills.innerHTML = '';
+            state.filters.types = new Set(types);
+            types.forEach(function (type) {
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = 'glass-pill';
+                pill.dataset.type = type;
+                pill.textContent = StravaApp.getActivityLabel(type);
+                pill.addEventListener('click', function () {
+                    if (state.filters.types.has(type)) {
+                        state.filters.types.delete(type);
+                    } else {
+                        state.filters.types.add(type);
+                    }
+                    pill.classList.toggle('inactive', !state.filters.types.has(type));
+                    refreshView();
+                });
+                typePills.appendChild(pill);
+            });
+        }
+
+        function getLocalCompetition(id) {
+            return JSON.parse(window.localStorage.getItem('strava_competitions') || '[]').find(function (competition) {
+                return String(competition.id) === String(id);
+            });
+        }
+
+        async function loadCompetition(id) {
+            if (!id) {
+                return null;
+            }
+            if (window.STRAVA_CONFIG.apiBase) {
+                return StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, `/api/competitions/${id}`);
+            }
+            return getLocalCompetition(id);
+        }
+
+        async function loadUsers() {
+            const renderedLayers = [];
+            for (let index = 0; index < userOrder.length; index += 1) {
+                const slug = userOrder[index];
+                const config = StravaApp.USER_CONFIGS[slug];
+                let activities = [];
+                if (window.STRAVA_CONFIG.apiBase) {
+                    await StravaApp.apiPost(window.STRAVA_CONFIG.apiBase, `/api/sync/${slug}`, {});
+                    activities = await StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, '/api/activities', { user: slug });
+                    activities = StravaApp.sortActivitiesNewestFirst(activities.map(StravaApp.normalizeActivityRecord));
+                } else {
+                    const auth = await StravaApp.stravaReAuthorize(config);
+                    activities = await StravaApp.stravaFetchActivities(auth.access_token, config.pages);
+                }
+                const lineStyle = StravaApp.getLineStyle();
+                const descriptors = activities.map(function (activity) {
+                    return StravaApp.createActivityDescriptor(activity, {
+                        color: config.color,
+                        ownerName: config.displayName,
+                        userSlug: slug,
+                        lineWeight: lineStyle.LINE_WEIGHT,
+                        opacityWeight: lineStyle.OPACITY_WEIGHT
+                    });
+                }).filter(Boolean);
+                state.users[slug] = { activities: activities, descriptors: descriptors };
+                renderedLayers.push.apply(renderedLayers, StravaApp.renderActivityDescriptors(state.map, descriptors));
+            }
+            return renderedLayers;
+        }
+
+        controlsToggle.addEventListener('click', function () {
+            state.filtersCollapsed = !state.filtersCollapsed;
+            controlsBody.style.display = state.filtersCollapsed ? 'none' : 'grid';
+            controlsLabel.textContent = `${state.filtersCollapsed ? '►' : '▼'} Filters`;
+        });
+
+        dateFromInput.addEventListener('change', function () {
+            state.filters.dateFrom = dateFromInput.value;
+            refreshView();
+        });
+
+        dateToInput.addEventListener('change', function () {
+            state.filters.dateTo = dateToInput.value;
+            refreshView();
+        });
+
+        metricSelect.addEventListener('change', function () {
+            state.filters.metric = metricSelect.value;
+            refreshView();
+        });
+
+        toggleButton.addEventListener('click', function () {
+            state.analyticsVisible = !state.analyticsVisible;
+            if (state.analyticsVisible) {
+                mapDiv.style.display = 'none';
+                analyticsDiv.style.display = 'block';
+                document.body.style.background = '#ffffff';
+                toggleButton.textContent = 'Show Map';
+                setOverlayVisibility(false);
+                drawAnalytics();
+                return;
+            }
+            mapDiv.style.display = 'block';
+            analyticsDiv.style.display = 'none';
+            document.body.style.background = '#000000';
+            toggleButton.textContent = 'Show Analytics';
+            setOverlayVisibility(true);
+            state.map.invalidateSize();
+        });
+
+        async function initializePage() {
+            buildUserChips();
+            const renderedLayers = await loadUsers();
+            const allActivities = getAllActivities();
+            const dates = allActivities.map(function (activity) {
+                return String(activity.start_date || '').split('T')[0];
+            }).filter(Boolean).sort();
+            state.filters.dateFrom = dates[0] || '';
+            state.filters.dateTo = dates[dates.length - 1] || '';
+            dateFromInput.value = state.filters.dateFrom;
+            dateToInput.value = state.filters.dateTo;
+            buildTypePills(StravaApp.getDetectedTypes(allActivities));
+            const competition = await loadCompetition(params.get('competition'));
+            if (competition) {
+                state.filters.metric = competition.metric || 'distance';
+                metricSelect.value = state.filters.metric;
+                state.filters.dateFrom = competition.date_start || competition.startDate || state.filters.dateFrom;
+                state.filters.dateTo = competition.date_end || competition.endDate || state.filters.dateTo;
+                dateFromInput.value = state.filters.dateFrom;
+                dateToInput.value = state.filters.dateTo;
+                if (competition.participants && competition.participants.length) {
+                    state.filters.users = new Set(competition.participants.map(function (slug) { return String(slug).toLowerCase(); }));
+                    Array.from(userChips.children).forEach(function (chip) {
+                        chip.classList.toggle('inactive', !state.filters.users.has(chip.dataset.slug));
+                    });
+                }
+                const activityTypes = competition.activity_types || competition.activityTypes;
+                if (activityTypes && activityTypes.length) {
+                    state.filters.types = new Set(activityTypes.map(function (type) { return String(type).toLowerCase(); }));
+                    Array.from(typePills.children).forEach(function (pill) {
+                        pill.classList.toggle('inactive', !state.filters.types.has(pill.dataset.type));
+                    });
+                }
+            }
+            StravaApp.fitMapToLayers(state.map, renderedLayers, { padding: [40, 40], maxZoom: 10 });
+            refreshView();
+        }
+
+        initializePage().catch(function (error) {
+            console.error(error);
+        });
+    </script>
+</body>
+
+</html>

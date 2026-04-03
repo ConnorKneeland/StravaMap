@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body{ margin:0; font-family:'Aptos Narrow', sans-serif; background:#000; color:#fff; min-height:100vh; }
+        .glass{ background:rgba(255,255,255,0.18); backdrop-filter:blur(12px) saturate(160%); -webkit-backdrop-filter:blur(12px) saturate(160%); border:1px solid rgba(255,255,255,0.4); border-radius:16px; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.35); font-family:'Aptos Narrow', sans-serif; }
+        .page{ padding:24px; display:grid; gap:24px; }
+        .nav{ display:flex; flex-wrap:wrap; gap:10px; }
+        .nav a{ text-decoration:none; padding:10px 14px; }
+        .layout{ display:grid; grid-template-columns:minmax(280px, 380px) 1fr; gap:24px; align-items:start; }
+        .card{ padding:18px; }
+        .form-grid{ display:grid; gap:12px; }
+        .field{ display:grid; gap:8px; }
+        .input,.select{ width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.12); color:#fff; font:inherit; }
+        .input::-webkit-calendar-picker-indicator{ filter:invert(1); }
+        .select option{ color:#000; }
+        .checkbox-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:8px; }
+        .check{ display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); }
+        .submit{ padding:10px 14px; border:none; cursor:pointer; }
+        .list{ display:grid; gap:16px; }
+        .competition-card{ padding:16px; cursor:pointer; display:grid; gap:10px; }
+        .meta-row,.tag-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+        .tag{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); }
+        .badge{ padding:4px 10px; border-radius:999px; background:rgba(255,255,255,0.2); }
+        @media(max-width:900px){ .layout{ grid-template-columns:1fr; } }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="nav">
+            <a class="glass" href="strava_compare.html">Comparison</a>
+            <a class="glass" href="strava_user.html?user=connor">Connor</a>
+            <a class="glass" href="strava_user.html?user=tim">Tim</a>
+            <a class="glass" href="strava_user.html?user=quinn">Quinn</a>
+        </div>
+        <div class="layout">
+            <div class="glass card">
+                <h2>Create Competition</h2>
+                <form id="competition-form" class="form-grid">
+                    <label class="field">Competition Name<input id="competition-name" class="input" type="text" required /></label>
+                    <label class="field">Metric<select id="competition-metric" class="select">
+                        <option value="distance">distance</option>
+                        <option value="time">time</option>
+                        <option value="count">count</option>
+                        <option value="elevation">elevation</option>
+                    </select></label>
+                    <label class="field">Start Date<input id="competition-start" class="input" type="date" required /></label>
+                    <label class="field">End Date<input id="competition-end" class="input" type="date" required /></label>
+                    <div class="field"><span>Participants</span><div id="participant-list" class="checkbox-grid"></div></div>
+                    <div class="field"><span>Activity Types</span><div id="activity-type-list" class="checkbox-grid"></div></div>
+                    <button class="glass submit" type="submit">Create Competition</button>
+                </form>
+            </div>
+            <div class="list" id="competition-list"></div>
+        </div>
+    </div>
+
+    <script src="js/strava_shared.js"></script>
+    <script>
+        const userOrder = ['connor', 'tim', 'quinn'];
+        const commonTypes = ['run', 'ride', 'swim', 'walk', 'alpineski', 'backcountryski', 'nordicski', 'snowboard', 'golf'];
+        const form = document.getElementById('competition-form');
+        const participantList = document.getElementById('participant-list');
+        const activityTypeList = document.getElementById('activity-type-list');
+        const competitionList = document.getElementById('competition-list');
+
+        function buildCheckboxList(container, entries, key) {
+            container.innerHTML = '';
+            entries.forEach(function (entry) {
+                const label = document.createElement('label');
+                label.className = 'check';
+                label.innerHTML = `<input type="checkbox" name="${key}" value="${entry.value}"><span>${entry.label}</span>`;
+                container.appendChild(label);
+            });
+        }
+
+        function getStatus(competition) {
+            const today = new Date().toISOString().split('T')[0];
+            const endDate = competition.date_end || competition.endDate;
+            if (competition.status === 'archived') {
+                return 'archived';
+            }
+            return endDate && endDate < today ? 'completed' : 'active';
+        }
+
+        function getLocalCompetitions() {
+            return JSON.parse(window.localStorage.getItem('strava_competitions') || '[]');
+        }
+
+        function saveLocalCompetitions(competitions) {
+            window.localStorage.setItem('strava_competitions', JSON.stringify(competitions));
+        }
+
+        async function loadCompetitions() {
+            if (window.STRAVA_CONFIG.apiBase) {
+                return StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, '/api/competitions');
+            }
+            return getLocalCompetitions();
+        }
+
+        async function createCompetition(competition) {
+            if (window.STRAVA_CONFIG.apiBase) {
+                return StravaApp.apiPost(window.STRAVA_CONFIG.apiBase, '/api/competitions', competition);
+            }
+            const competitions = getLocalCompetitions();
+            competitions.unshift(competition);
+            saveLocalCompetitions(competitions);
+            return competition;
+        }
+
+        function renderCompetitions(competitions) {
+            competitionList.innerHTML = '';
+            competitions.forEach(function (competition) {
+                const card = document.createElement('div');
+                const participants = competition.participants || [];
+                const activityTypes = competition.activity_types || competition.activityTypes || [];
+                const status = getStatus(competition);
+                card.className = 'glass competition-card';
+                card.innerHTML = `
+                    <div class="meta-row"><strong>${competition.name}</strong><span class="badge">${status}</span></div>
+                    <div>${competition.date_start || competition.startDate} to ${competition.date_end || competition.endDate}</div>
+                    <div class="meta-row"><span>Metric: ${competition.metric}</span></div>
+                    <div class="tag-row">${activityTypes.map(function (type) { return `<span class="tag">${StravaApp.getActivityLabel(type)}</span>`; }).join('')}</div>
+                    <div class="tag-row">${participants.map(function (slug) {
+                        const config = StravaApp.USER_CONFIGS[String(slug).toLowerCase()];
+                        return `<span class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${config.color};display:inline-block;"></span>${config.displayName}</span>`;
+                    }).join('')}</div>
+                `;
+                card.addEventListener('click', function () {
+                    const identifier = competition.id || competition._id;
+                    window.location.href = `strava_compare.html?competition=${encodeURIComponent(identifier)}`;
+                });
+                competitionList.appendChild(card);
+            });
+        }
+
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const competition = {
+                id: Date.now().toString(),
+                name: document.getElementById('competition-name').value.trim(),
+                metric: document.getElementById('competition-metric').value,
+                date_start: document.getElementById('competition-start').value,
+                date_end: document.getElementById('competition-end').value,
+                participants: Array.from(form.querySelectorAll('input[name="participants"]:checked')).map(function (input) { return input.value; }),
+                activity_types: Array.from(form.querySelectorAll('input[name="activity_types"]:checked')).map(function (input) { return input.value; }),
+                status: 'active'
+            };
+            await createCompetition(competition);
+            form.reset();
+            renderCompetitions(await loadCompetitions());
+        });
+
+        buildCheckboxList(participantList, userOrder.map(function (slug) {
+            return { value: slug, label: StravaApp.USER_CONFIGS[slug].displayName };
+        }), 'participants');
+        buildCheckboxList(activityTypeList, commonTypes.map(function (type) {
+            return { value: type, label: StravaApp.getActivityLabel(type) };
+        }), 'activity_types');
+        loadCompetitions().then(renderCompetitions).catch(function (error) {
+            console.error(error);
+        });
+    </script>
+</body>
+
+</html>
