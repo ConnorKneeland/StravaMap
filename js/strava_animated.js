@@ -3,7 +3,7 @@
 
     const StravaAnimated = {
         ANIMATE_COUNT: 3,
-        CLUSTER_DISTANCE_MILES: 25,
+        CLUSTER_DISTANCE_MILES: 18,
         POST_ANIMATION_DELAY_MS: 3000,
         MIN_DURATION_MS: 1800,
         MAX_DURATION_MS: 9000,
@@ -35,40 +35,69 @@
         return [center.lat, center.lng];
     }
 
+    function getDescriptorTimestamp(descriptor) {
+        return new Date(descriptor.activity.start_date || 0).getTime();
+    }
+
+    function getAnchorPoint(descriptor) {
+        if (Array.isArray(descriptor.activity.start_latlng) && descriptor.activity.start_latlng.length === 2) {
+            return descriptor.activity.start_latlng;
+        }
+        if (descriptor.coordinates && descriptor.coordinates.length) {
+            return descriptor.coordinates[0];
+        }
+        return descriptorCenter(descriptor);
+    }
+
+    function getDescriptorDistance(descriptor, anchorPoint) {
+        const points = [];
+        if (Array.isArray(descriptor.activity.start_latlng) && descriptor.activity.start_latlng.length === 2) {
+            points.push(descriptor.activity.start_latlng);
+        }
+        if (Array.isArray(descriptor.activity.end_latlng) && descriptor.activity.end_latlng.length === 2) {
+            points.push(descriptor.activity.end_latlng);
+        }
+        if (descriptor.coordinates && descriptor.coordinates.length) {
+            points.push(descriptor.coordinates[0]);
+            points.push(descriptor.coordinates[descriptor.coordinates.length - 1]);
+        }
+        points.push(descriptorCenter(descriptor));
+        return Math.min.apply(null, points.map(function (point) {
+            return haversineMiles(anchorPoint, point);
+        }));
+    }
+
     function selectRecentDescriptors(descriptors, count) {
         const eligible = (descriptors || []).filter(function (descriptor) {
             return descriptor && descriptor.coordinates && descriptor.coordinates.length > 1;
+        }).slice().sort(function (left, right) {
+            return getDescriptorTimestamp(right) - getDescriptorTimestamp(left);
         });
         if (!eligible.length) {
             return { animated: [], remaining: [], center: null, bounds: null };
         }
 
         const limit = typeof count === 'number' ? count : StravaAnimated.ANIMATE_COUNT;
-        const selected = [eligible[0]];
-        const selectedKeys = new Set([eligible[0].meta.activityKey]);
-        const anchorCenter = descriptorCenter(eligible[0]);
-        const bounds = window.L.latLngBounds(eligible[0].coordinates);
-
-        for (let index = 1; index < eligible.length && selected.length < limit; index += 1) {
-            const descriptor = eligible[index];
-            const center = descriptorCenter(descriptor);
-            const clusterCenter = bounds.getCenter();
-            const withinAnchorRange = haversineMiles(anchorCenter, center) <= StravaAnimated.CLUSTER_DISTANCE_MILES;
-            const withinClusterRange = haversineMiles(center, [clusterCenter.lat, clusterCenter.lng]) <= StravaAnimated.CLUSTER_DISTANCE_MILES;
-            if (withinAnchorRange || withinClusterRange) {
-                selected.push(descriptor);
-                selectedKeys.add(descriptor.meta.activityKey);
-                bounds.extend(window.L.latLngBounds(descriptor.coordinates));
-            }
-        }
+        const anchorDescriptor = eligible[0];
+        const anchorPoint = getAnchorPoint(anchorDescriptor);
+        const selected = eligible.filter(function (descriptor) {
+            return getDescriptorDistance(descriptor, anchorPoint) <= StravaAnimated.CLUSTER_DISTANCE_MILES;
+        }).slice(0, limit);
+        const selectedKeys = new Set(selected.map(function (descriptor) {
+            return descriptor.meta.activityKey;
+        }));
+        const bounds = window.L.latLngBounds([]);
+        selected.forEach(function (descriptor) {
+            bounds.extend(window.L.latLngBounds(descriptor.coordinates));
+        });
 
         return {
             animated: selected,
-            remaining: eligible.filter(function (descriptor) {
+            remaining: (descriptors || []).filter(function (descriptor) {
                 return !selectedKeys.has(descriptor.meta.activityKey);
             }),
-            center: bounds.getCenter(),
-            bounds: bounds
+            center: bounds.isValid() ? bounds.getCenter() : window.L.latLng(anchorPoint[0], anchorPoint[1]),
+            bounds: bounds.isValid() ? bounds : window.L.latLngBounds(anchorDescriptor.coordinates)
         };
     }
 
@@ -147,12 +176,10 @@
         });
     }
 
-    async function animateRecentDescriptors(map, descriptors) {
-        const layers = [];
-        for (let index = 0; index < descriptors.length; index += 1) {
-            layers.push(await animateDescriptor(map, descriptors[index]));
-        }
-        return layers;
+    function animateRecentDescriptors(map, descriptors) {
+        return Promise.all((descriptors || []).map(function (descriptor) {
+            return animateDescriptor(map, descriptor);
+        }));
     }
 
     StravaAnimated.selectRecentDescriptors = selectRecentDescriptors;

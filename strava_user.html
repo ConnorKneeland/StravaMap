@@ -7,38 +7,38 @@
     <style>
         #map { height:100vh; width:100vw; margin:0; padding:0; display:block; }
         #analytics{ margin-top:5vh; height:100vh; width:100vw; display:none; overflow-y:scroll; padding:20px; box-sizing:border-box; background:#fff; }
-        body{ margin:0; font-family:'Aptos Narrow', sans-serif; padding:0; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100vh; background:#000; }
-        h1{ position:fixed; top:0; left:50%; transform:translateX(-50%); z-index:1200; padding:8px 10px; color:#fff; font-size:64px; font-weight:600; font-family:'Aptos Narrow', sans-serif; letter-spacing:1px; border-radius:16px; background:rgba(255,255,255,0.18); backdrop-filter:blur(12px) saturate(160%); -webkit-backdrop-filter:blur(12px) saturate(160%); border:1px solid rgba(255,255,255,0.4); text-shadow:0 2px 6px rgba(0,0,0,0.35); pointer-events:none; transition:opacity 1.5s ease; }
+        body{ margin:0; font-family:'Aptos Narrow', sans-serif; padding:0; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100vh; background:#000; color:#fff; }
+        h1{ position:fixed; top:0; left:50%; transform:translateX(-50%); z-index:1200; padding:8px 14px; color:#fff; font-size:64px; font-weight:600; font-family:'Aptos Narrow', sans-serif; letter-spacing:1px; border-radius:16px; background:rgba(10,12,16,0.92); border:1px solid rgba(255,255,255,0.12); box-shadow:0 10px 30px rgba(0,0,0,0.35); pointer-events:none; transition:opacity 1.5s ease; }
         h1.faded { opacity:0; }
         @media(max-width:1310px){h1{font-size:48px;}}
         @media(max-width:1000px){h1{font-size:36px;}}
         @media(max-width:775px){h1{font-size:24px;}}
         @media(max-width:600px){h1{display:none;}}
-        #toggle-btn{ position:absolute; top:10px; right:10px; z-index:1300; background:#fff; padding:10px 20px; border:none; font-size:16px; cursor:pointer; }
+        #toggle-btn{ position:absolute; top:10px; right:10px; z-index:1300; background:rgba(10,12,16,0.96); color:#fff; padding:10px 20px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; font-size:16px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,0.28); }
         .chart-container{ width:100%; height:600px; margin-bottom:40px; }
         #preload{ position:fixed; inset:0; background:#000; z-index:2000; opacity:1; pointer-events:none; }
         #preload.fade{ animation:preFade 1s forwards ease; }
         @keyframes preFade{ to{ opacity:0; visibility:hidden; } }
-        #splash{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.15); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); z-index:1500; pointer-events:none; opacity:1; }
+        #splash{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.82); z-index:1500; pointer-events:none; opacity:1; }
         #splash.fade-out{ animation:splashFade 2s forwards ease; }
         @keyframes splashFade{ to{ opacity:0; visibility:hidden; } }
         .splash-text{ font-family:'Aptos Narrow', sans-serif; font-size:clamp(32px,8vw,96px); font-weight:700; color:#fff; text-align:center; text-shadow:0 4px 12px rgba(0,0,0,0.3); padding:0 6vw; line-height:1.2; }
-        .glass-panel,.glass-link{ background:rgba(255,255,255,0.18); backdrop-filter:blur(12px) saturate(160%); -webkit-backdrop-filter:blur(12px) saturate(160%); border:1px solid rgba(255,255,255,0.4); border-radius:16px; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.35); font-family:'Aptos Narrow', sans-serif; }
+        .panel-surface,.nav-link{ background:rgba(10,12,16,0.94); border:1px solid rgba(255,255,255,0.12); border-radius:16px; color:#fff; box-shadow:0 16px 38px rgba(0,0,0,0.35); font-family:'Aptos Narrow', sans-serif; }
         #filter-panel{ position:fixed; top:12px; left:12px; z-index:1250; width:min(340px, calc(100vw - 24px)); padding:12px; box-sizing:border-box; }
-        #filter-toggle{ display:flex; align-items:center; justify-content:space-between; width:100%; background:transparent; border:none; color:#fff; font:inherit; cursor:pointer; padding:0; }
+        #filter-toggle{ display:flex; align-items:center; justify-content:space-between; width:100%; background:transparent; border:none; color:#fff; font:inherit; font-weight:600; cursor:pointer; padding:0; }
         #filter-body{ margin-top:12px; display:grid; gap:12px; }
         .filter-row{ display:grid; gap:8px; }
-        .filter-row label,.filter-meta{ font-size:16px; }
+        .filter-row label,.filter-meta{ font-size:16px; color:#d3dae3; }
         .date-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .filter-input,.type-pill{ background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); color:#fff; border-radius:10px; font:inherit; }
+        .filter-input,.type-pill{ background:#0d1117; border:1px solid rgba(255,255,255,0.12); color:#fff; border-radius:10px; font:inherit; }
         .filter-input{ padding:8px 10px; }
         .filter-input::-webkit-calendar-picker-indicator{ filter:invert(1); }
         #type-pills{ display:flex; flex-wrap:wrap; gap:8px; }
         .type-pill{ padding:6px 12px; cursor:pointer; }
-        .type-pill.inactive{ opacity:0.3; }
-        .type-pill.active{ border-color:rgba(255,255,255,0.75); }
+        .type-pill.inactive{ opacity:0.45; border-color:rgba(255,255,255,0.08); }
+        .type-pill.active{ border-color:rgba(255,255,255,0.36); background:#161b22; }
         #nav-links{ position:fixed; top:12px; right:170px; z-index:1250; display:flex; gap:10px; }
-        .glass-link{ display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; text-decoration:none; }
+        .nav-link{ display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; text-decoration:none; }
         @media(max-width:600px){ #nav-links{ display:none; } #filter-panel{ width:calc(100vw - 24px); } }
     </style>
 </head>
@@ -47,8 +47,8 @@
     <div id="preload"></div>
     <div id="splash"><div class="splash-text" id="splash-text"></div></div>
     <h1 id="header-title">Strava Map</h1>
-    <div id="filter-panel" class="glass-panel">
-        <button id="filter-toggle" type="button"><span id="filter-toggle-label">▼ Filters</span><span id="filter-toggle-count">0</span></button>
+    <div id="filter-panel" class="panel-surface">
+        <button id="filter-toggle" type="button"><span id="filter-toggle-label">v Filters</span><span id="filter-toggle-count">0</span></button>
         <div id="filter-body">
             <div class="filter-row">
                 <div class="date-grid">
@@ -63,8 +63,8 @@
         </div>
     </div>
     <div id="nav-links">
-        <a class="glass-link" href="strava_compare.html">Comparison</a>
-        <a class="glass-link" href="strava_competitions.html">Competitions</a>
+        <a class="nav-link" href="strava_compare.html">Comparison</a>
+        <a class="nav-link" href="strava_competitions.html">Competitions</a>
     </div>
     <button id="toggle-btn">Show Analytics</button>
     <div id="map"></div>
@@ -145,7 +145,7 @@
         function refreshFilterSummary() {
             const filteredActivities = getFilteredActivities();
             filterToggleCount.textContent = filteredActivities.length;
-            filterToggleLabel.textContent = `${state.filtersCollapsed ? '►' : '▼'} Filters`;
+            filterToggleLabel.textContent = `${state.filtersCollapsed ? '>' : 'v'} Filters`;
             activityCountLabel.textContent = `Showing ${filteredActivities.length} activities`;
             if (state.map) {
                 StravaApp.applyFilters(state.map, state.filters);
@@ -228,6 +228,17 @@
             }
         });
 
+        async function focusAnimatedArea(selection, lineStyle) {
+            if (!selection.bounds || !selection.bounds.isValid()) {
+                return;
+            }
+            state.map.fitBounds(selection.bounds, {
+                padding: lineStyle.isMobile ? [28, 28] : [52, 52],
+                maxZoom: lineStyle.isMobile ? 12 : 13
+            });
+            await StravaApp.wait(450);
+        }
+
         async function loadUserPage() {
             const fallbackCenter = [userConfig.lat, userConfig.lng];
             state.map = StravaApp.initMap('map', fallbackCenter, 8);
@@ -265,6 +276,7 @@
             const animatedSelection = StravaAnimated.selectRecentDescriptors(state.allDescriptors, StravaAnimated.ANIMATE_COUNT);
             const flyCenter = animatedSelection.center ? [animatedSelection.center.lat, animatedSelection.center.lng] : latestCenter;
             await StravaApp.flyIn(state.map, flyCenter);
+            await focusAnimatedArea(animatedSelection, lineStyle);
 
             if (animatedSelection.animated.length) {
                 const animatedLayers = await StravaAnimated.animateRecentDescriptors(state.map, animatedSelection.animated);
