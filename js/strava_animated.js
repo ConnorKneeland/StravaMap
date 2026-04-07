@@ -2,11 +2,11 @@
     'use strict';
 
     const StravaAnimated = {
-        ANIMATE_COUNT: 3,
+        ANIMATE_COUNT: 1,
         CLUSTER_DISTANCE_MILES: 18,
         POST_ANIMATION_DELAY_MS: 3000,
-        MIN_DURATION_MS: 1800,
-        MAX_DURATION_MS: 9000,
+        MIN_DURATION_MS: 4000,
+        MAX_DURATION_MS: 15000,
         DURATION_PER_SECOND: 1.1
     };
 

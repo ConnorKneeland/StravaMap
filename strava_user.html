@@ -2,72 +2,530 @@
 <html>
 
 <head>
+    <!-- Favicon-->
+    <link rel="icon" href="img/Strava_Favicon.png" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
         integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
     <style>
-        #map { height:100vh; width:100vw; margin:0; padding:0; display:block; }
-        #analytics{ margin-top:5vh; height:100vh; width:100vw; display:none; overflow-y:scroll; padding:20px; box-sizing:border-box; background:#fff; }
-        body{ margin:0; font-family:'Aptos Narrow', sans-serif; padding:0; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100vh; background:#000; color:#fff; }
-        h1{ position:fixed; top:0; left:50%; transform:translateX(-50%); z-index:1200; padding:8px 14px; color:#fff; font-size:64px; font-weight:600; font-family:'Aptos Narrow', sans-serif; letter-spacing:1px; border-radius:16px; background:rgba(10,12,16,0.92); border:1px solid rgba(255,255,255,0.12); box-shadow:0 10px 30px rgba(0,0,0,0.35); pointer-events:none; transition:opacity 1.5s ease; }
-        h1.faded { opacity:0; }
-        @media(max-width:1310px){h1{font-size:48px;}}
-        @media(max-width:1000px){h1{font-size:36px;}}
-        @media(max-width:775px){h1{font-size:24px;}}
-        @media(max-width:600px){h1{display:none;}}
-        #toggle-btn{ position:absolute; top:10px; right:10px; z-index:1300; background:rgba(10,12,16,0.96); color:#fff; padding:10px 20px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; font-size:16px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,0.28); }
+        :root{
+            --nav-height:72px;
+            --filter-slot-width:152px;
+            --bg:#05080d;
+            --panel:#0f1722;
+            --panel-strong:#121b28;
+            --panel-deep:#0a0f17;
+            --border:rgba(255,255,255,0.12);
+            --border-strong:rgba(255,255,255,0.2);
+            --text:#f5f7fb;
+            --muted:#aeb7c4;
+            --shadow:0 14px 34px rgba(0,0,0,0.35);
+        }
+        *{ box-sizing:border-box; }
+        body{ margin:0; font-family:'Aptos Narrow', sans-serif; padding:0; overflow:hidden; background:var(--bg); color:var(--text); }
+        #top-nav{
+            position:fixed;
+            top:0;
+            left:0;
+            right:0;
+            height:var(--nav-height);
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            padding:10px 14px;
+            background:rgba(6,9,14,0.96);
+            border-bottom:1px solid rgba(255,255,255,0.08);
+            box-shadow:0 10px 30px rgba(0,0,0,0.28);
+            z-index:1400;
+            overflow:visible;
+        }
+        #nav-left{
+            min-width:0;
+            flex:1 1 auto;
+            display:flex;
+            align-items:center;
+            gap:12px;
+            overflow:visible;
+        }
+        #title-slot{
+            flex:0 0 auto;
+            max-width:260px;
+            overflow:hidden;
+            transition:max-width 0.75s ease, opacity 0.75s ease, transform 0.75s ease, margin 0.75s ease;
+        }
+        #title-slot.is-faded{
+            max-width:0;
+            opacity:0;
+            transform:translateX(-22px);
+            margin-right:-6px;
+        }
+        #page-title{
+            font-size:30px;
+            font-weight:600;
+            color:#fff;
+            letter-spacing:0.5px;
+            white-space:nowrap;
+        }
+        #filter-bar{
+            min-width:0;
+            flex:1 1 auto;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            overflow:visible;
+            scrollbar-width:none;
+        }
+        #filter-bar::-webkit-scrollbar{ display:none; }
+        #primary-filters{
+            flex:1 1 auto;
+            min-width:0;
+            display:flex;
+            gap:10px;
+            overflow:hidden;
+        }
+        .filter-dropdown{
+            position:relative;
+            flex:0 0 auto;
+            z-index:1450;
+        }
+        #primary-filters .filter-dropdown{
+            width:var(--filter-slot-width);
+            min-width:var(--filter-slot-width);
+            max-width:var(--filter-slot-width);
+        }
+        .filter-trigger,
+        .nav-button,
+        .action-button{
+            border:1px solid var(--border);
+            background:var(--panel);
+            color:var(--text);
+            border-radius:12px;
+            font-family:'Aptos Narrow', sans-serif;
+        }
+        .filter-trigger{
+            width:100%;
+            min-width:0;
+            min-height:42px;
+            padding:7px 12px;
+            display:grid;
+            gap:2px;
+            text-align:left;
+            cursor:pointer;
+            box-shadow:var(--shadow);
+        }
+        .filter-trigger.more-trigger{
+            width:auto;
+            min-width:150px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:8px;
+        }
+        .trigger-label{
+            font-size:11px;
+            letter-spacing:0.08em;
+            text-transform:uppercase;
+            color:var(--muted);
+            line-height:1;
+        }
+        .trigger-value{
+            font-size:16px;
+            color:#fff;
+            line-height:1.1;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            max-width:100%;
+        }
+        #filter-count-chip{
+            flex:0 0 auto;
+            padding:10px 12px;
+            border-radius:999px;
+            border:1px solid var(--border);
+            background:var(--panel-deep);
+            color:var(--muted);
+            font-size:15px;
+            white-space:nowrap;
+        }
+        #clear-filters-btn{
+            flex:0 0 auto;
+            padding:10px 14px;
+            font-size:15px;
+        }
+        #clear-filters-btn[disabled]{
+            opacity:0.45;
+            cursor:default;
+        }
+        #nav-right{
+            flex:0 0 auto;
+            display:flex;
+            align-items:center;
+            gap:10px;
+        }
+        .nav-button{
+            padding:10px 16px;
+            font-size:16px;
+            text-decoration:none;
+            cursor:pointer;
+            box-shadow:var(--shadow);
+            white-space:nowrap;
+        }
+        .nav-button:hover,
+        .filter-trigger:hover,
+        .action-button:hover{
+            border-color:var(--border-strong);
+            background:var(--panel-strong);
+        }
+        .filter-menu{
+            position:absolute;
+            top:calc(100% + 10px);
+            left:0;
+            width:320px;
+            padding:12px;
+            display:none;
+            background:rgba(11,16,24,0.98);
+            border:1px solid var(--border);
+            border-radius:16px;
+            box-shadow:0 22px 44px rgba(0,0,0,0.42);
+            z-index:1600;
+        }
+        .filter-dropdown.is-open{ z-index:1600; }
+        .filter-dropdown.is-open .filter-menu{ display:block; }
+        .filter-menu.more-menu{
+            width:380px;
+            right:0;
+            left:auto;
+            max-height:min(68vh, 560px);
+            overflow:auto;
+        }
+        .menu-title{
+            font-size:18px;
+            font-weight:600;
+            margin-bottom:10px;
+        }
+        .menu-options{
+            display:grid;
+            gap:8px;
+            max-height:260px;
+            overflow:auto;
+            padding-right:4px;
+        }
+        .menu-options.more-options{
+            max-height:none;
+            overflow:visible;
+        }
+        .option-row{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            padding:8px 10px;
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:12px;
+            background:#0b1119;
+        }
+        .option-left{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            min-width:0;
+        }
+        .option-left input{ margin:0; }
+        .option-label{
+            font-size:16px;
+            color:#fff;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+        .option-count{
+            color:var(--muted);
+            font-size:14px;
+            flex:0 0 auto;
+        }
+        .color-dot{
+            width:10px;
+            height:10px;
+            border-radius:999px;
+            flex:0 0 auto;
+        }
+        .menu-actions{
+            display:flex;
+            justify-content:flex-end;
+            gap:8px;
+            margin-top:12px;
+        }
+        .action-button{
+            padding:8px 12px;
+            font-size:15px;
+            cursor:pointer;
+        }
+        .action-button.secondary{
+            background:#0b1119;
+            color:var(--muted);
+        }
+        .menu-empty{
+            padding:12px;
+            border:1px dashed rgba(255,255,255,0.12);
+            border-radius:12px;
+            color:var(--muted);
+            font-size:15px;
+        }
+        .more-section{
+            padding-top:12px;
+            margin-top:12px;
+            border-top:1px solid rgba(255,255,255,0.08);
+        }
+        .more-section:first-child{
+            padding-top:0;
+            margin-top:0;
+            border-top:none;
+        }
+        .more-section h3{
+            margin:0 0 8px;
+            font-size:17px;
+            font-weight:600;
+        }
+        #details-panel{
+            position:fixed;
+            top:var(--nav-height);
+            right:0;
+            width:min(25vw, 420px);
+            min-width:320px;
+            height:calc(100vh - var(--nav-height));
+            background:rgba(11,16,24,0.98);
+            border-left:1px solid var(--border);
+            box-shadow:-24px 0 40px rgba(0,0,0,0.32);
+            z-index:1325;
+            display:flex;
+            flex-direction:column;
+            transform:translateX(100%);
+            transition:transform 0.24s ease;
+        }
+        #details-panel.is-open{
+            transform:translateX(0);
+        }
+        .details-header{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            padding:16px 18px 14px;
+            border-bottom:1px solid rgba(255,255,255,0.08);
+        }
+        #details-close{
+            width:34px;
+            height:34px;
+            border-radius:10px;
+            border:1px solid var(--border);
+            background:var(--panel);
+            color:var(--text);
+            font:inherit;
+            font-size:18px;
+            cursor:pointer;
+        }
+        .details-title-wrap{
+            min-width:0;
+            flex:1 1 auto;
+        }
+        #details-title{
+            font-size:22px;
+            font-weight:600;
+            color:#fff;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+        #details-subtitle{
+            margin-top:4px;
+            color:var(--muted);
+            font-size:15px;
+        }
+        #details-body{
+            flex:1 1 auto;
+            overflow:auto;
+            padding:18px;
+            display:grid;
+            gap:12px;
+        }
+        .details-card{
+            background:#0b1119;
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:14px;
+            padding:14px;
+            display:grid;
+            gap:10px;
+        }
+        .details-card-title{
+            font-size:14px;
+            letter-spacing:0.08em;
+            text-transform:uppercase;
+            color:var(--muted);
+        }
+        .details-grid{
+            display:grid;
+            gap:10px;
+        }
+        .details-row{
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:16px;
+        }
+        .details-label{
+            color:var(--muted);
+            font-size:15px;
+        }
+        .details-value{
+            color:#fff;
+            font-size:16px;
+            text-align:right;
+        }
+        .details-note{
+            color:var(--muted);
+            font-size:14px;
+            line-height:1.45;
+        }
+        .details-chart-shell{
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:12px;
+            overflow:hidden;
+            background:#09101a;
+        }
+        .details-chart{
+            width:100%;
+            height:240px;
+        }
+        .leaflet-interactive:focus{
+            outline:none !important;
+        }
+        .leaflet-pane svg path:focus{
+            outline:none !important;
+        }
+        .leaflet-tooltip.strava-tooltip{
+            background:rgba(11,16,24,0.98);
+            border:1px solid var(--border);
+            border-radius:14px;
+            color:var(--text);
+            box-shadow:0 18px 36px rgba(0,0,0,0.32);
+            padding:10px 12px;
+            font-family:'Aptos Narrow', sans-serif;
+        }
+        .leaflet-tooltip-top.strava-tooltip:before{
+            border-top-color:rgba(11,16,24,0.98);
+        }
+        .leaflet-tooltip.strava-tooltip h2,
+        .leaflet-tooltip.strava-tooltip h3{
+            margin:0;
+            font-weight:400;
+            color:var(--text);
+            font-size:15px;
+            line-height:1.35;
+        }
+        .leaflet-tooltip.strava-tooltip b{
+            color:#fff;
+        }
+        .leaflet-tooltip .strava-tooltip-card{
+            display:grid;
+            gap:6px;
+        }
+        .leaflet-tooltip .strava-tooltip-title{
+            font-size:18px;
+            color:#fff;
+            line-height:1.2;
+        }
+        #map{
+            height:calc(100vh - var(--nav-height));
+            width:100vw;
+            margin-top:var(--nav-height);
+            display:block;
+        }
+        #analytics{
+            display:none;
+            margin-top:var(--nav-height);
+            height:calc(100vh - var(--nav-height));
+            width:100vw;
+            overflow-y:auto;
+            padding:20px;
+            background:#fff;
+            color:#111;
+        }
         .chart-container{ width:100%; height:600px; margin-bottom:40px; }
         #preload{ position:fixed; inset:0; background:#000; z-index:2000; opacity:1; pointer-events:none; }
         #preload.fade{ animation:preFade 1s forwards ease; }
         @keyframes preFade{ to{ opacity:0; visibility:hidden; } }
-        #splash{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.82); z-index:1500; pointer-events:none; opacity:1; }
+        #splash{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.84); z-index:1800; pointer-events:none; opacity:1; }
         #splash.fade-out{ animation:splashFade 2s forwards ease; }
         @keyframes splashFade{ to{ opacity:0; visibility:hidden; } }
         .splash-text{ font-family:'Aptos Narrow', sans-serif; font-size:clamp(32px,8vw,96px); font-weight:700; color:#fff; text-align:center; text-shadow:0 4px 12px rgba(0,0,0,0.3); padding:0 6vw; line-height:1.2; }
-        .panel-surface,.nav-link{ background:rgba(10,12,16,0.94); border:1px solid rgba(255,255,255,0.12); border-radius:16px; color:#fff; box-shadow:0 16px 38px rgba(0,0,0,0.35); font-family:'Aptos Narrow', sans-serif; }
-        #filter-panel{ position:fixed; top:12px; left:12px; z-index:1250; width:min(340px, calc(100vw - 24px)); padding:12px; box-sizing:border-box; }
-        #filter-toggle{ display:flex; align-items:center; justify-content:space-between; width:100%; background:transparent; border:none; color:#fff; font:inherit; font-weight:600; cursor:pointer; padding:0; }
-        #filter-body{ margin-top:12px; display:grid; gap:12px; }
-        .filter-row{ display:grid; gap:8px; }
-        .filter-row label,.filter-meta{ font-size:16px; color:#d3dae3; }
-        .date-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .filter-input,.type-pill{ background:#0d1117; border:1px solid rgba(255,255,255,0.12); color:#fff; border-radius:10px; font:inherit; }
-        .filter-input{ padding:8px 10px; }
-        .filter-input::-webkit-calendar-picker-indicator{ filter:invert(1); }
-        #type-pills{ display:flex; flex-wrap:wrap; gap:8px; }
-        .type-pill{ padding:6px 12px; cursor:pointer; }
-        .type-pill.inactive{ opacity:0.45; border-color:rgba(255,255,255,0.08); }
-        .type-pill.active{ border-color:rgba(255,255,255,0.36); background:#161b22; }
-        #nav-links{ position:fixed; top:12px; right:170px; z-index:1250; display:flex; gap:10px; }
-        .nav-link{ display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; text-decoration:none; }
-        @media(max-width:600px){ #nav-links{ display:none; } #filter-panel{ width:calc(100vw - 24px); } }
+        @media(max-width:1200px){
+            :root{ --nav-height:78px; }
+            #page-title{ font-size:26px; }
+            .trigger-value{ max-width:132px; }
+            .nav-button{ padding:10px 14px; }
+            #details-panel{ width:min(32vw, 420px); }
+        }
+        @media(max-width:900px){
+            :root{ --nav-height:74px; }
+            #page-title{ font-size:24px; }
+            .trigger-label{ font-size:10px; }
+            .trigger-value{ font-size:15px; max-width:118px; }
+            .nav-button{ font-size:15px; padding:9px 12px; }
+            #details-panel{ width:75vw; min-width:0; }
+        }
+        @media(max-width:680px){
+            #title-slot{ max-width:180px; }
+            #page-title{ font-size:21px; }
+            .filter-menu{ width:min(92vw, 320px); }
+            .filter-menu.more-menu{ width:min(92vw, 360px); }
+            #clear-filters-btn{ padding:10px 12px; }
+            .details-chart{ height:210px; }
+        }
     </style>
 </head>
 
 <body id="body">
     <div id="preload"></div>
     <div id="splash"><div class="splash-text" id="splash-text"></div></div>
-    <h1 id="header-title">Strava Map</h1>
-    <div id="filter-panel" class="panel-surface">
-        <button id="filter-toggle" type="button"><span id="filter-toggle-label">v Filters</span><span id="filter-toggle-count">0</span></button>
-        <div id="filter-body">
-            <div class="filter-row">
-                <div class="date-grid">
-                    <label>From<input id="date-from" class="filter-input" type="date" /></label>
-                    <label>To<input id="date-to" class="filter-input" type="date" /></label>
+
+    <nav id="top-nav">
+        <div id="nav-left">
+            <div id="title-slot"><div id="page-title">Strava Map</div></div>
+            <div id="filter-bar">
+                <div id="primary-filters"></div>
+                <div id="more-filter-shell" class="filter-dropdown">
+                    <button id="more-filter-trigger" class="filter-trigger more-trigger" type="button">
+                        <span class="trigger-value">More Filters</span>
+                        <span class="trigger-label" id="more-filter-count">0 active</span>
+                    </button>
+                    <div id="more-filter-menu" class="filter-menu more-menu"></div>
                 </div>
+                <div id="filter-count-chip">0 activities</div>
+                <button id="clear-filters-btn" class="nav-button" type="button">Clear Filters</button>
             </div>
-            <div class="filter-row">
-                <div id="type-pills"></div>
-            </div>
-            <div class="filter-meta" id="activity-count-label">Showing 0 activities</div>
         </div>
-    </div>
-    <div id="nav-links">
-        <a class="nav-link" href="strava_compare.html">Comparison</a>
-        <a class="nav-link" href="strava_competitions.html">Competitions</a>
-    </div>
-    <button id="toggle-btn">Show Analytics</button>
+        <div id="nav-right">
+            <a class="nav-button" href="strava_compare.html">Comparison Map</a>
+            <a class="nav-button" href="strava_competitions.html">Competitions Map</a>
+            <button id="toggle-btn" class="nav-button" type="button">Show Analytics</button>
+        </div>
+    </nav>
+
     <div id="map"></div>
+    <aside id="details-panel" aria-hidden="true">
+        <div class="details-header">
+            <button id="details-close" type="button" aria-label="Close details">X</button>
+            <div class="details-title-wrap">
+                <div id="details-title">More Details</div>
+                <div id="details-subtitle">Select a workout to inspect it.</div>
+            </div>
+        </div>
+        <div id="details-body">
+            <div class="details-card">
+                <div class="details-note">Click any route on the map to inspect the workout here.</div>
+            </div>
+        </div>
+    </aside>
     <div id="analytics">
         <div class="chart-container"><br><br><div id="activity-summary" style="font-size:18px; line-height:1.6;"></div></div>
         <hr>
@@ -84,127 +542,1310 @@
         const params = new URLSearchParams(window.location.search);
         const requestedUser = String(params.get('user') || window.STRAVA_PAGE_USER || 'connor').toLowerCase();
         const userConfig = StravaApp.USER_CONFIGS[requestedUser];
+        const ALL_FILTER_KEYS = ['activityType', 'monthYear', 'year', 'date', 'season', 'timeOfDay', 'city', 'regionState', 'country'];
+        const SPEED_PANE_NAME = 'strava-speed-pane';
+        const SPEED_STREAM_OPTIONS = { resolution: 'medium', seriesType: 'time' };
+        const SPEED_COLOR_SCALE = ['#315980', '#4d78a2', '#7ea6c8', '#d6dee9', '#e6c18f', '#db945d', '#c86647'];
+        const SPEED_SMOOTHING_RADIUS = 2;
+        const SPEED_SEGMENT_SUBDIVISIONS = 4;
+        const DETAILS_SPEED_CHART_ID = 'details-speed-chart';
+        const FILTER_DEFINITIONS = {
+            activityType: { label: 'Activity Type', placeholder: 'All Activities' },
+            monthYear: { label: 'Month Year', placeholder: 'All Months' },
+            year: { label: 'Year', placeholder: 'All Years' },
+            date: { label: 'Date', placeholder: 'All Dates' },
+            season: { label: 'Season', placeholder: 'All Seasons' },
+            timeOfDay: { label: 'Time of Day', placeholder: 'All Times' },
+            city: { label: 'City', placeholder: 'All Cities' },
+            regionState: { label: 'State', placeholder: 'All States' },
+            country: { label: 'Country', placeholder: 'All Countries' }
+        };
+        const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const SEASON_ORDER = { Winter: 0, Spring: 1, Summer: 2, Autumn: 3 };
+        const TIME_OF_DAY_ORDER = {
+            'Before 8:00am': 0,
+            '8:00am - 12:00pm': 1,
+            '12:00pm to 4:00pm': 2,
+            '4:00pm to 9:00pm': 3,
+            '9:00pm to 12:00am': 4,
+            'WHY?': 5
+        };
+        const US_STATE_ABBREVIATIONS = {
+            alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO',
+            connecticut: 'CT', delaware: 'DE', florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID',
+            illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY', louisiana: 'LA',
+            maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS',
+            missouri: 'MO', montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH',
+            'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC',
+            'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA',
+            'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN', texas: 'TX',
+            utah: 'UT', vermont: 'VT', virginia: 'VA', washington: 'WA', 'west virginia': 'WV',
+            wisconsin: 'WI', wyoming: 'WY', 'district of columbia': 'DC'
+        };
         const body = document.getElementById('body');
         const mapDiv = document.getElementById('map');
         const analyticsDiv = document.getElementById('analytics');
-        const headerTitle = document.getElementById('header-title');
-        const filterPanel = document.getElementById('filter-panel');
-        const navLinks = document.getElementById('nav-links');
+        const titleSlot = document.getElementById('title-slot');
+        const pageTitle = document.getElementById('page-title');
+        const filterBar = document.getElementById('filter-bar');
+        const primaryFilters = document.getElementById('primary-filters');
+        const moreFilterShell = document.getElementById('more-filter-shell');
+        const moreFilterTrigger = document.getElementById('more-filter-trigger');
+        const moreFilterMenu = document.getElementById('more-filter-menu');
+        const moreFilterCount = document.getElementById('more-filter-count');
+        const filterCountChip = document.getElementById('filter-count-chip');
+        const clearFiltersButton = document.getElementById('clear-filters-btn');
         const toggleButton = document.getElementById('toggle-btn');
-        const filterToggle = document.getElementById('filter-toggle');
-        const filterToggleLabel = document.getElementById('filter-toggle-label');
-        const filterToggleCount = document.getElementById('filter-toggle-count');
-        const filterBody = document.getElementById('filter-body');
-        const dateFromInput = document.getElementById('date-from');
-        const dateToInput = document.getElementById('date-to');
-        const typePills = document.getElementById('type-pills');
-        const activityCountLabel = document.getElementById('activity-count-label');
+        const detailsPanel = document.getElementById('details-panel');
+        const detailsClose = document.getElementById('details-close');
+        const detailsTitle = document.getElementById('details-title');
+        const detailsSubtitle = document.getElementById('details-subtitle');
+        const detailsBody = document.getElementById('details-body');
         const splashText = document.getElementById('splash-text');
+
+        function createEmptySelections() {
+            return ALL_FILTER_KEYS.reduce(function (selections, key) {
+                selections[key] = new Set();
+                return selections;
+            }, {});
+        }
+
         const state = {
             map: null,
+            accessToken: '',
             analyticsVisible: false,
-            filtersCollapsed: false,
-            allActivities: [],
             allDescriptors: [],
             renderedKeys: new Set(),
-            filters: { types: new Set(), dateFrom: '', dateTo: '', users: new Set([requestedUser]) }
+            activityItems: [],
+            activityItemsByKey: new Map(),
+            filterOptions: {},
+            appliedFilters: createEmptySelections(),
+            draftFilters: createEmptySelections(),
+            primaryFilterKeys: ALL_FILTER_KEYS.slice(0, 4),
+            moreFilterKeys: ALL_FILTER_KEYS.slice(4),
+            titleDismissed: false,
+            selectedLayer: null,
+            activeDetailKey: '',
+            detailPromises: new Map(),
+            streamPromises: new Map(),
+            resizeFrame: 0
         };
 
         StravaApp.setupSplashScreen();
 
         if (!userConfig) {
-            headerTitle.textContent = 'Unknown User';
+            pageTitle.textContent = 'Unknown Map';
             splashText.textContent = 'Unknown user';
-            throw new Error(`Unknown user: ${requestedUser}`);
+            throw new Error('Unknown user: ' + requestedUser);
         }
 
-        document.title = `${userConfig.displayName} Strava`;
-        headerTitle.textContent = userConfig.title;
-        window.setTimeout(function () {
-            headerTitle.classList.add('faded');
-        }, 5000);
+        document.title = userConfig.displayName + ' Map';
+        pageTitle.textContent = userConfig.displayName + ' Map';
 
-        function setOverlayVisibility(isMapVisible) {
-            const titleVisible = isMapVisible && window.innerWidth > 600;
-            headerTitle.style.display = titleVisible ? 'block' : 'none';
-            filterPanel.style.display = isMapVisible ? 'block' : 'none';
-            navLinks.style.display = isMapVisible && window.innerWidth > 600 ? 'flex' : 'none';
+        function cleanText(value) {
+            const text = String(value || '').trim();
+            if (!text || text.toLowerCase() === 'null' || text.toLowerCase() === 'undefined') {
+                return '';
+            }
+            return text;
         }
 
-        function getFilteredActivities() {
-            return StravaApp.filterActivities(state.allActivities, state.filters, requestedUser);
+        function normalizeStateAbbreviation(value) {
+            const cleaned = cleanText(value);
+            if (!cleaned) {
+                return '';
+            }
+            if (cleaned.length <= 3) {
+                return cleaned.toUpperCase();
+            }
+            return US_STATE_ABBREVIATIONS[cleaned.toLowerCase()] || cleaned;
+        }
+
+        function getActivityDate(activity) {
+            return StravaApp.parseDateValue(getDisplayDateTime(activity)) || new Date(activity.start_date || 0);
+        }
+
+        function getActivityDateValue(activity) {
+            const displayDateTime = getDisplayDateTime(activity);
+            if (displayDateTime) {
+                return String(displayDateTime).split('T')[0];
+            }
+            return String(activity.start_date || '').split('T')[0];
+        }
+
+        function getSeason(date) {
+            const month = date.getMonth();
+            if (month === 11 || month === 0 || month === 1) {
+                return 'Winter';
+            }
+            if (month >= 2 && month <= 4) {
+                return 'Spring';
+            }
+            if (month >= 5 && month <= 7) {
+                return 'Summer';
+            }
+            return 'Autumn';
+        }
+
+        function getTimeOfDayLabel(date) {
+            const hour = date.getHours() + (date.getMinutes() / 60);
+            if (hour < 3) {
+                return 'WHY?';
+            }
+            if (hour < 8) {
+                return 'Before 8:00am';
+            }
+            if (hour < 12) {
+                return '8:00am - 12:00pm';
+            }
+            if (hour < 16) {
+                return '12:00pm to 4:00pm';
+            }
+            if (hour < 21) {
+                return '4:00pm to 9:00pm';
+            }
+            return '9:00pm to 12:00am';
+        }
+
+        function buildActivityFilterMeta(activity) {
+            const normalized = StravaApp.normalizeActivityRecord(activity);
+            const date = getActivityDate(normalized);
+            const year = String(date.getFullYear());
+            const monthIndex = date.getMonth();
+            const monthYearValue = year + '-' + String(monthIndex + 1).padStart(2, '0');
+            const displayDateTime = getDisplayDateTime(normalized);
+            const regionState = normalizeStateAbbreviation(normalized.location_state || normalized.state);
+            const cityName = cleanText(normalized.location_city || normalized.city);
+            const country = cleanText(normalized.location_country || normalized.country);
+            const city = cityName ? cityName + (regionState ? ', ' + regionState : '') : '';
+            const dateValue = getActivityDateValue(normalized);
+            const activityType = StravaApp.normalizeActivityType(normalized);
+            return {
+                key: StravaApp.getActivityKey(normalized),
+                activityType: activityType,
+                activityTypeLabel: StravaApp.getActivityLabel(activityType),
+                color: StravaApp.getActivityColor(normalized),
+                monthYear: monthYearValue,
+                monthYearLabel: MONTH_NAMES[monthIndex] + ' ' + year,
+                year: year,
+                date: dateValue,
+                dateLabel: StravaApp.formatDate(displayDateTime),
+                season: getSeason(date),
+                timeOfDay: getTimeOfDayLabel(date),
+                city: city,
+                regionState: regionState,
+                country: country
+            };
+        }
+
+        function buildOptionCollections(activityItems) {
+            const collections = {
+                activityType: new Map(),
+                monthYear: new Map(),
+                year: new Map(),
+                date: new Map(),
+                season: new Map(),
+                timeOfDay: new Map(),
+                city: new Map(),
+                regionState: new Map(),
+                country: new Map()
+            };
+
+            function addOption(map, value, label, extras) {
+                if (!value) {
+                    return;
+                }
+                if (!map.has(value)) {
+                    map.set(value, Object.assign({ value: value, label: label, count: 0 }, extras || {}));
+                }
+                map.get(value).count += 1;
+            }
+
+            activityItems.forEach(function (item) {
+                const meta = item.filterMeta;
+                addOption(collections.activityType, meta.activityType, meta.activityTypeLabel, { color: meta.color, sortValue: meta.activityTypeLabel.toLowerCase() });
+                addOption(collections.monthYear, meta.monthYear, meta.monthYearLabel, { sortValue: meta.monthYear });
+                addOption(collections.year, meta.year, meta.year, { sortValue: Number(meta.year) });
+                addOption(collections.date, meta.date, meta.dateLabel, { sortValue: meta.date });
+                addOption(collections.season, meta.season, meta.season, { sortValue: SEASON_ORDER[meta.season] });
+                addOption(collections.timeOfDay, meta.timeOfDay, meta.timeOfDay, { sortValue: TIME_OF_DAY_ORDER[meta.timeOfDay] });
+                addOption(collections.city, meta.city, meta.city, { sortValue: meta.city.toLowerCase() });
+                addOption(collections.regionState, meta.regionState, meta.regionState, { sortValue: meta.regionState });
+                addOption(collections.country, meta.country, meta.country, { sortValue: meta.country.toLowerCase() });
+            });
+
+            return {
+                activityType: Array.from(collections.activityType.values()).sort(function (left, right) { return String(left.sortValue).localeCompare(String(right.sortValue)); }),
+                monthYear: Array.from(collections.monthYear.values()).sort(function (left, right) { return String(right.sortValue).localeCompare(String(left.sortValue)); }),
+                year: Array.from(collections.year.values()).sort(function (left, right) { return right.sortValue - left.sortValue; }),
+                date: Array.from(collections.date.values()).sort(function (left, right) { return String(right.sortValue).localeCompare(String(left.sortValue)); }),
+                season: Array.from(collections.season.values()).sort(function (left, right) { return left.sortValue - right.sortValue; }),
+                timeOfDay: Array.from(collections.timeOfDay.values()).sort(function (left, right) { return left.sortValue - right.sortValue; }),
+                city: Array.from(collections.city.values()).sort(function (left, right) { return String(left.sortValue).localeCompare(String(right.sortValue)); }),
+                regionState: Array.from(collections.regionState.values()).sort(function (left, right) { return String(left.sortValue).localeCompare(String(right.sortValue)); }),
+                country: Array.from(collections.country.values()).sort(function (left, right) { return String(left.sortValue).localeCompare(String(right.sortValue)); })
+            };
+        }
+
+        function getDisplayDateTime(activity) {
+            return activity.start_date_local || activity.start_date || '';
+        }
+
+        function formatStartDateTime(activity) {
+            const dateTime = getDisplayDateTime(activity);
+            const dateLabel = StravaApp.formatDate(dateTime);
+            const timeLabel = StravaApp.formatClockTime(dateTime);
+            return timeLabel ? dateLabel + ' at ' + timeLabel : dateLabel;
+        }
+
+        function formatDistanceLabel(activity) {
+            return StravaApp.getMiles(Number(activity.distance || 0)).toFixed(2) + ' miles';
+        }
+
+        function formatElevationFeet(activity) {
+            return (Number(activity.total_elevation_gain || 0) * 3.28084).toFixed(0) + ' ft';
+        }
+
+        function formatAverageMetric(activity) {
+            const averageSpeedMph = Number(activity.average_speed || 0) * 2.2369362920544;
+            const type = String(activity.type || '');
+            if (type === 'Ride' || type === 'Swim' || type === 'AlpineSki' || type === 'BackcountrySki' || type === 'NordicSki' || type === 'Snowboard' || type === 'Golf') {
+                return averageSpeedMph.toFixed(2) + ' mph';
+            }
+            return averageSpeedMph > 0 ? StravaApp.convertMphToPace(averageSpeedMph) : 'N/A';
+        }
+
+        function formatMaxMetric(activity) {
+            const maxSpeedMph = Number(activity.max_speed || 0) * 2.2369362920544;
+            const type = String(activity.type || '');
+            if (type === 'Ride' || type === 'Swim' || type === 'AlpineSki' || type === 'BackcountrySki' || type === 'NordicSki' || type === 'Snowboard' || type === 'Golf') {
+                return maxSpeedMph.toFixed(2) + ' mph';
+            }
+            return maxSpeedMph > 0 ? StravaApp.convertMphToPace(maxSpeedMph) : 'N/A';
+        }
+
+        function formatSpeedValue(speedMetersPerSecond) {
+            const speed = Number(speedMetersPerSecond || 0);
+            return speed > 0 ? (speed * 2.2369362920544).toFixed(2) + ' mph' : 'N/A';
+        }
+
+        function getActivityId(activity) {
+            return Number(activity && (activity.id || activity.strava_id) || 0);
+        }
+
+        function normalizeStreamPayload(streamData) {
+            return {
+                latlng: Array.isArray(streamData && streamData.latlng) ? streamData.latlng : Array.isArray(streamData && streamData.stream_latlng) ? streamData.stream_latlng : [],
+                velocity_smooth: Array.isArray(streamData && streamData.velocity_smooth) ? streamData.velocity_smooth : Array.isArray(streamData && streamData.stream_velocity_smooth) ? streamData.stream_velocity_smooth : [],
+                time: Array.isArray(streamData && streamData.time) ? streamData.time : Array.isArray(streamData && streamData.stream_time) ? streamData.stream_time : [],
+                resolution: streamData && (streamData.resolution || streamData.stream_resolution) ? streamData.resolution || streamData.stream_resolution : SPEED_STREAM_OPTIONS.resolution,
+                series_type: streamData && (streamData.series_type || streamData.stream_series_type) ? streamData.series_type || streamData.stream_series_type : SPEED_STREAM_OPTIONS.seriesType,
+                cached: Boolean(streamData && streamData.cached),
+                fetched_at: streamData && (streamData.fetched_at || streamData.stream_fetched_at) ? streamData.fetched_at || streamData.stream_fetched_at : ''
+            };
+        }
+
+        function smoothNumericSeries(values, radius) {
+            return values.map(function (_, index) {
+                let sum = 0;
+                let count = 0;
+                for (let offset = -radius; offset <= radius; offset += 1) {
+                    const value = Number(values[index + offset]);
+                    if (Number.isFinite(value) && value >= 0) {
+                        sum += value;
+                        count += 1;
+                    }
+                }
+                return count ? sum / count : Number(values[index] || 0);
+            });
+        }
+
+        function getStreamTimes(activity, normalizedStream, pointCount) {
+            const timeValues = Array.isArray(normalizedStream.time) ? normalizedStream.time.map(function (value) {
+                return Number(value);
+            }).filter(function (value) {
+                return Number.isFinite(value) && value >= 0;
+            }) : [];
+            if (timeValues.length === pointCount) {
+                return timeValues;
+            }
+            const elapsedSeconds = Number(activity.elapsed_time || 0);
+            if (pointCount <= 1) {
+                return [0];
+            }
+            return Array.from({ length: pointCount }, function (_, index) {
+                return (elapsedSeconds * index) / (pointCount - 1);
+            });
+        }
+
+        function getSpeedStats(activity, streamData, renderedSpeeds) {
+            const speeds = normalizeStreamPayload(streamData).velocity_smooth.map(function (value) {
+                return Number(value);
+            }).filter(function (value) {
+                return Number.isFinite(value) && value >= 0;
+            });
+            if (!speeds.length) {
+                return null;
+            }
+            const min = Math.min.apply(null, speeds);
+            const max = Math.max.apply(null, speeds);
+            let average = Number(activity.average_speed || 0);
+            if (!(average > 0)) {
+                average = speeds.reduce(function (sum, value) { return sum + value; }, 0) / speeds.length;
+            }
+            average = Math.max(min, Math.min(max, average));
+            return {
+                min: min,
+                average: average,
+                max: max,
+                renderedMin: renderedSpeeds && renderedSpeeds.length ? Math.min.apply(null, renderedSpeeds) : min,
+                renderedMax: renderedSpeeds && renderedSpeeds.length ? Math.max.apply(null, renderedSpeeds) : max
+            };
+        }
+
+        function buildSpeedSeriesData(activity, streamData) {
+            const normalizedStream = normalizeStreamPayload(streamData);
+            const rawSpeeds = normalizedStream.velocity_smooth.map(function (value) {
+                return Number(value);
+            }).filter(function (value) {
+                return Number.isFinite(value) && value >= 0;
+            });
+            if (!rawSpeeds.length) {
+                return null;
+            }
+            const smoothedSpeeds = smoothNumericSeries(rawSpeeds, SPEED_SMOOTHING_RADIUS);
+            const times = getStreamTimes(activity, normalizedStream, smoothedSpeeds.length);
+            const stats = getSpeedStats(activity, normalizedStream, smoothedSpeeds);
+            return {
+                stream: normalizedStream,
+                rawSpeeds: rawSpeeds,
+                smoothedSpeeds: smoothedSpeeds,
+                times: times,
+                mphValues: smoothedSpeeds.map(function (value) { return value * 2.2369362920544; }),
+                stats: stats
+            };
+        }
+
+        function getSpeedBucketIndex(speed, stats) {
+            if (!stats || !(stats.max > stats.min)) {
+                return 3;
+            }
+            const lowerSpan = Math.max(stats.average - stats.min, 0.00001);
+            const upperSpan = Math.max(stats.max - stats.average, 0.00001);
+            const neutralHalfSpan = Math.min(lowerSpan, upperSpan) * 0.18;
+            const neutralLow = stats.average - neutralHalfSpan;
+            const neutralHigh = stats.average + neutralHalfSpan;
+            if (speed >= neutralLow && speed <= neutralHigh) {
+                return 3;
+            }
+            if (speed < neutralLow) {
+                const slowRatio = (speed - stats.min) / Math.max(neutralLow - stats.min, 0.00001);
+                return Math.max(0, Math.min(2, Math.floor(slowRatio * 3)));
+            }
+            const fastRatio = (speed - neutralHigh) / Math.max(stats.max - neutralHigh, 0.00001);
+            return Math.max(4, Math.min(6, 4 + Math.floor(fastRatio * 3)));
+        }
+
+        function getSpeedColor(speed, stats) {
+            return SPEED_COLOR_SCALE[getSpeedBucketIndex(speed, stats)];
+        }
+
+        function interpolateCoordinate(start, end, ratio) {
+            return [
+                start[0] + ((end[0] - start[0]) * ratio),
+                start[1] + ((end[1] - start[1]) * ratio)
+            ];
+        }
+
+        function rebuildFilterOptions() {
+            state.filterOptions = buildOptionCollections(state.activityItems);
+        }
+
+        function syncActivityItem(layer, activity) {
+            const normalized = StravaApp.normalizeActivityRecord(activity);
+            const activityKey = StravaApp.getActivityKey(normalized);
+            const existingItem = state.activityItemsByKey.get(activityKey);
+            if (!existingItem) {
+                return;
+            }
+            existingItem.activity = normalized;
+            existingItem.filterMeta = buildActivityFilterMeta(normalized);
+            if (layer && layer._stravaMeta) {
+                layer._stravaMeta.filterMeta = existingItem.filterMeta;
+            }
+            rebuildFilterOptions();
+        }
+
+        function updateLayerActivity(layer, activityUpdate) {
+            if (!layer || !layer._stravaDescriptor) {
+                return;
+            }
+            const descriptor = layer._stravaDescriptor;
+            const merged = StravaApp.normalizeActivityRecord(Object.assign({}, descriptor.activity, activityUpdate));
+            descriptor.activity = merged;
+            descriptor.tooltipHtml = StravaApp.buildTooltip(merged, { ownerName: descriptor.meta.ownerName || '' });
+            if (typeof layer.setTooltipContent === 'function') {
+                layer.setTooltipContent(descriptor.tooltipHtml);
+            }
+            syncActivityItem(layer, merged);
+        }
+
+        function clearSpeedOverlay(layer) {
+            if (!layer || !state.map) {
+                return;
+            }
+            if (layer._speedOverlayGroup && state.map.hasLayer(layer._speedOverlayGroup)) {
+                state.map.removeLayer(layer._speedOverlayGroup);
+            }
+            layer._speedOverlayGroup = null;
+            layer._speedStats = null;
+            layer._speedSeries = null;
+            layer._speedStream = null;
+            layer._speedOverlayStyle = null;
+            if (layer._stravaDescriptor && layer._stravaDescriptor.style) {
+                layer.setStyle({
+                    color: layer._stravaDescriptor.style.color,
+                    weight: layer._stravaDescriptor.style.weight,
+                    opacity: layer._stravaDescriptor.style.opacity
+                });
+            }
+        }
+
+        function createSpeedOverlayGroup(layer, streamData) {
+            const speedSeries = buildSpeedSeriesData(layer._stravaDescriptor.activity, streamData);
+            if (!speedSeries) {
+                return null;
+            }
+            const latlngs = speedSeries.stream.latlng;
+            const speeds = speedSeries.smoothedSpeeds;
+            const stats = speedSeries.stats;
+            const segmentLimit = Math.min(latlngs.length - 1, speeds.length - 1);
+            if (segmentLimit < 1) {
+                return null;
+            }
+
+            const baseDescriptorWeight = layer._stravaDescriptor.style.weight;
+            const isLatestAnimated = Boolean(layer._stravaMeta && layer._stravaMeta.isLatestAnimated);
+            const overlayWeight = Math.max(baseDescriptorWeight + (isLatestAnimated ? 0.9 : 0.55), baseDescriptorWeight);
+            const segments = [];
+
+            for (let index = 1; index <= segmentLimit; index += 1) {
+                const start = latlngs[index - 1];
+                const end = latlngs[index];
+                if (!Array.isArray(start) || start.length !== 2 || !Array.isArray(end) || end.length !== 2) {
+                    continue;
+                }
+                const startSpeed = Number(speeds[index - 1]);
+                const endSpeed = Number(speeds[index]);
+                if (!Number.isFinite(startSpeed) || !Number.isFinite(endSpeed)) {
+                    continue;
+                }
+                for (let subdivision = 0; subdivision < SPEED_SEGMENT_SUBDIVISIONS; subdivision += 1) {
+                    const startRatio = subdivision / SPEED_SEGMENT_SUBDIVISIONS;
+                    const endRatio = (subdivision + 1) / SPEED_SEGMENT_SUBDIVISIONS;
+                    const segmentStart = interpolateCoordinate(start, end, startRatio);
+                    const segmentEnd = interpolateCoordinate(start, end, endRatio);
+                    const segmentSpeed = startSpeed + ((endSpeed - startSpeed) * ((startRatio + endRatio) / 2));
+                    segments.push(window.L.polyline([segmentStart, segmentEnd], {
+                        pane: SPEED_PANE_NAME,
+                        color: getSpeedColor(segmentSpeed, stats),
+                        weight: overlayWeight,
+                        opacity: 0.95,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        interactive: false
+                    }));
+                }
+            }
+
+            if (!segments.length) {
+                return null;
+            }
+
+            const group = window.L.featureGroup(segments);
+            group._speedSeries = speedSeries;
+            return group;
+        }
+
+        function bringSpeedOverlayToFront(layer) {
+            if (!layer || !layer._speedOverlayGroup) {
+                return;
+            }
+            layer._speedOverlayGroup.eachLayer(function (segment) {
+                if (typeof segment.bringToFront === 'function') {
+                    segment.bringToFront();
+                }
+            });
+        }
+
+        function syncSpeedOverlayVisibility(layer, visible) {
+            if (!layer || !layer._speedOverlayGroup || !state.map) {
+                return;
+            }
+            if (visible) {
+                if (!state.map.hasLayer(layer._speedOverlayGroup)) {
+                    layer._speedOverlayGroup.addTo(state.map);
+                }
+                bringSpeedOverlayToFront(layer);
+                return;
+            }
+            if (state.map.hasLayer(layer._speedOverlayGroup)) {
+                state.map.removeLayer(layer._speedOverlayGroup);
+            }
+        }
+
+        function applySpeedOverlayToLayer(layer, streamData) {
+            if (!layer) {
+                return null;
+            }
+            clearSpeedOverlay(layer);
+            const normalizedStream = normalizeStreamPayload(streamData);
+            const overlayGroup = createSpeedOverlayGroup(layer, normalizedStream);
+            const speedSeries = overlayGroup ? overlayGroup._speedSeries : buildSpeedSeriesData(layer._stravaDescriptor.activity, normalizedStream);
+            layer._speedStream = normalizedStream;
+            layer._speedSeries = speedSeries;
+            layer._speedStats = speedSeries ? speedSeries.stats : null;
+            layer._speedOverlayGroup = overlayGroup;
+            if (speedSeries) {
+                const baseWeight = layer._stravaDescriptor.style.weight + (layer._stravaMeta && layer._stravaMeta.isLatestAnimated ? 2.4 : 1.7);
+                const overlayWeight = Math.max(layer._stravaDescriptor.style.weight + (layer._stravaMeta && layer._stravaMeta.isLatestAnimated ? 0.9 : 0.55), layer._stravaDescriptor.style.weight);
+                layer._speedOverlayStyle = {
+                    weight: overlayWeight,
+                    hoverWeight: overlayWeight + (window.innerWidth <= 900 ? 1.4 : 1.1),
+                    opacity: 0.95,
+                    hoverOpacity: 1,
+                    baseColor: '#08111c',
+                    baseWeight: baseWeight,
+                    baseHoverWeight: baseWeight + (window.innerWidth <= 900 ? 1.4 : 1.1),
+                    baseOpacity: 0.34
+                };
+                layer.setStyle({
+                    color: layer._speedOverlayStyle.baseColor,
+                    weight: layer._speedOverlayStyle.baseWeight,
+                    opacity: layer._speedOverlayStyle.baseOpacity
+                });
+            }
+            if (overlayGroup && state.map && state.map.hasLayer(layer)) {
+                overlayGroup.addTo(state.map);
+                bringSpeedOverlayToFront(layer);
+            }
+            return overlayGroup;
+        }
+
+        function fetchActivityDetailForLayer(layer) {
+            if (!layer || !layer._stravaDescriptor) {
+                return Promise.resolve(null);
+            }
+            const activity = layer._stravaDescriptor.activity;
+            const activityId = getActivityId(activity);
+            const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : String(activityId || '');
+            if (!activityId) {
+                return Promise.resolve(activity);
+            }
+            if (activity.detail_fetched_at) {
+                return Promise.resolve(activity);
+            }
+            if (state.detailPromises.has(activityKey)) {
+                return state.detailPromises.get(activityKey);
+            }
+            const request = (window.STRAVA_CONFIG.apiBase
+                ? StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, '/api/activities/' + activityId, { user: userConfig.slug, hydrate: 1 })
+                : StravaApp.stravaFetchActivity(state.accessToken, activityId)
+            ).then(function (detailActivity) {
+                updateLayerActivity(layer, Object.assign({ detail_fetched_at: new Date().toISOString() }, detailActivity));
+                refreshFilterSummary();
+                if (state.activeDetailKey === activityKey) {
+                    renderDetailsPanel(layer);
+                }
+                return layer._stravaDescriptor.activity;
+            }).catch(function (error) {
+                console.warn('Unable to fetch activity detail', error);
+                return layer._stravaDescriptor.activity;
+            }).finally(function () {
+                state.detailPromises.delete(activityKey);
+            });
+            state.detailPromises.set(activityKey, request);
+            return request;
+        }
+
+        function fetchSpeedStreamForLayer(layer) {
+            if (!layer || !layer._stravaDescriptor) {
+                return Promise.resolve(null);
+            }
+            const activityId = getActivityId(layer._stravaDescriptor.activity);
+            const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : String(activityId || '');
+            if (!activityId) {
+                return Promise.resolve(null);
+            }
+            if (layer._speedOverlayGroup) {
+                syncSpeedOverlayVisibility(layer, state.map && state.map.hasLayer(layer));
+                return Promise.resolve(layer._speedStream || null);
+            }
+            if (state.streamPromises.has(activityKey)) {
+                return state.streamPromises.get(activityKey);
+            }
+            const request = (window.STRAVA_CONFIG.apiBase
+                ? StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, '/api/activities/' + activityId + '/streams', { user: userConfig.slug })
+                : StravaApp.stravaFetchActivityStreams(state.accessToken, activityId, SPEED_STREAM_OPTIONS)
+            ).then(function (streamData) {
+                applySpeedOverlayToLayer(layer, streamData);
+                if (state.activeDetailKey === activityKey) {
+                    renderDetailsPanel(layer);
+                }
+                return layer._speedStream || null;
+            }).catch(function (error) {
+                console.warn('Unable to fetch activity speed stream', error);
+                return null;
+            }).finally(function () {
+                state.streamPromises.delete(activityKey);
+            });
+            state.streamPromises.set(activityKey, request);
+            return request;
+        }
+
+        function getLocationLabel(filterMeta) {
+            if (filterMeta.city) {
+                return filterMeta.country ? filterMeta.city + ', ' + filterMeta.country : filterMeta.city;
+            }
+            if (filterMeta.regionState) {
+                return filterMeta.country ? filterMeta.regionState + ', ' + filterMeta.country : filterMeta.regionState;
+            }
+            return filterMeta.country || 'Unavailable';
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function createDetailRow(label, value) {
+            return "<div class='details-row'><div class='details-label'>" + escapeHtml(label) + "</div><div class='details-value'>" + escapeHtml(value) + "</div></div>";
+        }
+
+        function closeDetailsPanel() {
+            detailsPanel.classList.remove('is-open');
+            detailsPanel.setAttribute('aria-hidden', 'true');
+            state.activeDetailKey = '';
+            if (state.selectedLayer && typeof state.selectedLayer.closeTooltip === 'function') {
+                state.selectedLayer.closeTooltip();
+            }
+            state.selectedLayer = null;
+        }
+
+        function getDetailsPanelWidth() {
+            if (window.innerWidth <= 900) {
+                return Math.round(window.innerWidth * 0.75);
+            }
+            return Math.min(Math.round(window.innerWidth * 0.25), 420);
+        }
+
+        function focusMapForLayer(layer) {
+            if (!state.map || !layer || !layer.getBounds || !layer.getBounds().isValid()) {
+                return;
+            }
+            state.map.fitBounds(layer.getBounds(), {
+                paddingTopLeft: [28, 28],
+                paddingBottomRight: [getDetailsPanelWidth() + 28, 28],
+                maxZoom: 15
+            });
+        }
+
+        function resizeDetailsChart() {
+            const chart = document.getElementById(DETAILS_SPEED_CHART_ID);
+            if (chart && window.Plotly && typeof window.Plotly.Plots.resize === 'function') {
+                window.Plotly.Plots.resize(chart);
+            }
+        }
+
+        function renderSpeedChart(layer) {
+            const chart = document.getElementById(DETAILS_SPEED_CHART_ID);
+            if (!chart || !layer || !layer._speedSeries || !window.Plotly) {
+                return;
+            }
+            const series = layer._speedSeries;
+            const tracesByColor = SPEED_COLOR_SCALE.map(function (color) {
+                return {
+                    x: [],
+                    y: [],
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: {
+                        color: color,
+                        width: 3.5,
+                        shape: 'spline',
+                        smoothing: 0.5
+                    },
+                    hoverinfo: 'skip',
+                    showlegend: false
+                };
+            });
+
+            for (let index = 1; index < series.mphValues.length; index += 1) {
+                const x0 = series.times[index - 1] / 60;
+                const x1 = series.times[index] / 60;
+                const y0 = series.mphValues[index - 1];
+                const y1 = series.mphValues[index];
+                const bucketIndex = getSpeedBucketIndex(series.smoothedSpeeds[index], series.stats);
+                tracesByColor[bucketIndex].x.push(x0, x1, null);
+                tracesByColor[bucketIndex].y.push(y0, y1, null);
+            }
+
+            const traces = tracesByColor.filter(function (trace) {
+                return trace.x.length > 0;
+            });
+            const averageMph = Number(series.stats && series.stats.average ? series.stats.average : 0) * 2.2369362920544;
+            const maxDurationMinutes = Math.max(series.times.length ? series.times[series.times.length - 1] / 60 : 0, 1);
+
+            window.Plotly.react(chart, traces, {
+                margin: { l: 48, r: 12, t: 10, b: 42 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: '#09101a',
+                showlegend: false,
+                hovermode: false,
+                xaxis: {
+                    title: 'Duration (min)',
+                    color: '#d6dee9',
+                    gridcolor: 'rgba(255,255,255,0.08)',
+                    zeroline: false,
+                    tickformat: '.0f',
+                    range: [0, maxDurationMinutes]
+                },
+                yaxis: {
+                    title: 'Speed (mph)',
+                    color: '#d6dee9',
+                    gridcolor: 'rgba(255,255,255,0.08)',
+                    zeroline: false
+                },
+                shapes: averageMph > 0 ? [{
+                    type: 'line',
+                    x0: 0,
+                    x1: maxDurationMinutes,
+                    y0: averageMph,
+                    y1: averageMph,
+                    line: {
+                        color: SPEED_COLOR_SCALE[3],
+                        width: 1.2,
+                        dash: 'dot'
+                    }
+                }] : [],
+                annotations: averageMph > 0 ? [{
+                    x: maxDurationMinutes,
+                    y: averageMph,
+                    xanchor: 'right',
+                    yanchor: 'bottom',
+                    text: 'Avg ' + formatSpeedValue(series.stats.average),
+                    showarrow: false,
+                    font: {
+                        family: 'Aptos Narrow, sans-serif',
+                        size: 12,
+                        color: '#d6dee9'
+                    },
+                    bgcolor: 'rgba(9,16,26,0.82)'
+                }] : []
+            }, {
+                displayModeBar: false,
+                responsive: true
+            });
+        }
+
+        function renderDetailsPanel(layer) {
+            if (!layer || !layer._stravaDescriptor) {
+                return;
+            }
+            const descriptor = layer._stravaDescriptor;
+            const activity = descriptor.activity;
+            const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : '';
+            const filterMeta = (layer._stravaMeta && layer._stravaMeta.filterMeta) || buildActivityFilterMeta(activity);
+            const rows = [
+                createDetailRow('Workout', activity.type || StravaApp.getActivityLabel(StravaApp.normalizeActivityType(activity))),
+                createDetailRow('Started', formatStartDateTime(activity)),
+                createDetailRow('Distance', formatDistanceLabel(activity)),
+                createDetailRow('Time', StravaApp.formatTime(Number(activity.elapsed_time || 0))),
+                createDetailRow('Average', formatAverageMetric(activity)),
+                createDetailRow('Max', formatMaxMetric(activity)),
+                createDetailRow('Elevation', formatElevationFeet(activity)),
+                createDetailRow('Location', getLocationLabel(filterMeta))
+            ];
+
+            if (activity.average_heartrate) {
+                rows.push(createDetailRow('Avg Heart Rate', Number(activity.average_heartrate).toFixed(0) + ' bpm'));
+            }
+            if (activity.max_heartrate) {
+                rows.push(createDetailRow('Max Heart Rate', Number(activity.max_heartrate).toFixed(0) + ' bpm'));
+            }
+
+            let speedContent = "<div class='details-note'>Medium-resolution speed shading is available for this workout and will be cached after the first request.</div>";
+            if (layer._speedSeries && layer._speedStream) {
+                speedContent = ""
+                    + "<div class='details-chart-shell'><div id='" + DETAILS_SPEED_CHART_ID + "' class='details-chart'></div></div>"
+                    + "<div class='details-note'>Cooler = Slower, Hotter = Faster"
+                    + (layer._speedStream.cached ? ', served from cache.' : '.')
+                    + "</div>";
+            } else if (state.streamPromises.has(activityKey)) {
+                speedContent = "<div class='details-note'>Loading the speed profile for this workout.</div>";
+            }
+
+            detailsTitle.textContent = activity.name || 'Workout Details';
+            detailsSubtitle.textContent = formatStartDateTime(activity);
+            detailsBody.innerHTML = ""
+                + "<div class='details-card'><div class='details-card-title'>Overview</div><div class='details-grid'>"
+                + rows.join('')
+                + "</div></div>"
+                + "<div class='details-card'><div class='details-card-title'>Speed Profile</div>" + speedContent + "</div>";
+            if (layer._speedSeries && layer._speedStream) {
+                renderSpeedChart(layer);
+            }
+        }
+
+        function openDetailsPanel(layer) {
+            if (!layer || !layer._stravaDescriptor) {
+                return;
+            }
+            state.selectedLayer = layer;
+            state.activeDetailKey = layer._stravaMeta ? layer._stravaMeta.activityKey : '';
+            renderDetailsPanel(layer);
+            detailsPanel.classList.add('is-open');
+            detailsPanel.setAttribute('aria-hidden', 'false');
+            if (typeof layer.bringToFront === 'function') {
+                layer.bringToFront();
+            }
+            bringSpeedOverlayToFront(layer);
+            focusMapForLayer(layer);
+            window.requestAnimationFrame(resizeDetailsChart);
+        }
+
+        function attachLayerInteractions(layers) {
+            (layers || []).forEach(function (layer) {
+                if (!layer || layer._detailHandlersBound) {
+                    return;
+                }
+                layer._detailHandlersBound = true;
+                layer.on('click', function (event) {
+                    if (event && event.originalEvent) {
+                        event.originalEvent.preventDefault();
+                        event.originalEvent.stopPropagation();
+                    }
+                    openDetailsPanel(layer);
+                    fetchActivityDetailForLayer(layer);
+                    fetchSpeedStreamForLayer(layer);
+                });
+                layer.on('mouseover', function () {
+                    bringSpeedOverlayToFront(layer);
+                });
+            });
+        }
+
+        function closeAllMenus() {
+            primaryFilters.querySelectorAll('.filter-dropdown').forEach(function (dropdown) {
+                dropdown.classList.remove('is-open');
+            });
+            moreFilterShell.classList.remove('is-open');
+        }
+
+        function getFilterSummary(key) {
+            const selected = state.appliedFilters[key];
+            const options = state.filterOptions[key] || [];
+            if (!selected.size) {
+                return FILTER_DEFINITIONS[key].placeholder;
+            }
+            if (selected.size === 1) {
+                const value = Array.from(selected)[0];
+                const match = options.find(function (option) { return option.value === value; });
+                return match ? match.label : value;
+            }
+            return selected.size + ' selected';
+        }
+
+        function renderOptionRows(container, key, draftSet) {
+            const options = state.filterOptions[key] || [];
+            if (!options.length) {
+                const empty = document.createElement('div');
+                empty.className = 'menu-empty';
+                empty.textContent = 'No values available.';
+                container.appendChild(empty);
+                return;
+            }
+            options.forEach(function (option) {
+                const row = document.createElement('label');
+                row.className = 'option-row';
+
+                const left = document.createElement('span');
+                left.className = 'option-left';
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = draftSet.has(option.value);
+                input.addEventListener('change', function () {
+                    if (input.checked) {
+                        draftSet.add(option.value);
+                    } else {
+                        draftSet.delete(option.value);
+                    }
+                });
+
+                left.appendChild(input);
+                if (option.color) {
+                    const dot = document.createElement('span');
+                    dot.className = 'color-dot';
+                    dot.style.background = option.color;
+                    left.appendChild(dot);
+                }
+
+                const label = document.createElement('span');
+                label.className = 'option-label';
+                label.textContent = option.label;
+                left.appendChild(label);
+
+                const count = document.createElement('span');
+                count.className = 'option-count';
+                count.textContent = option.count;
+
+                row.appendChild(left);
+                row.appendChild(count);
+                container.appendChild(row);
+            });
+        }
+
+        function matchesActiveFilters(filterMeta) {
+            return Object.keys(state.appliedFilters).every(function (key) {
+                const activeSet = state.appliedFilters[key];
+                return !activeSet.size || activeSet.has(filterMeta[key]);
+            });
+        }
+
+        function getFilteredActivityItems() {
+            return state.activityItems.filter(function (item) {
+                return matchesActiveFilters(item.filterMeta);
+            });
         }
 
         function drawAnalytics() {
             const accumulator = StravaApp.createDataAccumulator();
-            getFilteredActivities().forEach(accumulator.add);
+            getFilteredActivityItems().forEach(function (item) {
+                accumulator.add(item.activity);
+            });
             StravaApp.drawSummaryChart('activity-summary', accumulator.activityCounts);
             StravaApp.drawMilesChart('workoutChart', accumulator.workoutData, 1);
         }
 
-        function refreshFilterSummary() {
-            const filteredActivities = getFilteredActivities();
-            filterToggleCount.textContent = filteredActivities.length;
-            filterToggleLabel.textContent = `${state.filtersCollapsed ? '>' : 'v'} Filters`;
-            activityCountLabel.textContent = `Showing ${filteredActivities.length} activities`;
-            if (state.map) {
-                StravaApp.applyFilters(state.map, state.filters);
+        function refreshMapFilters() {
+            const visibleLayers = [];
+            (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).forEach(function (layer) {
+                const meta = (layer._stravaMeta && layer._stravaMeta.filterMeta) || null;
+                const visible = meta ? matchesActiveFilters(meta) : true;
+                if (visible) {
+                    if (!state.map.hasLayer(layer)) {
+                        layer.addTo(state.map);
+                    }
+                    syncSpeedOverlayVisibility(layer, true);
+                    visibleLayers.push(layer);
+                } else {
+                    syncSpeedOverlayVisibility(layer, false);
+                    if (state.map.hasLayer(layer)) {
+                        state.map.removeLayer(layer);
+                    }
+                }
+            });
+            visibleLayers.forEach(function (layer) {
+                if (state.selectedLayer === layer && typeof layer.bringToFront === 'function') {
+                    layer.bringToFront();
+                }
+                if (layer._stravaMeta && layer._stravaMeta.isLatestAnimated && typeof layer.bringToFront === 'function') {
+                    layer.bringToFront();
+                }
+                bringSpeedOverlayToFront(layer);
+            });
+            return visibleLayers;
+        }
+
+        function maybeFocusLocationSelection(visibleLayers) {
+            if (!state.map || state.analyticsVisible) {
+                return;
+            }
+            const citySelections = Array.from(state.appliedFilters.city);
+            const stateSelections = Array.from(state.appliedFilters.regionState);
+            let matchingLayers = [];
+            if (citySelections.length === 1) {
+                matchingLayers = (visibleLayers || []).filter(function (layer) {
+                    return layer._stravaMeta && layer._stravaMeta.filterMeta && layer._stravaMeta.filterMeta.city === citySelections[0];
+                });
+            } else if (stateSelections.length === 1) {
+                matchingLayers = (visibleLayers || []).filter(function (layer) {
+                    return layer._stravaMeta && layer._stravaMeta.filterMeta && layer._stravaMeta.filterMeta.regionState === stateSelections[0];
+                });
+            }
+            if (matchingLayers.length) {
+                StravaApp.fitMapToLayers(state.map, matchingLayers, { padding: [30, 30], maxZoom: 13 });
+            }
+        }
+
+        function getFilterSlotWidth() {
+            if (window.innerWidth <= 680) {
+                return 118;
+            }
+            if (window.innerWidth <= 900) {
+                return 126;
+            }
+            if (window.innerWidth <= 1200) {
+                return 138;
+            }
+            if (window.innerWidth <= 1500) {
+                return 148;
+            }
+            return 156;
+        }
+
+        function getResponsiveFilterLayout() {
+            const slotWidth = getFilterSlotWidth();
+            const moreTriggerWidth = 160;
+            const countWidth = filterCountChip.offsetWidth || 108;
+            const clearWidth = clearFiltersButton.offsetWidth || 130;
+            const baseWidth = filterBar.clientWidth || Math.round(window.innerWidth * 0.55);
+            const availableWidth = Math.max(slotWidth, baseWidth - countWidth - clearWidth - 24);
+            let primaryCount = Math.floor(availableWidth / slotWidth);
+            primaryCount = Math.max(1, Math.min(ALL_FILTER_KEYS.length, primaryCount));
+            if (primaryCount < ALL_FILTER_KEYS.length) {
+                primaryCount = Math.floor((availableWidth - moreTriggerWidth) / slotWidth);
+                primaryCount = Math.max(1, Math.min(ALL_FILTER_KEYS.length - 1, primaryCount));
+            }
+            return {
+                slotWidth: slotWidth,
+                primaryKeys: ALL_FILTER_KEYS.slice(0, primaryCount),
+                moreKeys: ALL_FILTER_KEYS.slice(primaryCount)
+            };
+        }
+
+        function updateResponsiveFilterLayout() {
+            const layout = getResponsiveFilterLayout();
+            state.primaryFilterKeys = layout.primaryKeys;
+            state.moreFilterKeys = layout.moreKeys;
+            document.documentElement.style.setProperty('--filter-slot-width', layout.slotWidth + 'px');
+            moreFilterShell.style.display = state.moreFilterKeys.length ? '' : 'none';
+            if (!state.moreFilterKeys.length) {
+                moreFilterShell.classList.remove('is-open');
+            }
+        }
+
+        function appendFilterMenuSection(menu, key) {
+            state.draftFilters[key] = new Set(Array.from(state.appliedFilters[key]));
+
+            const title = document.createElement('div');
+            title.className = 'menu-title';
+            title.textContent = FILTER_DEFINITIONS[key].label;
+            menu.appendChild(title);
+
+            const optionsWrap = document.createElement('div');
+            optionsWrap.className = 'menu-options';
+            renderOptionRows(optionsWrap, key, state.draftFilters[key]);
+            menu.appendChild(optionsWrap);
+
+            const actions = document.createElement('div');
+            actions.className = 'menu-actions';
+
+            const clearButton = document.createElement('button');
+            clearButton.type = 'button';
+            clearButton.className = 'action-button secondary';
+            clearButton.textContent = 'Clear';
+            clearButton.addEventListener('click', function () {
+                state.appliedFilters[key] = new Set();
+                closeAllMenus();
+                refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+            });
+
+            const applyButton = document.createElement('button');
+            applyButton.type = 'button';
+            applyButton.className = 'action-button';
+            applyButton.textContent = 'Apply';
+            applyButton.addEventListener('click', function () {
+                state.appliedFilters[key] = new Set(Array.from(state.draftFilters[key]));
+                closeAllMenus();
+                refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+            });
+
+            actions.appendChild(clearButton);
+            actions.appendChild(applyButton);
+            menu.appendChild(actions);
+        }
+
+        function renderPrimaryFilterTriggers() {
+            primaryFilters.innerHTML = '';
+            state.primaryFilterKeys.forEach(function (key) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'filter-dropdown filter-primary';
+
+                const trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.className = 'filter-trigger';
+
+                const label = document.createElement('span');
+                label.className = 'trigger-label';
+                label.textContent = FILTER_DEFINITIONS[key].label;
+
+                const value = document.createElement('span');
+                value.className = 'trigger-value';
+                value.textContent = getFilterSummary(key);
+
+                const menu = document.createElement('div');
+                menu.className = 'filter-menu';
+                menu.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                });
+
+                trigger.appendChild(label);
+                trigger.appendChild(value);
+                trigger.addEventListener('click', function (event) {
+                    const alreadyOpen = wrapper.classList.contains('is-open');
+                    event.stopPropagation();
+                    closeAllMenus();
+                    if (alreadyOpen) {
+                        return;
+                    }
+                    menu.innerHTML = '';
+                    appendFilterMenuSection(menu, key);
+                    wrapper.classList.add('is-open');
+                });
+
+                wrapper.appendChild(trigger);
+                wrapper.appendChild(menu);
+                primaryFilters.appendChild(wrapper);
+            });
+        }
+
+        function renderMoreFilterMenu() {
+            moreFilterMenu.innerHTML = '';
+            if (!state.moreFilterKeys.length) {
+                return;
+            }
+            const wrapper = document.createElement('div');
+            wrapper.className = 'menu-options more-options';
+
+            state.moreFilterKeys.forEach(function (key) {
+                state.draftFilters[key] = new Set(Array.from(state.appliedFilters[key]));
+
+                const section = document.createElement('section');
+                section.className = 'more-section';
+
+                const heading = document.createElement('h3');
+                heading.textContent = FILTER_DEFINITIONS[key].label;
+                section.appendChild(heading);
+
+                const optionsWrap = document.createElement('div');
+                optionsWrap.className = 'menu-options';
+                renderOptionRows(optionsWrap, key, state.draftFilters[key]);
+                section.appendChild(optionsWrap);
+
+                const actions = document.createElement('div');
+                actions.className = 'menu-actions';
+
+                const clearButton = document.createElement('button');
+                clearButton.type = 'button';
+                clearButton.className = 'action-button secondary';
+                clearButton.textContent = 'Clear';
+                clearButton.addEventListener('click', function () {
+                    state.appliedFilters[key] = new Set();
+                    closeAllMenus();
+                    refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+                });
+
+                const applyButton = document.createElement('button');
+                applyButton.type = 'button';
+                applyButton.className = 'action-button';
+                applyButton.textContent = 'Apply';
+                applyButton.addEventListener('click', function () {
+                    state.appliedFilters[key] = new Set(Array.from(state.draftFilters[key]));
+                    closeAllMenus();
+                    refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+                });
+
+                actions.appendChild(clearButton);
+                actions.appendChild(applyButton);
+                section.appendChild(actions);
+                wrapper.appendChild(section);
+            });
+
+            moreFilterMenu.appendChild(wrapper);
+        }
+
+        function refreshFilterSummary(options) {
+            const filteredItems = getFilteredActivityItems();
+            filterCountChip.textContent = filteredItems.length + (filteredItems.length === 1 ? ' activity' : ' activities');
+            updateResponsiveFilterLayout();
+            const moreActiveCount = state.moreFilterKeys.reduce(function (sum, key) {
+                return sum + state.appliedFilters[key].size;
+            }, 0);
+            const hasActiveFilters = Object.keys(state.appliedFilters).some(function (key) {
+                return state.appliedFilters[key].size > 0;
+            });
+            moreFilterCount.textContent = moreActiveCount ? moreActiveCount + ' active' : '0 active';
+            clearFiltersButton.disabled = !hasActiveFilters;
+            renderPrimaryFilterTriggers();
+            if (moreFilterShell.classList.contains('is-open')) {
+                renderMoreFilterMenu();
+            }
+            const visibleLayers = refreshMapFilters();
+            if (state.selectedLayer && visibleLayers.indexOf(state.selectedLayer) === -1) {
+                closeDetailsPanel();
+            }
+            if (options && options.focusLocation) {
+                maybeFocusLocationSelection(visibleLayers);
             }
             if (state.analyticsVisible) {
                 drawAnalytics();
             }
         }
 
-        function renderTypePills(types) {
-            typePills.innerHTML = '';
-            types.forEach(function (type) {
-                const pill = document.createElement('button');
-                pill.type = 'button';
-                pill.className = 'type-pill active';
-                pill.dataset.type = type;
-                pill.textContent = StravaApp.getActivityLabel(type);
-                pill.addEventListener('click', function () {
-                    if (state.filters.types.has(type)) {
-                        state.filters.types.delete(type);
-                    } else {
-                        state.filters.types.add(type);
-                    }
-                    pill.classList.toggle('active', state.filters.types.has(type));
-                    pill.classList.toggle('inactive', !state.filters.types.has(type));
-                    refreshFilterSummary();
-                });
-                typePills.appendChild(pill);
+        moreFilterTrigger.addEventListener('click', function (event) {
+            if (!state.moreFilterKeys.length) {
+                return;
+            }
+            const alreadyOpen = moreFilterShell.classList.contains('is-open');
+            event.stopPropagation();
+            closeAllMenus();
+            if (alreadyOpen) {
+                return;
+            }
+            renderMoreFilterMenu();
+            moreFilterShell.classList.add('is-open');
+        });
+
+        moreFilterMenu.addEventListener('click', function (event) {
+            event.stopPropagation();
+        });
+
+        document.addEventListener('click', function () {
+            closeAllMenus();
+        });
+
+        window.addEventListener('resize', function () {
+            if (state.resizeFrame) {
+                window.cancelAnimationFrame(state.resizeFrame);
+            }
+            state.resizeFrame = window.requestAnimationFrame(function () {
+                state.resizeFrame = 0;
+                refreshFilterSummary();
+                if (state.selectedLayer && detailsPanel.classList.contains('is-open')) {
+                    focusMapForLayer(state.selectedLayer);
+                    resizeDetailsChart();
+                }
             });
-        }
+        });
 
-        function initializeFilters(activities) {
-            const dates = activities.map(function (activity) {
-                return String(activity.start_date || '').split('T')[0];
-            }).filter(Boolean).sort();
-            const types = StravaApp.getDetectedTypes(activities);
-            state.filters.types = new Set(types);
-            state.filters.dateFrom = dates[0] || '';
-            state.filters.dateTo = dates[dates.length - 1] || '';
-            dateFromInput.value = state.filters.dateFrom;
-            dateToInput.value = state.filters.dateTo;
-            renderTypePills(types);
-            refreshFilterSummary();
-        }
-
-        filterToggle.addEventListener('click', function () {
-            state.filtersCollapsed = !state.filtersCollapsed;
-            filterBody.style.display = state.filtersCollapsed ? 'none' : 'grid';
+        clearFiltersButton.addEventListener('click', function () {
+            if (clearFiltersButton.disabled) {
+                return;
+            }
+            state.appliedFilters = createEmptySelections();
+            state.draftFilters = createEmptySelections();
+            closeAllMenus();
             refreshFilterSummary();
         });
 
-        dateFromInput.addEventListener('change', function () {
-            state.filters.dateFrom = dateFromInput.value;
-            refreshFilterSummary();
-        });
-
-        dateToInput.addEventListener('change', function () {
-            state.filters.dateTo = dateToInput.value;
-            refreshFilterSummary();
+        detailsClose.addEventListener('click', function () {
+            closeDetailsPanel();
         });
 
         toggleButton.addEventListener('click', function () {
@@ -214,35 +1855,58 @@
                 analyticsDiv.style.display = 'block';
                 body.style.background = '#ffffff';
                 toggleButton.textContent = 'Show Map';
-                setOverlayVisibility(false);
+                closeDetailsPanel();
                 drawAnalytics();
                 return;
             }
             mapDiv.style.display = 'block';
             analyticsDiv.style.display = 'none';
-            body.style.background = '#000000';
+            body.style.background = '#05080d';
             toggleButton.textContent = 'Show Analytics';
-            setOverlayVisibility(true);
             if (state.map) {
                 state.map.invalidateSize();
             }
         });
 
-        async function focusAnimatedArea(selection, lineStyle) {
+        function focusAnimatedArea(selection, lineStyle) {
             if (!selection.bounds || !selection.bounds.isValid()) {
-                return;
+                return Promise.resolve();
             }
             state.map.fitBounds(selection.bounds, {
-                padding: lineStyle.isMobile ? [28, 28] : [52, 52],
-                maxZoom: lineStyle.isMobile ? 12 : 13
+                padding: lineStyle.isMobile ? [16, 16] : [24, 24],
+                maxZoom: lineStyle.isMobile ? 14 : 15
             });
-            await StravaApp.wait(450);
+            return StravaApp.wait(400);
+        }
+
+        function emphasizeLatestAnimatedRoute(selection, lineStyle) {
+            if (!selection.animated.length) {
+                return;
+            }
+            const latestDescriptor = selection.animated[0];
+            latestDescriptor.meta.isLatestAnimated = true;
+            latestDescriptor.style = Object.assign({}, latestDescriptor.style, {
+                weight: latestDescriptor.style.weight + (lineStyle.isMobile ? 1.5 : 1),
+                opacity: Math.min(1, latestDescriptor.style.opacity + 0.12)
+            });
+        }
+
+        function dismissTitle() {
+            if (state.titleDismissed) {
+                return;
+            }
+            state.titleDismissed = true;
+            titleSlot.classList.add('is-faded');
         }
 
         async function loadUserPage() {
             const fallbackCenter = [userConfig.lat, userConfig.lng];
             state.map = StravaApp.initMap('map', fallbackCenter, 8);
-            setOverlayVisibility(true);
+            if (!state.map.getPane(SPEED_PANE_NAME)) {
+                state.map.createPane(SPEED_PANE_NAME);
+            }
+            state.map.getPane(SPEED_PANE_NAME).style.zIndex = '675';
+            state.map.getPane(SPEED_PANE_NAME).style.pointerEvents = 'none';
 
             let activities = [];
             let latestCenter = fallbackCenter;
@@ -256,41 +1920,65 @@
                 }
             } else {
                 const auth = await StravaApp.stravaReAuthorize(userConfig);
+                state.accessToken = auth.access_token;
                 latestCenter = await StravaApp.stravaGetLatestLocation(auth.access_token, fallbackCenter);
                 activities = await StravaApp.stravaFetchActivities(auth.access_token, userConfig.pages);
             }
 
-            state.map.setView(latestCenter, 8);
-            state.allActivities = activities;
-            initializeFilters(activities);
+            state.activityItems = activities.map(function (activity) {
+                return {
+                    activity: activity,
+                    filterMeta: buildActivityFilterMeta(activity)
+                };
+            });
+            state.activityItemsByKey = new Map(state.activityItems.map(function (item) {
+                return [item.filterMeta.key, item];
+            }));
+            rebuildFilterOptions();
+            renderPrimaryFilterTriggers();
+            refreshFilterSummary();
 
             const lineStyle = StravaApp.getLineStyle();
-            state.allDescriptors = activities.map(function (activity) {
-                return StravaApp.createActivityDescriptor(activity, {
+            state.allDescriptors = state.activityItems.map(function (item) {
+                const descriptor = StravaApp.createActivityDescriptor(item.activity, {
                     userSlug: userConfig.slug,
                     lineWeight: lineStyle.LINE_WEIGHT,
                     opacityWeight: lineStyle.OPACITY_WEIGHT
                 });
+                if (!descriptor) {
+                    return null;
+                }
+                descriptor.meta.filterMeta = item.filterMeta;
+                return descriptor;
             }).filter(Boolean);
 
             const animatedSelection = StravaAnimated.selectRecentDescriptors(state.allDescriptors, StravaAnimated.ANIMATE_COUNT);
+            emphasizeLatestAnimatedRoute(animatedSelection, lineStyle);
             const flyCenter = animatedSelection.center ? [animatedSelection.center.lat, animatedSelection.center.lng] : latestCenter;
             await StravaApp.flyIn(state.map, flyCenter);
             await focusAnimatedArea(animatedSelection, lineStyle);
 
             if (animatedSelection.animated.length) {
                 const animatedLayers = await StravaAnimated.animateRecentDescriptors(state.map, animatedSelection.animated);
+                attachLayerInteractions(animatedLayers);
                 animatedLayers.forEach(function (layer) {
                     state.renderedKeys.add(layer._stravaMeta.activityKey);
                 });
+                fetchActivityDetailForLayer(animatedLayers[0]);
+                fetchSpeedStreamForLayer(animatedLayers[0]);
+                dismissTitle();
                 refreshFilterSummary();
                 await StravaAnimated.wait(StravaAnimated.POST_ANIMATION_DELAY_MS);
+            } else {
+                dismissTitle();
             }
 
             const remainingDescriptors = state.allDescriptors.filter(function (descriptor) {
                 return !state.renderedKeys.has(descriptor.meta.activityKey);
             });
-            StravaApp.renderActivityDescriptors(state.map, remainingDescriptors).forEach(function (layer) {
+            const remainingLayers = StravaApp.renderActivityDescriptors(state.map, remainingDescriptors);
+            attachLayerInteractions(remainingLayers);
+            remainingLayers.forEach(function (layer) {
                 state.renderedKeys.add(layer._stravaMeta.activityKey);
             });
             refreshFilterSummary();

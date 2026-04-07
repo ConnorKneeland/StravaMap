@@ -8,6 +8,8 @@ const activitySchema = new mongoose.Schema({
     type: { type: String, index: true },
     sport_type: { type: String },
     start_date: { type: Date, index: true },
+    start_date_local: { type: String },
+    timezone: { type: String },
     distance: { type: Number, default: 0 },
     elapsed_time: { type: Number, default: 0 },
     moving_time: { type: Number, default: 0 },
@@ -21,9 +23,19 @@ const activitySchema = new mongoose.Schema({
     average_cadence: { type: Number },
     average_watts: { type: Number },
     kilojoules: { type: Number },
+    location_city: { type: String },
+    location_state: { type: String },
+    location_country: { type: String },
     start_latlng: { type: [Number], default: void 0 },
     end_latlng: { type: [Number], default: void 0 },
-    summary_polyline: { type: String }
+    summary_polyline: { type: String },
+    detail_fetched_at: { type: Date },
+    stream_resolution: { type: String },
+    stream_series_type: { type: String },
+    stream_latlng: { type: [[Number]], default: void 0 },
+    stream_velocity_smooth: { type: [Number], default: void 0 },
+    stream_time: { type: [Number], default: void 0 },
+    stream_fetched_at: { type: Date }
 }, { timestamps: true });
 
 activitySchema.index({ user_id: 1, type: 1 });

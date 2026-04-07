@@ -2,11 +2,18 @@
     'use strict';
 
     const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token';
-    const STRAVA_ACTIVITIES_URL = 'https://www.strava.com/api/v3/athlete/activities';
+    const STRAVA_API_BASE_URL = 'https://www.strava.com/api/v3';
+    const STRAVA_ACTIVITIES_URL = `${STRAVA_API_BASE_URL}/athlete/activities`;
     const MAPBOX_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/clczd9zd6001515pj5yvlalza/tiles/{z}/{x}/{y}?access_token={accessToken}';
     const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MOBILE_REGEX = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-    const TOOLTIP_OPTIONS = { permanent: false, sticky: true, className: 'left-align' };
+    const TOOLTIP_OPTIONS = {
+        permanent: false,
+        sticky: true,
+        direction: 'top',
+        offset: [0, -18],
+        className: 'left-align strava-tooltip'
+    };
     const SUMMARY_LABEL_MAP = {
         run: 'Run',
         trailrun: 'Trail Run',
@@ -217,14 +224,49 @@
         return `${mins} min ${secs} sec per mile`;
     }
 
+    function parseDateValue(dateString) {
+        const value = String(dateString || '').trim();
+        if (!value) {
+            return null;
+        }
+        const match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+        if (match) {
+            return new Date(
+                Number(match[1]),
+                Number(match[2]) - 1,
+                Number(match[3]),
+                Number(match[4] || 0),
+                Number(match[5] || 0),
+                Number(match[6] || 0)
+            );
+        }
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
     function formatDate(dateString) {
-        const date = new Date(dateString);
+        const date = parseDateValue(dateString);
+        if (!date) {
+            return '';
+        }
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         const day = date.getDate();
         const monthIndex = date.getMonth();
         const year = date.getFullYear();
         const daySuffix = (day % 10 === 1 && day !== 11) ? 'st' : (day % 10 === 2 && day !== 12) ? 'nd' : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
         return `${monthNames[monthIndex]} ${day}${daySuffix}, ${year}`;
+    }
+
+    function formatClockTime(dateString) {
+        const date = parseDateValue(dateString);
+        if (!date) {
+            return '';
+        }
+        let hours = date.getHours();
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const meridiem = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        return `${String(hours).padStart(2, '0')}:${minutes} ${meridiem}`;
     }
 
     function ordinal(n) {
@@ -247,6 +289,9 @@
     function normalizeActivityRecord(activity) {
         const normalized = Object.assign({}, activity);
         normalized.map = Object.assign({}, activity.map || {});
+        if (!normalized.id && activity.strava_id) {
+            normalized.id = activity.strava_id;
+        }
         if (!normalized.map.summary_polyline && normalized.summary_polyline) {
             normalized.map.summary_polyline = normalized.summary_polyline;
         }
@@ -517,9 +562,11 @@
     function buildTooltip(activity, options) {
         const normalized = normalizeActivityRecord(activity);
         const ownerName = options && options.ownerName ? options.ownerName : '';
+        const displayDateTime = normalized.start_date_local || normalized.start_date;
+        const formattedTime = formatClockTime(displayDateTime);
         const ownerMarkup = ownerName ? `<h3 style='margin-top: -5px;'><b> Owner: </b>${ownerName}</h3>` : '';
-        const title = `<div style='display: flex; align-items: flex-start; flex-direction: column;'><b style='font-size: 20px;'>${normalized.name}</b>`;
-        const date = `<h2>On ${formatDate(normalized.start_date)}</h2>`;
+        const title = `<div class='strava-tooltip-card'><b class='strava-tooltip-title'>${normalized.name}</b>`;
+        const date = `<h2>On ${formatDate(displayDateTime)}${formattedTime ? ` at ${formattedTime}` : ''}</h2>`;
         const distance = `${getMiles(Number(normalized.distance || 0)).toFixed(2)} miles`;
         const elapsedTime = Number(normalized.elapsed_time || 0);
         const averageSpeedMph = Number(normalized.average_speed || 0) * 2.2369362920544;
@@ -635,22 +682,65 @@
             map._stravaPolylines = [];
         }
         layer._stravaMeta = descriptor.meta;
+        layer._stravaDescriptor = descriptor;
         map._stravaPolylines.push(layer);
         return layer;
     }
 
+    function bringOverlayGroupToFront(layer) {
+        if (!layer || !layer._speedOverlayGroup) {
+            return;
+        }
+        layer._speedOverlayGroup.eachLayer(function (segment) {
+            if (typeof segment.bringToFront === 'function') {
+                segment.bringToFront();
+            }
+        });
+    }
+
+    function setSpeedOverlayHoverState(layer, hovered) {
+        if (!layer || !layer._speedOverlayGroup || !layer._speedOverlayStyle) {
+            return false;
+        }
+        const overlayStyle = layer._speedOverlayStyle;
+        layer._speedOverlayGroup.eachLayer(function (segment) {
+            segment.setStyle({
+                weight: hovered ? overlayStyle.hoverWeight : overlayStyle.weight,
+                opacity: hovered ? overlayStyle.hoverOpacity : overlayStyle.opacity
+            });
+        });
+        layer.setStyle({
+            color: overlayStyle.baseColor,
+            weight: hovered ? overlayStyle.baseHoverWeight : overlayStyle.baseWeight,
+            opacity: overlayStyle.baseOpacity
+        });
+        if (hovered) {
+            bringOverlayGroupToFront(layer);
+        }
+        return true;
+    }
+
     function applyHoverHandlers(layer, baseStyle) {
         layer.on('mouseover', function () {
+            if (setSpeedOverlayHoverState(layer, true)) {
+                return;
+            }
+            if (typeof layer.bringToFront === 'function') {
+                layer.bringToFront();
+            }
             layer.setStyle({ weight: 15, opacity: 0.5 });
         });
         layer.on('mouseout', function () {
+            if (setSpeedOverlayHoverState(layer, false)) {
+                return;
+            }
             layer.setStyle({ weight: baseStyle.weight, opacity: baseStyle.opacity });
         });
     }
 
     function createPolylineLayer(map, descriptor, latLngs) {
         const layer = window.L.polyline(latLngs || descriptor.coordinates, descriptor.style).addTo(map);
-        layer.bindTooltip(descriptor.tooltipHtml, TOOLTIP_OPTIONS);
+        layer.bindTooltip(descriptor.tooltipHtml, Object.assign({}, TOOLTIP_OPTIONS, descriptor.tooltipOptions || {}));
         applyHoverHandlers(layer, descriptor.style);
         registerPolyline(map, layer, descriptor);
         return layer;
@@ -699,6 +789,31 @@
         });
     }
 
+    function buildStravaUrl(path, params) {
+        const url = new URL(`${STRAVA_API_BASE_URL}${path}`);
+        Object.entries(params || {}).forEach(function (entry) {
+            if (entry[1] !== undefined && entry[1] !== null && entry[1] !== '') {
+                url.searchParams.set(entry[0], entry[1]);
+            }
+        });
+        return url;
+    }
+
+    function stravaFetchJson(path, accessToken, params) {
+        const url = buildStravaUrl(path, params);
+        return window.fetch(url.toString(), {
+            headers: {
+                Accept: 'application/json, text/plain, */*',
+                Authorization: `Bearer ${accessToken}`
+            }
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error(`Strava request failed with ${response.status}`);
+            }
+            return response.json();
+        });
+    }
+
     function stravaReAuthorize(config) {
         return window.fetch(STRAVA_AUTH_URL, {
             method: 'post',
@@ -717,6 +832,38 @@
                 throw new Error(`Strava authorization failed with ${response.status}`);
             }
             return response.json();
+        });
+    }
+
+    function stravaFetchActivity(accessToken, activityId) {
+        return stravaFetchJson(`/activities/${activityId}`, accessToken).then(normalizeActivityRecord);
+    }
+
+    function stravaFetchActivityStreams(accessToken, activityId, options) {
+        const opts = options || {};
+        const streamKeys = Array.isArray(opts.keys) && opts.keys.length ? opts.keys : ['latlng', 'velocity_smooth', 'time'];
+        return stravaFetchJson(`/activities/${activityId}/streams`, accessToken, {
+            keys: streamKeys.join(','),
+            key_by_type: 'true',
+            resolution: opts.resolution || 'medium',
+            series_type: opts.seriesType || 'time'
+        }).then(function (streamData) {
+            const latlngStream = streamData && streamData.latlng && Array.isArray(streamData.latlng.data)
+                ? streamData.latlng.data
+                : Array.isArray(streamData && streamData.latlng) ? streamData.latlng : [];
+            const velocityStream = streamData && streamData.velocity_smooth && Array.isArray(streamData.velocity_smooth.data)
+                ? streamData.velocity_smooth.data
+                : Array.isArray(streamData && streamData.velocity_smooth) ? streamData.velocity_smooth : [];
+            const timeStream = streamData && streamData.time && Array.isArray(streamData.time.data)
+                ? streamData.time.data
+                : Array.isArray(streamData && streamData.time) ? streamData.time : [];
+            return {
+                latlng: latlngStream,
+                velocity_smooth: velocityStream,
+                time: timeStream,
+                resolution: opts.resolution || 'medium',
+                series_type: opts.seriesType || 'time'
+            };
         });
     }
 
@@ -937,7 +1084,9 @@
         getMiles: getMiles,
         formatTime: formatTime,
         convertMphToPace: convertMphToPace,
+        parseDateValue: parseDateValue,
         formatDate: formatDate,
+        formatClockTime: formatClockTime,
         normalizeActivityType: normalizeActivityType,
         normalizeActivityRecord: normalizeActivityRecord,
         getActivityLabel: getActivityLabel,
@@ -960,6 +1109,8 @@
         apiGet: apiGet,
         apiPost: apiPost,
         stravaReAuthorize: stravaReAuthorize,
+        stravaFetchActivity: stravaFetchActivity,
+        stravaFetchActivityStreams: stravaFetchActivityStreams,
         stravaFetchActivities: stravaFetchActivities,
         stravaGetLatestLocation: stravaGetLatestLocation,
         initMap: initMap,
