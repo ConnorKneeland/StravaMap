@@ -639,8 +639,8 @@
             throw new Error('Unknown user: ' + requestedUser);
         }
 
-        document.title = userConfig.displayName + ' Map';
-        pageTitle.textContent = userConfig.displayName + ' Map';
+        document.title = userConfig.displayName + "'s Map";
+        pageTitle.textContent = userConfig.displayName + "'s Map";
 
         function cleanText(value) {
             const text = String(value || '').trim();
