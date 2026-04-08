@@ -283,7 +283,14 @@
 
     function getLineStyle() {
         const isMobile = MOBILE_REGEX.test(window.navigator.userAgent);
-        return { isMobile: isMobile, LINE_WEIGHT: isMobile ? 5 : 2.5, OPACITY_WEIGHT: isMobile ? 0.5 : 0.8 };
+        const baseWeightMultiplier = window.StravaAnimated && typeof window.StravaAnimated.getBaseLineWeightMultiplier === 'function'
+            ? window.StravaAnimated.getBaseLineWeightMultiplier()
+            : 1;
+        return {
+            isMobile: isMobile,
+            LINE_WEIGHT: (isMobile ? 5 : 2.5) * baseWeightMultiplier,
+            OPACITY_WEIGHT: isMobile ? 0.5 : 0.8
+        };
     }
 
     function normalizeActivityRecord(activity) {
@@ -756,7 +763,50 @@
         });
     }
 
-    function apiGet(apiBase, path, params) {
+    function createHttpError(method, path, response) {
+        const error = new Error(`${method} ${path} failed with ${response.status}`);
+        error.status = response.status;
+        error.path = path;
+        error.method = method;
+        error.isHttpError = true;
+        return error;
+    }
+
+    function createTimeoutError(method, path, timeoutMs) {
+        const error = new Error(`${method} ${path} timed out after ${timeoutMs}ms`);
+        error.code = 'ETIMEDOUT';
+        error.isTimeout = true;
+        error.path = path;
+        error.method = method;
+        return error;
+    }
+
+    function fetchJsonWithTimeout(url, fetchOptions, requestMeta) {
+        const options = Object.assign({}, fetchOptions || {});
+        const timeoutMs = Number(options.timeoutMs) || 0;
+        delete options.timeoutMs;
+        let timeoutId = null;
+        let controller = null;
+        if (timeoutMs > 0 && typeof window.AbortController === 'function') {
+            controller = new window.AbortController();
+            options.signal = controller.signal;
+            timeoutId = window.setTimeout(function () {
+                controller.abort();
+            }, timeoutMs);
+        }
+        return window.fetch(url, options).catch(function (error) {
+            if (error && error.name === 'AbortError') {
+                throw createTimeoutError(requestMeta.method, requestMeta.path, timeoutMs);
+            }
+            throw error;
+        }).finally(function () {
+            if (timeoutId) {
+                window.clearTimeout(timeoutId);
+            }
+        });
+    }
+
+    function apiGet(apiBase, path, params, requestOptions) {
         const base = apiBase || '';
         const url = new URL(`${base}${path}`, window.location.origin);
         Object.entries(params || {}).forEach(function (entry) {
@@ -764,29 +814,178 @@
                 url.searchParams.set(entry[0], entry[1]);
             }
         });
-        return window.fetch(url.toString()).then(function (response) {
+        return fetchJsonWithTimeout(url.toString(), requestOptions, { method: 'GET', path: path }).then(function (response) {
             if (!response.ok) {
-                throw new Error(`GET ${path} failed with ${response.status}`);
+                throw createHttpError('GET', path, response);
             }
             return response.json();
         });
     }
 
-    function apiPost(apiBase, path, body) {
+    function apiPost(apiBase, path, body, requestOptions) {
         const base = apiBase || '';
-        return window.fetch(`${base}${path}`, {
+        return fetchJsonWithTimeout(`${base}${path}`, Object.assign({
             method: 'POST',
             headers: {
                 Accept: 'application/json, text/plain, */*',
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(body || {})
-        }).then(function (response) {
+        }, requestOptions || {}), { method: 'POST', path: path }).then(function (response) {
             if (!response.ok) {
-                throw new Error(`POST ${path} failed with ${response.status}`);
+                throw createHttpError('POST', path, response);
             }
             return response.json();
         });
+    }
+
+    function shouldFallbackForBackendError(error) {
+        if (!error) {
+            return false;
+        }
+        if (error.isTimeout || error.code === 'ETIMEDOUT' || error.name === 'AbortError') {
+            return true;
+        }
+        if (error.name === 'TypeError' || error instanceof TypeError) {
+            return true;
+        }
+        const status = Number(error.status);
+        if (!Number.isFinite(status)) {
+            return false;
+        }
+        if (status === 429 || status >= 500) {
+            return true;
+        }
+        if (status >= 400 && status < 500) {
+            return true;
+        }
+        return false;
+    }
+
+    function formatBackendFallbackReason(label, error) {
+        const status = Number(error && error.status);
+        if (Number.isFinite(status)) {
+            return `${label} backend failed with ${status}`;
+        }
+        if (error && error.isTimeout) {
+            return `${label} backend timed out`;
+        }
+        if (error && error.message) {
+            return `${label}: ${error.message}`;
+        }
+        return `${label} backend unavailable`;
+    }
+
+    function createRuntimeDataSource(options) {
+        const opts = options || {};
+        const apiBase = opts.apiBase || '';
+        const cooldownMs = Number(opts.cooldownMs) || 300000;
+        const requestTimeoutMs = Number(opts.requestTimeoutMs) || 4500;
+        const disabledUntilKey = opts.disabledUntilKey || 'strava_backend_disabled_until';
+        const disabledReasonKey = opts.disabledReasonKey || 'strava_backend_disabled_reason';
+        const storage = window.sessionStorage;
+        let fallbackReason = '';
+        let mode = apiBase ? 'backend' : 'direct';
+
+        function readDisabledUntil() {
+            if (!storage) {
+                return 0;
+            }
+            const rawValue = storage.getItem(disabledUntilKey);
+            const parsed = Number(rawValue || 0);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function clearDisabledState() {
+            if (!storage) {
+                return;
+            }
+            storage.removeItem(disabledUntilKey);
+            storage.removeItem(disabledReasonKey);
+        }
+
+        function persistDisabledState(reason) {
+            if (!storage || !apiBase) {
+                return;
+            }
+            storage.setItem(disabledUntilKey, String(Date.now() + cooldownMs));
+            storage.setItem(disabledReasonKey, reason || 'Backend unavailable');
+        }
+
+        function dispatchFallbackEvent(reason, label) {
+            if (!apiBase) {
+                return;
+            }
+            window.dispatchEvent(new window.CustomEvent('strava:backend-fallback', {
+                detail: {
+                    apiBase: apiBase,
+                    label: label,
+                    reason: reason
+                }
+            }));
+        }
+
+        if (apiBase) {
+            const disabledUntil = readDisabledUntil();
+            if (disabledUntil > Date.now()) {
+                mode = 'direct';
+                fallbackReason = (storage && storage.getItem(disabledReasonKey)) || 'Backend temporarily disabled';
+            } else if (disabledUntil) {
+                clearDisabledState();
+            }
+        }
+
+        function getMode() {
+            return mode;
+        }
+
+        function isBackendEnabled() {
+            return Boolean(apiBase) && mode === 'backend';
+        }
+
+        function getFallbackReason() {
+            return fallbackReason;
+        }
+
+        function disableBackend(reason) {
+            if (!apiBase) {
+                return;
+            }
+            fallbackReason = reason || 'Backend unavailable';
+            mode = 'direct';
+            persistDisabledState(fallbackReason);
+            dispatchFallbackEvent(fallbackReason, 'manual');
+        }
+
+        function runWithFallback(label, backendFn, fallbackFn) {
+            if (!isBackendEnabled()) {
+                return Promise.resolve().then(function () {
+                    return fallbackFn();
+                });
+            }
+            return Promise.resolve().then(function () {
+                return backendFn({ timeoutMs: requestTimeoutMs });
+            }).catch(function (error) {
+                if (!fallbackFn || !shouldFallbackForBackendError(error)) {
+                    throw error;
+                }
+                fallbackReason = formatBackendFallbackReason(label, error);
+                mode = 'direct';
+                persistDisabledState(fallbackReason);
+                dispatchFallbackEvent(fallbackReason, label);
+                return fallbackFn(error);
+            });
+        }
+
+        return {
+            getMode: getMode,
+            isBackendEnabled: isBackendEnabled,
+            runWithFallback: runWithFallback,
+            disableBackend: disableBackend,
+            getFallbackReason: getFallbackReason,
+            apiBase: apiBase,
+            requestTimeoutMs: requestTimeoutMs
+        };
     }
 
     function buildStravaUrl(path, params) {
@@ -1106,6 +1305,7 @@
         applyHoverHandlers: applyHoverHandlers,
         applyFilters: applyFilters,
         filterActivities: filterActivities,
+        createRuntimeDataSource: createRuntimeDataSource,
         apiGet: apiGet,
         apiPost: apiPost,
         stravaReAuthorize: stravaReAuthorize,

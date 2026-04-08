@@ -57,6 +57,14 @@
         </div>
     </div>
 
+    <script>
+        (function () {
+            const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
+            window.STRAVA_CONFIG = Object.assign({
+                apiBase: isLocalHost ? '' : 'https://stravamap-production-7f28.up.railway.app'
+            }, window.STRAVA_CONFIG || {});
+        }());
+    </script>
     <script src="js/strava_shared.js"></script>
     <script>
         const userOrder = ['connor', 'tim', 'quinn'];
@@ -65,6 +73,11 @@
         const participantList = document.getElementById('participant-list');
         const activityTypeList = document.getElementById('activity-type-list');
         const competitionList = document.getElementById('competition-list');
+        const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
+
+        window.addEventListener('strava:backend-fallback', function (event) {
+            console.warn('Falling back to local competition storage', event.detail);
+        });
 
         function buildCheckboxList(container, entries, key) {
             container.innerHTML = '';
@@ -94,20 +107,22 @@
         }
 
         async function loadCompetitions() {
-            if (window.STRAVA_CONFIG.apiBase) {
-                return StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, '/api/competitions');
-            }
-            return getLocalCompetitions();
+            return runtimeDataSource.runWithFallback('competition list', function (requestOptions) {
+                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/competitions', {}, requestOptions);
+            }, function () {
+                return getLocalCompetitions();
+            });
         }
 
         async function createCompetition(competition) {
-            if (window.STRAVA_CONFIG.apiBase) {
-                return StravaApp.apiPost(window.STRAVA_CONFIG.apiBase, '/api/competitions', competition);
-            }
-            const competitions = getLocalCompetitions();
-            competitions.unshift(competition);
-            saveLocalCompetitions(competitions);
-            return competition;
+            return runtimeDataSource.runWithFallback('competition create', function (requestOptions) {
+                return StravaApp.apiPost(runtimeDataSource.apiBase, '/api/competitions', competition, requestOptions);
+            }, function () {
+                const competitions = getLocalCompetitions();
+                competitions.unshift(competition);
+                saveLocalCompetitions(competitions);
+                return competition;
+            });
         }
 
         function renderCompetitions(competitions) {

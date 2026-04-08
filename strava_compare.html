@@ -74,6 +74,14 @@
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
         integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
     <script src="https://cdn.plot.ly/plotly-2.17.1.min.js"></script>
+    <script>
+        (function () {
+            const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
+            window.STRAVA_CONFIG = Object.assign({
+                apiBase: isLocalHost ? '' : 'https://stravamap-production-7f28.up.railway.app'
+            }, window.STRAVA_CONFIG || {});
+        }());
+    </script>
     <script src="js/strava_shared.js"></script>
     <script>
         const userOrder = ['connor', 'tim', 'quinn'];
@@ -93,15 +101,47 @@
         const metricSelect = document.getElementById('metric-select');
         const dateFromInput = document.getElementById('date-from');
         const dateToInput = document.getElementById('date-to');
+        const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
         const state = {
             map: StravaApp.initMap('map', [43.3, -88.6], 7),
             analyticsVisible: false,
             filtersCollapsed: false,
             users: {},
-            filters: { users: new Set(userOrder), types: new Set(), dateFrom: '', dateTo: '', metric: 'distance' }
+            filters: { users: new Set(userOrder), types: new Set(), dateFrom: '', dateTo: '', metric: 'distance' },
+            directAccessTokens: new Map()
         };
 
         document.title = 'Strava Comparison';
+
+        window.addEventListener('strava:backend-fallback', function (event) {
+            console.warn('Falling back to direct Strava mode', event.detail);
+        });
+
+        async function ensureDirectAccessToken(slug) {
+            const existingToken = state.directAccessTokens.get(slug);
+            if (existingToken) {
+                return existingToken;
+            }
+            const auth = await StravaApp.stravaReAuthorize(StravaApp.USER_CONFIGS[slug]);
+            state.directAccessTokens.set(slug, auth.access_token);
+            return auth.access_token;
+        }
+
+        function loadCompetitionLocal(id) {
+            return getLocalCompetition(id);
+        }
+
+        function loadUserActivities(slug) {
+            const config = StravaApp.USER_CONFIGS[slug];
+            return runtimeDataSource.runWithFallback(`compare ${slug} activities`, async function (requestOptions) {
+                await StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${slug}`, {}, requestOptions);
+                const activities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', { user: slug }, requestOptions);
+                return StravaApp.sortActivitiesNewestFirst(activities.map(StravaApp.normalizeActivityRecord));
+            }, async function () {
+                const accessToken = await ensureDirectAccessToken(slug);
+                return StravaApp.stravaFetchActivities(accessToken, config.pages);
+            });
+        }
 
         function getAllActivities() {
             return userOrder.flatMap(function (slug) {
@@ -253,10 +293,11 @@
             if (!id) {
                 return null;
             }
-            if (window.STRAVA_CONFIG.apiBase) {
-                return StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, `/api/competitions/${id}`);
-            }
-            return getLocalCompetition(id);
+            return runtimeDataSource.runWithFallback('competition lookup', function (requestOptions) {
+                return StravaApp.apiGet(runtimeDataSource.apiBase, `/api/competitions/${id}`, {}, requestOptions);
+            }, function () {
+                return loadCompetitionLocal(id);
+            });
         }
 
         async function loadUsers() {
@@ -264,15 +305,7 @@
             for (let index = 0; index < userOrder.length; index += 1) {
                 const slug = userOrder[index];
                 const config = StravaApp.USER_CONFIGS[slug];
-                let activities = [];
-                if (window.STRAVA_CONFIG.apiBase) {
-                    await StravaApp.apiPost(window.STRAVA_CONFIG.apiBase, `/api/sync/${slug}`, {});
-                    activities = await StravaApp.apiGet(window.STRAVA_CONFIG.apiBase, '/api/activities', { user: slug });
-                    activities = StravaApp.sortActivitiesNewestFirst(activities.map(StravaApp.normalizeActivityRecord));
-                } else {
-                    const auth = await StravaApp.stravaReAuthorize(config);
-                    activities = await StravaApp.stravaFetchActivities(auth.access_token, config.pages);
-                }
+                const activities = await loadUserActivities(slug);
                 const lineStyle = StravaApp.getLineStyle();
                 const descriptors = activities.map(function (activity) {
                     return StravaApp.createActivityDescriptor(activity, {
