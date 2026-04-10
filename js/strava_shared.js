@@ -4,7 +4,8 @@
     const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token';
     const STRAVA_API_BASE_URL = 'https://www.strava.com/api/v3';
     const STRAVA_ACTIVITIES_URL = `${STRAVA_API_BASE_URL}/athlete/activities`;
-    const MAPBOX_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/clczd9zd6001515pj5yvlalza/tiles/{z}/{x}/{y}?access_token={accessToken}';
+    const MAPBOX_LIGHT_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/clczd9zd6001515pj5yvlalza/tiles/{z}/{x}/{y}?access_token={accessToken}';
+    const MAPBOX_DARK_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/cmnt0fe3c004l01s7bq827jpg/tiles/{z}/{x}/{y}?access_token={accessToken}';
     const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MOBILE_REGEX = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
     const TOOLTIP_OPTIONS = {
@@ -288,7 +289,7 @@
             : 1;
         return {
             isMobile: isMobile,
-            LINE_WEIGHT: (isMobile ? 5 : 2.5) * baseWeightMultiplier,
+            LINE_WEIGHT: (isMobile ? 5 : 3.25) * baseWeightMultiplier,
             OPACITY_WEIGHT: isMobile ? 0.5 : 0.8
         };
     }
@@ -299,8 +300,38 @@
         if (!normalized.id && activity.strava_id) {
             normalized.id = activity.strava_id;
         }
+        if (!normalized.map.id && normalized.map_id) {
+            normalized.map.id = normalized.map_id;
+        }
+        if (!normalized.map.polyline && normalized.map_polyline) {
+            normalized.map.polyline = normalized.map_polyline;
+        }
+        if (!normalized.map.resource_state && normalized.map_resource_state !== undefined && normalized.map_resource_state !== null) {
+            normalized.map.resource_state = normalized.map_resource_state;
+        }
         if (!normalized.map.summary_polyline && normalized.summary_polyline) {
             normalized.map.summary_polyline = normalized.summary_polyline;
+        }
+        if (!normalized.map.summary_polyline && normalized.map_summary_polyline) {
+            normalized.map.summary_polyline = normalized.map_summary_polyline;
+        }
+        if (!normalized.map.city && normalized.map_city) {
+            normalized.map.city = normalized.map_city;
+        }
+        if (!normalized.map.state && normalized.map_state) {
+            normalized.map.state = normalized.map_state;
+        }
+        if (!normalized.map.country && normalized.map_country) {
+            normalized.map.country = normalized.map_country;
+        }
+        if (!normalized.city && (normalized.location_city || normalized.map_city || normalized.map.city)) {
+            normalized.city = normalized.location_city || normalized.map_city || normalized.map.city;
+        }
+        if (!normalized.state && (normalized.location_state || normalized.map_state || normalized.map.state)) {
+            normalized.state = normalized.location_state || normalized.map_state || normalized.map.state;
+        }
+        if (!normalized.country && (normalized.location_country || normalized.map_country || normalized.map.country)) {
+            normalized.country = normalized.location_country || normalized.map_country || normalized.map.country;
         }
         if (!normalized.start_latlng && activity.start_latlng) {
             normalized.start_latlng = activity.start_latlng;
@@ -729,6 +760,9 @@
 
     function applyHoverHandlers(layer, baseStyle) {
         layer.on('mouseover', function () {
+            if (typeof layer.openTooltip === 'function') {
+                layer.openTooltip();
+            }
             if (setSpeedOverlayHoverState(layer, true)) {
                 return;
             }
@@ -738,6 +772,9 @@
             layer.setStyle({ weight: 15, opacity: 0.5 });
         });
         layer.on('mouseout', function () {
+            if (typeof layer.closeTooltip === 'function') {
+                layer.closeTooltip();
+            }
             if (setSpeedOverlayHoverState(layer, false)) {
                 return;
             }
@@ -880,7 +917,8 @@
         const opts = options || {};
         const apiBase = opts.apiBase || '';
         const cooldownMs = Number(opts.cooldownMs) || 300000;
-        const requestTimeoutMs = Number(opts.requestTimeoutMs) || 4500;
+        const isLocalApiBase = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(apiBase);
+        const requestTimeoutMs = Number(opts.requestTimeoutMs) || (isLocalApiBase ? 600000 : 4500);
         const disabledUntilKey = opts.disabledUntilKey || 'strava_backend_disabled_until';
         const disabledReasonKey = opts.disabledReasonKey || 'strava_backend_disabled_reason';
         const storage = window.sessionStorage;
@@ -905,7 +943,7 @@
         }
 
         function persistDisabledState(reason) {
-            if (!storage || !apiBase) {
+            if (!storage || !apiBase || isLocalApiBase) {
                 return;
             }
             storage.setItem(disabledUntilKey, String(Date.now() + cooldownMs));
@@ -925,7 +963,7 @@
             }));
         }
 
-        if (apiBase) {
+        if (apiBase && !isLocalApiBase) {
             const disabledUntil = readDisabledUntil();
             if (disabledUntil > Date.now()) {
                 mode = 'direct';
@@ -986,6 +1024,29 @@
             apiBase: apiBase,
             requestTimeoutMs: requestTimeoutMs
         };
+    }
+
+    function logDataLoadSummary(details) {
+        const payload = Object.assign({}, details || {});
+        if (payload.recordsPulled !== undefined) {
+            payload.recordsPulled = Number(payload.recordsPulled) || 0;
+        }
+        if (payload.recordsUpdated !== undefined) {
+            payload.recordsUpdated = Number(payload.recordsUpdated) || 0;
+        }
+        if (payload.stravaRecordsPulled !== undefined) {
+            payload.stravaRecordsPulled = Number(payload.stravaRecordsPulled) || 0;
+        }
+        if (payload.stravaSummaryFetchedCount !== undefined) {
+            payload.stravaSummaryFetchedCount = Number(payload.stravaSummaryFetchedCount) || 0;
+        }
+        if (payload.stravaDetailFetchedCount !== undefined) {
+            payload.stravaDetailFetchedCount = Number(payload.stravaDetailFetchedCount) || 0;
+        }
+        if (payload.recordsInserted !== undefined) {
+            payload.recordsInserted = Number(payload.recordsInserted) || 0;
+        }
+        console.log('[Strava Data]', payload);
     }
 
     function buildStravaUrl(path, params) {
@@ -1102,21 +1163,52 @@
         return fallback;
     }
 
-    function initMap(elementId, center, zoom) {
-        const map = window.L.map(elementId).setView(center, typeof zoom === 'number' ? zoom : 8);
-        window.addEventListener('resize', function () {
-            map.invalidateSize();
-        });
-        window.L.tileLayer(MAPBOX_STYLE_URL, {
+    function normalizeMapTheme(theme) {
+        return String(theme || '').toLowerCase() === 'dark' ? 'dark' : 'light';
+    }
+
+    function getMapStyleUrl(theme) {
+        return normalizeMapTheme(theme) === 'dark' ? MAPBOX_DARK_STYLE_URL : MAPBOX_LIGHT_STYLE_URL;
+    }
+
+    function createBaseTileLayer(theme) {
+        return window.L.tileLayer(getMapStyleUrl(theme), {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery &copy; <a href="https://www.mapbox.com/">Mapbox</a>',
             maxZoom: 30,
             id: 'mapbox/streets-v11',
             tileSize: 512,
             zoomOffset: -1,
             accessToken: MAPBOX_ACCESS_TOKEN
-        }).addTo(map);
+        });
+    }
+
+    function initMap(elementId, center, zoom, options) {
+        const opts = options || {};
+        const theme = normalizeMapTheme(opts.theme);
+        const map = window.L.map(elementId).setView(center, typeof zoom === 'number' ? zoom : 8);
+        window.addEventListener('resize', function () {
+            map.invalidateSize();
+        });
+        map._stravaBaseTheme = theme;
+        map._stravaBaseTileLayer = createBaseTileLayer(theme).addTo(map);
         map._stravaPolylines = [];
         return map;
+    }
+
+    function setMapTheme(map, theme) {
+        if (!map) {
+            return null;
+        }
+        const normalizedTheme = normalizeMapTheme(theme);
+        if (map._stravaBaseTheme === normalizedTheme && map._stravaBaseTileLayer) {
+            return map._stravaBaseTileLayer;
+        }
+        if (map._stravaBaseTileLayer && map.hasLayer(map._stravaBaseTileLayer)) {
+            map.removeLayer(map._stravaBaseTileLayer);
+        }
+        map._stravaBaseTheme = normalizedTheme;
+        map._stravaBaseTileLayer = createBaseTileLayer(normalizedTheme).addTo(map);
+        return map._stravaBaseTileLayer;
     }
 
     function flyIn(map, center) {
@@ -1306,6 +1398,7 @@
         applyFilters: applyFilters,
         filterActivities: filterActivities,
         createRuntimeDataSource: createRuntimeDataSource,
+        logDataLoadSummary: logDataLoadSummary,
         apiGet: apiGet,
         apiPost: apiPost,
         stravaReAuthorize: stravaReAuthorize,
@@ -1314,6 +1407,7 @@
         stravaFetchActivities: stravaFetchActivities,
         stravaGetLatestLocation: stravaGetLatestLocation,
         initMap: initMap,
+        setMapTheme: setMapTheme,
         flyIn: flyIn,
         setupSplashScreen: setupSplashScreen,
         sortActivitiesNewestFirst: sortActivitiesNewestFirst,

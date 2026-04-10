@@ -1,6 +1,7 @@
 const express = require('express');
 const {
     syncUserActivities,
+    ensureUserForSync,
     fetchActivityDetail,
     fetchActivityStreams,
     getUserStore,
@@ -47,7 +48,7 @@ function buildActivityStreamResponse(activity, cached) {
 }
 
 router.post('/sync/:slug', async (req, res) => {
-    const user = await getUserStore().findOne({ slug: req.params.slug });
+    const user = await ensureUserForSync(req.params.slug);
     if (!user) {
         res.status(404).json({ error: 'User not found' });
         return;

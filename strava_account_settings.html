@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="icon" href="img/Strava_Favicon.png" />
+    <style>
+        :root{
+            --nav-height:72px;
+            --bg:#05080d;
+            --panel:#0f1722;
+            --panel-strong:#121b28;
+            --border:rgba(255,255,255,0.12);
+            --border-strong:rgba(255,255,255,0.2);
+            --text:#f5f7fb;
+            --muted:#aeb7c4;
+            --shadow:0 14px 34px rgba(0,0,0,0.35);
+        }
+        *{ box-sizing:border-box; }
+        body{
+            margin:0;
+            font-family:'Aptos Narrow', sans-serif;
+            background:var(--bg);
+            color:var(--text);
+        }
+        #top-nav{
+            position:fixed;
+            top:0;
+            left:0;
+            right:0;
+            height:var(--nav-height);
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            padding:10px 14px;
+            background:rgba(6,9,14,0.96);
+            border-bottom:1px solid rgba(255,255,255,0.08);
+            box-shadow:0 10px 30px rgba(0,0,0,0.28);
+            z-index:1000;
+        }
+        .nav-title{
+            font-size:30px;
+            font-weight:600;
+            color:#fff;
+            letter-spacing:0.5px;
+        }
+        .nav-actions{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
+            justify-content:flex-end;
+        }
+        .nav-link{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            padding:10px 16px;
+            border-radius:12px;
+            border:1px solid var(--border);
+            background:var(--panel);
+            color:var(--text);
+            text-decoration:none;
+            font-size:16px;
+            box-shadow:var(--shadow);
+        }
+        .nav-link:hover{
+            border-color:var(--border-strong);
+            background:var(--panel-strong);
+        }
+        main{
+            padding:calc(var(--nav-height) + 24px) 24px 32px;
+            display:grid;
+            gap:18px;
+        }
+        .section-card{
+            background:rgba(11,16,24,0.98);
+            border:1px solid var(--border);
+            border-radius:18px;
+            box-shadow:var(--shadow);
+            padding:18px;
+        }
+        .section-title{
+            font-size:26px;
+            font-weight:600;
+            margin:0 0 8px;
+        }
+        .section-copy{
+            margin:0;
+            color:var(--muted);
+            font-size:18px;
+            line-height:1.5;
+        }
+        #backend-summary{
+            display:grid;
+            gap:10px;
+        }
+        .summary-row{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:16px;
+            padding:12px 14px;
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:14px;
+            background:#0b1119;
+        }
+        .summary-label{
+            color:var(--muted);
+            font-size:15px;
+            text-transform:uppercase;
+            letter-spacing:0.08em;
+        }
+        .summary-value{
+            color:#fff;
+            font-size:18px;
+            text-align:right;
+        }
+        #account-grid{
+            display:grid;
+            gap:14px;
+            grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+        }
+        .account-card{
+            background:#0b1119;
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:16px;
+            padding:16px;
+            display:grid;
+            gap:14px;
+        }
+        .account-heading{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+        }
+        .account-title{
+            font-size:24px;
+            font-weight:600;
+        }
+        .account-dot{
+            width:12px;
+            height:12px;
+            border-radius:999px;
+            flex:0 0 auto;
+        }
+        .account-meta{
+            display:grid;
+            gap:8px;
+        }
+        .account-meta-row{
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:16px;
+        }
+        .account-meta-label{
+            color:var(--muted);
+            font-size:15px;
+        }
+        .account-meta-value{
+            color:#fff;
+            font-size:16px;
+            text-align:right;
+        }
+        .account-actions{
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+        }
+        .account-status{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            width:max-content;
+            padding:8px 10px;
+            border-radius:999px;
+            border:1px solid rgba(255,255,255,0.08);
+            font-size:14px;
+            color:var(--muted);
+            background:#121b28;
+        }
+        .status-live{
+            color:#8fe388;
+        }
+        .status-missing{
+            color:#ffb3a8;
+        }
+        @media(max-width:760px){
+            :root{ --nav-height:88px; }
+            #top-nav{
+                align-items:flex-start;
+                flex-direction:column;
+            }
+            .nav-title{
+                font-size:26px;
+            }
+            .nav-actions{
+                width:100%;
+                justify-content:flex-start;
+            }
+            main{
+                padding:calc(var(--nav-height) + 22px) 16px 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav id="top-nav">
+        <div class="nav-title">Account Settings</div>
+        <div class="nav-actions">
+            <a class="nav-link" href="strava_compare.html">Comparison Map</a>
+            <a class="nav-link" href="strava_competitions.html">Competitions Map</a>
+            <a class="nav-link" href="strava_user.html?user=connor">Connor's Map</a>
+        </div>
+    </nav>
+
+    <main>
+        <section class="section-card">
+            <h1 class="section-title">Backend Status</h1>
+            <p class="section-copy">This page is read-only for now. It shows the Strava accounts defined in the frontend config and whether the backend already has those users stored.</p>
+            <div id="backend-summary">
+                <div class="summary-row">
+                    <div class="summary-label">API Base</div>
+                    <div id="summary-api-base" class="summary-value">Checking...</div>
+                </div>
+                <div class="summary-row">
+                    <div class="summary-label">Backend Users</div>
+                    <div id="summary-user-count" class="summary-value">Checking...</div>
+                </div>
+                <div class="summary-row">
+                    <div class="summary-label">Mode</div>
+                    <div id="summary-mode" class="summary-value">Checking...</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-card">
+            <h2 class="section-title">Configured Accounts</h2>
+            <p class="section-copy">Any account added to <code>js/strava_shared.js</code> can be auto-provisioned into the backend on first sync.</p>
+            <div id="account-grid"></div>
+        </section>
+    </main>
+
+    <script>
+        (function () {
+            const existingConfig = window.STRAVA_CONFIG || {};
+            const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
+            window.STRAVA_CONFIG = Object.assign({
+                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app'
+            }, existingConfig);
+        }());
+    </script>
+    <script src="js/strava_shared.js"></script>
+    <script>
+        const apiBaseValue = document.getElementById('summary-api-base');
+        const userCountValue = document.getElementById('summary-user-count');
+        const modeValue = document.getElementById('summary-mode');
+        const accountGrid = document.getElementById('account-grid');
+        const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
+
+        function renderAccountCards(backendUsers) {
+            const backendUsersBySlug = new Map((backendUsers || []).map(function (user) {
+                return [String(user.slug || '').toLowerCase(), user];
+            }));
+            accountGrid.innerHTML = '';
+
+            Object.keys(StravaApp.USER_CONFIGS).sort().forEach(function (slug) {
+                const config = StravaApp.USER_CONFIGS[slug];
+                const backendUser = backendUsersBySlug.get(slug);
+                const card = document.createElement('article');
+                card.className = 'account-card';
+
+                const heading = document.createElement('div');
+                heading.className = 'account-heading';
+                heading.innerHTML = "<div class='account-title'>" + config.displayName + "</div><span class='account-dot' style='background:" + config.color + ";'></span>";
+
+                const status = document.createElement('div');
+                status.className = 'account-status ' + (backendUser ? 'status-live' : 'status-missing');
+                status.textContent = backendUser ? 'Available in backend' : 'Frontend only';
+
+                const meta = document.createElement('div');
+                meta.className = 'account-meta';
+                meta.innerHTML = ""
+                    + "<div class='account-meta-row'><div class='account-meta-label'>Slug</div><div class='account-meta-value'>" + slug + "</div></div>"
+                    + "<div class='account-meta-row'><div class='account-meta-label'>Map Pages</div><div class='account-meta-value'>" + Number(config.pages || 1) + "</div></div>"
+                    + "<div class='account-meta-row'><div class='account-meta-label'>Default Center</div><div class='account-meta-value'>" + Number(config.lat).toFixed(4) + ", " + Number(config.lng).toFixed(4) + "</div></div>"
+                    + "<div class='account-meta-row'><div class='account-meta-label'>Backend Activities</div><div class='account-meta-value'>" + (backendUser ? Number(backendUser.total_activities || 0) : 'Not synced') + "</div></div>";
+
+                const actions = document.createElement('div');
+                actions.className = 'account-actions';
+                actions.innerHTML = "<a class='nav-link' href='strava_user.html?user=" + slug + "'>Open Map</a>";
+
+                card.appendChild(heading);
+                card.appendChild(status);
+                card.appendChild(meta);
+                card.appendChild(actions);
+                accountGrid.appendChild(card);
+            });
+        }
+
+        async function loadPage() {
+            apiBaseValue.textContent = runtimeDataSource.apiBase || 'Direct Strava only';
+            modeValue.textContent = runtimeDataSource.isBackendEnabled() ? 'Backend preferred' : 'Direct fallback';
+
+            const backendUsers = await runtimeDataSource.runWithFallback('account settings users', function (requestOptions) {
+                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/users', {}, requestOptions);
+            }, function () {
+                return [];
+            });
+
+            userCountValue.textContent = backendUsers.length ? String(backendUsers.length) : '0';
+            modeValue.textContent = runtimeDataSource.getMode() === 'backend' ? 'Backend connected' : 'Direct fallback';
+            renderAccountCards(backendUsers);
+        }
+
+        loadPage().catch(function (error) {
+            console.error(error);
+            userCountValue.textContent = 'Unavailable';
+            modeValue.textContent = 'Error';
+            renderAccountCards([]);
+        });
+    </script>
+</body>
+
+</html>

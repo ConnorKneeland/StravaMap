@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "start": "node server/index.js",
-    "dev": "nodemon server/index.js"
+    "dev": "nodemon server/index.js",
+    "migrate:users": "node server/migrate_users.js",
+    "sync:users": "node server/bulk_sync_users.js",
+    "backfill:locations": "node server/backfill_activity_locations.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

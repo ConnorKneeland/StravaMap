@@ -72,6 +72,9 @@ function createMemoryCollection(name, uniqueField) {
             const items = await this.find(filter, Object.assign({}, options, { limit: 1 }));
             return items[0] || null;
         },
+        async count(filter = {}) {
+            return memoryState[name].filter((item) => matchesFilter(item, filter)).length;
+        },
         async insertOne(document) {
             const next = Object.assign({}, clone(document), {
                 _id: document._id || `${name}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
@@ -112,10 +115,32 @@ function createMemoryCollection(name, uniqueField) {
             return clone(removed);
         },
         async bulkUpsertActivities(documents) {
+            if (!documents.length) {
+                return {
+                    records: [],
+                    insertedCount: 0,
+                    updatedCount: 0,
+                    totalCount: 0
+                };
+            }
+            const stravaIds = documents.map((document) => document.strava_id);
+            const existingIds = new Set(
+                memoryState[name]
+                    .filter((item) => stravaIds.includes(item.strava_id))
+                    .map((item) => item.strava_id)
+            );
             for (const document of documents) {
                 await this.upsertOne({ strava_id: document.strava_id }, document);
             }
-            return clone(documents);
+            const insertedCount = documents.reduce((count, document) => {
+                return count + (existingIds.has(document.strava_id) ? 0 : 1);
+            }, 0);
+            return {
+                records: await this.find({ strava_id: { $in: stravaIds } }),
+                insertedCount: insertedCount,
+                updatedCount: documents.length - insertedCount,
+                totalCount: documents.length
+            };
         }
     };
 }
@@ -139,6 +164,9 @@ function wrapModel(model) {
             }
             return query.lean();
         },
+        async count(filter = {}) {
+            return model.countDocuments(filter);
+        },
         async insertOne(document) {
             const created = await model.create(document);
             return created.toObject();
@@ -158,8 +186,16 @@ function wrapModel(model) {
         },
         async bulkUpsertActivities(documents) {
             if (!documents.length) {
-                return [];
+                return {
+                    records: [],
+                    insertedCount: 0,
+                    updatedCount: 0,
+                    totalCount: 0
+                };
             }
+            const stravaIds = documents.map((document) => document.strava_id);
+            const existingRecords = await model.find({ strava_id: { $in: stravaIds } }).select({ strava_id: 1 }).lean();
+            const existingIds = new Set(existingRecords.map((record) => record.strava_id));
             await model.bulkWrite(documents.map((document) => ({
                 updateOne: {
                     filter: { strava_id: document.strava_id },
@@ -167,7 +203,15 @@ function wrapModel(model) {
                     upsert: true
                 }
             })));
-            return model.find({ strava_id: { $in: documents.map((document) => document.strava_id) } }).lean();
+            const insertedCount = documents.reduce((count, document) => {
+                return count + (existingIds.has(document.strava_id) ? 0 : 1);
+            }, 0);
+            return {
+                records: await model.find({ strava_id: { $in: stravaIds } }).lean(),
+                insertedCount: insertedCount,
+                updatedCount: documents.length - insertedCount,
+                totalCount: documents.length
+            };
         }
     };
 }

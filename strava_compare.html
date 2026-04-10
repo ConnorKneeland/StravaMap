@@ -76,10 +76,11 @@
     <script src="https://cdn.plot.ly/plotly-2.17.1.min.js"></script>
     <script>
         (function () {
+            const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? '' : 'https://stravamap-production-7f28.up.railway.app'
-            }, window.STRAVA_CONFIG || {});
+                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app'
+            }, existingConfig);
         }());
     </script>
     <script src="js/strava_shared.js"></script>
@@ -113,6 +114,12 @@
 
         document.title = 'Strava Comparison';
 
+        function getBackendSourceLabel() {
+            return runtimeDataSource.apiBase && runtimeDataSource.apiBase.indexOf('localhost') !== -1
+                ? 'Local Backend API'
+                : 'Backend API';
+        }
+
         window.addEventListener('strava:backend-fallback', function (event) {
             console.warn('Falling back to direct Strava mode', event.detail);
         });
@@ -134,12 +141,32 @@
         function loadUserActivities(slug) {
             const config = StravaApp.USER_CONFIGS[slug];
             return runtimeDataSource.runWithFallback(`compare ${slug} activities`, async function (requestOptions) {
-                await StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${slug}`, {}, requestOptions);
+                const syncSummary = await StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${slug}`, {}, requestOptions);
                 const activities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', { user: slug }, requestOptions);
-                return StravaApp.sortActivitiesNewestFirst(activities.map(StravaApp.normalizeActivityRecord));
+                const normalizedActivities = StravaApp.sortActivitiesNewestFirst(activities.map(StravaApp.normalizeActivityRecord));
+                StravaApp.logDataLoadSummary({
+                    page: 'compare',
+                    user: slug,
+                    source: getBackendSourceLabel(),
+                    storage: syncSummary.storage || 'MongoDB',
+                    recordsPulled: syncSummary.storedActivityCount || normalizedActivities.length,
+                    stravaRecordsPulled: syncSummary.stravaRecordsPulled,
+                    recordsInserted: syncSummary.recordsInserted,
+                    recordsUpdated: syncSummary.recordsUpdated,
+                    stravaSummaryFetchedCount: syncSummary.stravaSummaryFetchedCount,
+                    stravaDetailFetchedCount: syncSummary.stravaDetailFetchedCount
+                });
+                return normalizedActivities;
             }, async function () {
                 const accessToken = await ensureDirectAccessToken(slug);
-                return StravaApp.stravaFetchActivities(accessToken, config.pages);
+                const activities = await StravaApp.stravaFetchActivities(accessToken, config.pages);
+                StravaApp.logDataLoadSummary({
+                    page: 'compare',
+                    user: slug,
+                    source: 'Direct Strava API',
+                    recordsPulled: activities.length
+                });
+                return activities;
             });
         }
 

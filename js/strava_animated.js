@@ -6,6 +6,7 @@
     //const DEFAULT_SPEED_COLOR_SCALE = ['#FDE725', '#5ec962', '#21918c', '#3b528b', '#440154'];
 
     const DEFAULT_SPEED_COLOR_SCALE = ['#440154', '#3b528b', '#21918c', '#5ec962', '#FDE725'];
+    const DEFAULT_SPEED_COLOR_WEIGHTS = [0, 0.15, 0.35, 0.55, 0.75, 1];
     const StravaAnimated = {
         ANIMATE_COUNT: 1,
         CLUSTER_DISTANCE_MILES: 18,
@@ -13,15 +14,20 @@
         MIN_DURATION_MS: 4000,
         MAX_DURATION_MS: 30000,
         DURATION_PER_SECOND: 1.1,
+        
         // Higher values make the route animation take longer.
-        ANIMATION_DURATION_MULTIPLIER: 3,
+        ANIMATION_DURATION_MULTIPLIER: 5,
+
         // Higher values make the standard non-selected routes thicker.
         BASE_LINE_WEIGHT_MULTIPLIER: 1,
+
         // Higher values make the speed-shaded route thicker.
         SPEED_LINE_WEIGHT_MULTIPLIER: 1.8,
+
         // Toggle the speed-based color palette overlay on or off globally.
         ENABLE_SPEED_COLOR_PALETTE: true,
-        SPEED_COLOR_SCALE: DEFAULT_SPEED_COLOR_SCALE.slice()
+        SPEED_COLOR_SCALE: DEFAULT_SPEED_COLOR_SCALE.slice(),
+        SPEED_COLOR_WEIGHTS: DEFAULT_SPEED_COLOR_WEIGHTS.slice()
     };
 
     function wait(ms) {
@@ -152,6 +158,38 @@
             }).filter(Boolean)
             : [];
         return palette.length ? palette : DEFAULT_SPEED_COLOR_SCALE.slice();
+    }
+
+    function buildEvenlySpacedWeights(colorCount) {
+        if (!(colorCount > 0)) {
+            return [0, 1];
+        }
+        return Array.from({ length: colorCount + 1 }, function (_, index) {
+            return index / colorCount;
+        });
+    }
+
+    function getSpeedPaletteWeights() {
+        const palette = getSpeedPalette();
+        const fallbackWeights = buildEvenlySpacedWeights(palette.length);
+        const rawWeights = Array.isArray(StravaAnimated.SPEED_COLOR_WEIGHTS)
+            ? StravaAnimated.SPEED_COLOR_WEIGHTS
+            : [];
+
+        if (rawWeights.length !== palette.length + 1) {
+            return fallbackWeights;
+        }
+
+        const normalized = [0];
+        for (let index = 1; index < rawWeights.length - 1; index += 1) {
+            const numericValue = Number(rawWeights[index]);
+            if (!Number.isFinite(numericValue)) {
+                return fallbackWeights;
+            }
+            normalized.push(Math.max(normalized[index - 1], Math.min(1, numericValue)));
+        }
+        normalized.push(1);
+        return normalized;
     }
 
     function getDurationMs(activity) {
@@ -350,6 +388,7 @@
     StravaAnimated.getDurationMs = getDurationMs;
     StravaAnimated.getBaseLineWeightMultiplier = getBaseLineWeightMultiplier;
     StravaAnimated.getSpeedPalette = getSpeedPalette;
+    StravaAnimated.getSpeedPaletteWeights = getSpeedPaletteWeights;
     StravaAnimated.getSpeedLineWeightMultiplier = getSpeedLineWeightMultiplier;
     StravaAnimated.isSpeedColorPaletteEnabled = isSpeedColorPaletteEnabled;
     StravaAnimated.wait = wait;

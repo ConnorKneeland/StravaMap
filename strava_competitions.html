@@ -59,10 +59,11 @@
 
     <script>
         (function () {
+            const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? '' : 'https://stravamap-production-7f28.up.railway.app'
-            }, window.STRAVA_CONFIG || {});
+                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app'
+            }, existingConfig);
         }());
     </script>
     <script src="js/strava_shared.js"></script>
