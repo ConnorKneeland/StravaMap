@@ -3,7 +3,9 @@ const mongoose = require('mongoose');
 const memoryState = {
     users: [],
     activities: [],
-    competitions: []
+    competitions: [],
+    collections: [],
+    activityNotes: []
 };
 
 function clone(value) {
@@ -231,7 +233,9 @@ function isMongoConnected() {
 const memoryStore = {
     users: createMemoryCollection('users', 'slug'),
     activities: createMemoryCollection('activities', 'strava_id'),
-    competitions: createMemoryCollection('competitions', 'id')
+    competitions: createMemoryCollection('competitions', 'id'),
+    collections: createMemoryCollection('collections', 'id'),
+    activityNotes: createMemoryCollection('activityNotes', 'id')
 };
 
 module.exports = {

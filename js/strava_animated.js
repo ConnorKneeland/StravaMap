@@ -291,6 +291,21 @@
                     }
                 }
 
+                if (typeof opts.shouldCancel === 'function' && opts.shouldCancel()) {
+                    const frame = getTimelineFrame(points, times, totalTime);
+                    frame.progress = 1;
+                    frame.points = points;
+                    frame.times = times;
+                    if (typeof opts.onFrame === 'function') {
+                        opts.onFrame(frame);
+                    }
+                    if (typeof opts.onComplete === 'function') {
+                        opts.onComplete(frame);
+                    }
+                    resolve(frame);
+                    return;
+                }
+
                 const progress = Math.min(1, (timestamp - startTime) / Math.max(durationMs, 1));
                 const targetTime = totalTime * progress;
                 const frame = getTimelineFrame(points, times, targetTime);

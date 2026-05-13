@@ -6,6 +6,7 @@ const { connectDb, isMongoConnected, memoryStore } = require('./db');
 const authRoutes = require('./routes/auth');
 const activityRoutes = require('./routes/activities');
 const competitionRoutes = require('./routes/competitions');
+const collectionRoutes = require('./routes/collections');
 const { getAllFrontendUsers } = require('./frontend_user_configs');
 
 dotenv.config();
@@ -28,6 +29,7 @@ async function start() {
     app.use('/api', authRoutes);
     app.use('/api', activityRoutes);
     app.use('/api', competitionRoutes);
+    app.use('/api', collectionRoutes);
     app.use(express.static(path.resolve(__dirname, '..')));
 
     const port = Number(process.env.PORT || 3000);

@@ -34,6 +34,48 @@ function isTruthy(value) {
     return value === true || value === 'true' || value === '1' || value === 1;
 }
 
+function normalizeHexColor(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        return '';
+    }
+    if (/^#[0-9a-fA-F]{6}$/.test(raw)) {
+        return raw.toLowerCase();
+    }
+    if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+        return `#${raw.slice(1).split('').map((character) => character + character).join('')}`.toLowerCase();
+    }
+    return null;
+}
+
+function parseLineThickness(value) {
+    if (value === undefined || value === null || value === '') {
+        return { valid: true, value: null };
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 32) {
+        return { valid: false };
+    }
+    return { valid: true, value: numeric };
+}
+
+function parseLineOpacity(value) {
+    if (value === undefined || value === null || value === '') {
+        return { valid: true, value: null };
+    }
+    let numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return { valid: false };
+    }
+    if (numeric > 1) {
+        numeric /= 100;
+    }
+    if (numeric < 0 || numeric > 1) {
+        return { valid: false };
+    }
+    return { valid: true, value: numeric };
+}
+
 function buildActivityStreamResponse(activity, cached) {
     return {
         strava_id: activity.strava_id,
@@ -120,6 +162,63 @@ router.get('/activities/:id', async (req, res) => {
     }
 
     res.json(activity);
+});
+
+router.patch('/activities/:id', async (req, res) => {
+    const activityId = Number(req.params.id);
+    if (!activityId) {
+        res.status(400).json({ error: 'Invalid activity id' });
+        return;
+    }
+
+    const body = req.body || {};
+    const hasLineColor = Object.prototype.hasOwnProperty.call(body, 'line_color');
+    const hasLineThickness = Object.prototype.hasOwnProperty.call(body, 'line_thickness');
+    const hasLineOpacity = Object.prototype.hasOwnProperty.call(body, 'line_opacity');
+    if (!hasLineColor && !hasLineThickness && !hasLineOpacity) {
+        res.status(400).json({ error: 'At least one line setting is required' });
+        return;
+    }
+
+    const updates = {};
+    if (hasLineColor) {
+        const lineColor = normalizeHexColor(body.line_color);
+        if (lineColor === null) {
+            res.status(400).json({ error: 'line_color must be a hex color like #7c3aed' });
+            return;
+        }
+        updates.line_color = lineColor;
+    }
+    if (hasLineThickness) {
+        const thickness = parseLineThickness(body.line_thickness);
+        if (!thickness.valid) {
+            res.status(400).json({ error: 'line_thickness must be between 1 and 32 pixels' });
+            return;
+        }
+        updates.line_thickness = thickness.value;
+    }
+    if (hasLineOpacity) {
+        const opacity = parseLineOpacity(body.line_opacity);
+        if (!opacity.valid) {
+            res.status(400).json({ error: 'line_opacity must be between 0 and 100 percent' });
+            return;
+        }
+        updates.line_opacity = opacity.value;
+    }
+
+    const filter = { strava_id: activityId };
+    if (req.query.user) {
+        filter.user_slug = req.query.user;
+    }
+
+    const existing = await getActivityStore().findOne(filter);
+    if (!existing) {
+        res.status(404).json({ error: 'Activity not found' });
+        return;
+    }
+
+    const updated = await getActivityStore().updateOne(filter, updates);
+    res.json(updated);
 });
 
 router.get('/activities/:id/streams', async (req, res) => {

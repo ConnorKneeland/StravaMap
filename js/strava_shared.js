@@ -5,8 +5,9 @@
     const STRAVA_API_BASE_URL = 'https://www.strava.com/api/v3';
     const STRAVA_ACTIVITIES_URL = `${STRAVA_API_BASE_URL}/athlete/activities`;
     const MAPBOX_LIGHT_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/clczd9zd6001515pj5yvlalza/tiles/{z}/{x}/{y}?access_token={accessToken}';
-    const MAPBOX_DARK_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/cmnt0fe3c004l01s7bq827jpg/tiles/{z}/{x}/{y}?access_token={accessToken}';
+    const MAPBOX_DARK_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/cmnw43y4e004d01s3etqn419c/tiles/512/{z}/{x}/{y}?access_token=pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
+    const MAPBOX_DARK_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MOBILE_REGEX = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
     const TOOLTIP_OPTIONS = {
         permanent: false,
@@ -339,6 +340,18 @@
         if (!normalized.end_latlng && activity.end_latlng) {
             normalized.end_latlng = activity.end_latlng;
         }
+        if (!normalized.line_color && activity.custom_line_color) {
+            normalized.line_color = activity.custom_line_color;
+        }
+        if (normalized.line_thickness === undefined && activity.line_weight !== undefined) {
+            normalized.line_thickness = activity.line_weight;
+        }
+        if (normalized.line_thickness === undefined && activity.custom_line_thickness !== undefined) {
+            normalized.line_thickness = activity.custom_line_thickness;
+        }
+        if (normalized.line_opacity === undefined && activity.custom_line_opacity !== undefined) {
+            normalized.line_opacity = activity.custom_line_opacity;
+        }
         return normalized;
     }
 
@@ -358,9 +371,64 @@
         });
     }
 
-    function getActivityColor(activity) {
+    function normalizeHexColor(value) {
+        const raw = String(value || '').trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(raw)) {
+            return raw.toLowerCase();
+        }
+        if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+            return ('#' + raw.slice(1).split('').map(function (character) {
+                return character + character;
+            }).join('')).toLowerCase();
+        }
+        return '';
+    }
+
+    function getDefaultActivityColor(activity) {
         const type = normalizeActivityType(activity);
         return ACTIVITY_COLOR_MAP[type] || ACTIVITY_COLOR_MAP.default;
+    }
+
+    function getActivityColor(activity) {
+        const normalized = normalizeActivityRecord(activity);
+        return normalizeHexColor(normalized.line_color) || getDefaultActivityColor(normalized);
+    }
+
+    function normalizeLineThickness(value) {
+        if (value === undefined || value === null || value === '') {
+            return null;
+        }
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return null;
+        }
+        return Math.max(1, Math.min(32, numeric));
+    }
+
+    function normalizeLineOpacity(value) {
+        if (value === undefined || value === null || value === '') {
+            return null;
+        }
+        let numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+            return null;
+        }
+        if (numeric > 1) {
+            numeric /= 100;
+        }
+        return Math.max(0, Math.min(1, numeric));
+    }
+
+    function getActivityLineWeight(activity, fallbackWeight) {
+        const normalized = normalizeActivityRecord(activity);
+        const customWeight = normalizeLineThickness(normalized.line_thickness);
+        return customWeight !== null ? customWeight : fallbackWeight;
+    }
+
+    function getActivityLineOpacity(activity, fallbackOpacity) {
+        const normalized = normalizeActivityRecord(activity);
+        const customOpacity = normalizeLineOpacity(normalized.line_opacity);
+        return customOpacity !== null ? customOpacity : fallbackOpacity;
     }
 
     function decodePolyline(encoded) {
@@ -695,8 +763,8 @@
         const lineStyle = getLineStyle();
         const style = {
             color: opts.color || getActivityColor(normalized),
-            weight: typeof opts.lineWeight === 'number' ? opts.lineWeight : lineStyle.LINE_WEIGHT,
-            opacity: typeof opts.opacityWeight === 'number' ? opts.opacityWeight : lineStyle.OPACITY_WEIGHT,
+            weight: getActivityLineWeight(normalized, typeof opts.lineWeight === 'number' ? opts.lineWeight : lineStyle.LINE_WEIGHT),
+            opacity: getActivityLineOpacity(normalized, typeof opts.opacityWeight === 'number' ? opts.opacityWeight : lineStyle.OPACITY_WEIGHT),
             lineJoin: 'round'
         };
         return {
@@ -871,6 +939,44 @@
         }, requestOptions || {}), { method: 'POST', path: path }).then(function (response) {
             if (!response.ok) {
                 throw createHttpError('POST', path, response);
+            }
+            return response.json();
+        });
+    }
+
+    function apiPatch(apiBase, path, body, requestOptions) {
+        const base = apiBase || '';
+        return fetchJsonWithTimeout(`${base}${path}`, Object.assign({
+            method: 'PATCH',
+            headers: {
+                Accept: 'application/json, text/plain, */*',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body || {})
+        }, requestOptions || {}), { method: 'PATCH', path: path }).then(function (response) {
+            if (!response.ok) {
+                throw createHttpError('PATCH', path, response);
+            }
+            return response.json();
+        });
+    }
+
+    function apiDelete(apiBase, path, params, requestOptions) {
+        const base = apiBase || '';
+        const url = new URL(`${base}${path}`, window.location.origin);
+        Object.entries(params || {}).forEach(function (entry) {
+            if (entry[1] !== undefined && entry[1] !== null && entry[1] !== '') {
+                url.searchParams.set(entry[0], entry[1]);
+            }
+        });
+        return fetchJsonWithTimeout(url.toString(), Object.assign({
+            method: 'DELETE',
+            headers: {
+                Accept: 'application/json, text/plain, */*'
+            }
+        }, requestOptions || {}), { method: 'DELETE', path: path }).then(function (response) {
+            if (!response.ok) {
+                throw createHttpError('DELETE', path, response);
             }
             return response.json();
         });
@@ -1171,14 +1277,21 @@
         return normalizeMapTheme(theme) === 'dark' ? MAPBOX_DARK_STYLE_URL : MAPBOX_LIGHT_STYLE_URL;
     }
 
+    function getMapAccessToken(theme) {
+        return normalizeMapTheme(theme) === 'dark' ? MAPBOX_DARK_ACCESS_TOKEN : MAPBOX_ACCESS_TOKEN;
+    }
+
     function createBaseTileLayer(theme) {
-        return window.L.tileLayer(getMapStyleUrl(theme), {
+        const normalizedTheme = normalizeMapTheme(theme);
+        const accessToken = getMapAccessToken(normalizedTheme);
+        const styleUrl = getMapStyleUrl(normalizedTheme).replace('{accessToken}', accessToken);
+        return window.L.tileLayer(styleUrl, {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery &copy; <a href="https://www.mapbox.com/">Mapbox</a>',
             maxZoom: 30,
             id: 'mapbox/streets-v11',
             tileSize: 512,
             zoomOffset: -1,
-            accessToken: MAPBOX_ACCESS_TOKEN
+            accessToken: accessToken
         });
     }
 
@@ -1190,7 +1303,14 @@
             map.invalidateSize();
         });
         map._stravaBaseTheme = theme;
-        map._stravaBaseTileLayer = createBaseTileLayer(theme).addTo(map);
+        map._stravaBaseTileLayer = createBaseTileLayer(theme);
+        map._stravaBaseTileLayer.on('tileerror', function (event) {
+            console.warn('Mapbox tile failed to load', {
+                theme: map._stravaBaseTheme,
+                url: event && event.tile ? event.tile.src : ''
+            });
+        });
+        map._stravaBaseTileLayer.addTo(map);
         map._stravaPolylines = [];
         return map;
     }
@@ -1207,7 +1327,14 @@
             map.removeLayer(map._stravaBaseTileLayer);
         }
         map._stravaBaseTheme = normalizedTheme;
-        map._stravaBaseTileLayer = createBaseTileLayer(normalizedTheme).addTo(map);
+        map._stravaBaseTileLayer = createBaseTileLayer(normalizedTheme);
+        map._stravaBaseTileLayer.on('tileerror', function (event) {
+            console.warn('Mapbox tile failed to load', {
+                theme: map._stravaBaseTheme,
+                url: event && event.tile ? event.tile.src : ''
+            });
+        });
+        map._stravaBaseTileLayer.addTo(map);
         return map._stravaBaseTileLayer;
     }
 
@@ -1381,7 +1508,13 @@
         normalizeActivityType: normalizeActivityType,
         normalizeActivityRecord: normalizeActivityRecord,
         getActivityLabel: getActivityLabel,
+        normalizeHexColor: normalizeHexColor,
+        getDefaultActivityColor: getDefaultActivityColor,
         getActivityColor: getActivityColor,
+        normalizeLineThickness: normalizeLineThickness,
+        normalizeLineOpacity: normalizeLineOpacity,
+        getActivityLineWeight: getActivityLineWeight,
+        getActivityLineOpacity: getActivityLineOpacity,
         getLineStyle: getLineStyle,
         decodePolyline: decodePolyline,
         createDataAccumulator: createDataAccumulator,
@@ -1401,6 +1534,8 @@
         logDataLoadSummary: logDataLoadSummary,
         apiGet: apiGet,
         apiPost: apiPost,
+        apiPatch: apiPatch,
+        apiDelete: apiDelete,
         stravaReAuthorize: stravaReAuthorize,
         stravaFetchActivity: stravaFetchActivity,
         stravaFetchActivityStreams: stravaFetchActivityStreams,
