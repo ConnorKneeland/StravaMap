@@ -1281,10 +1281,20 @@
         return normalizeMapTheme(theme) === 'dark' ? MAPBOX_DARK_ACCESS_TOKEN : MAPBOX_ACCESS_TOKEN;
     }
 
-    function createBaseTileLayer(theme) {
+    function getLeafletTileStyleUrl(styleUrl) {
+        const rawStyleUrl = String(styleUrl || '').trim();
+        const mapboxMatch = rawStyleUrl.match(/^mapbox:\/\/styles\/([^/]+)\/([^/?#]+)$/i);
+        if (mapboxMatch) {
+            return `https://api.mapbox.com/styles/v1/${mapboxMatch[1]}/${mapboxMatch[2]}/tiles/512/{z}/{x}/{y}?access_token={accessToken}`;
+        }
+        return rawStyleUrl;
+    }
+
+    function createBaseTileLayer(theme, options) {
+        const opts = options || {};
         const normalizedTheme = normalizeMapTheme(theme);
-        const accessToken = getMapAccessToken(normalizedTheme);
-        const styleUrl = getMapStyleUrl(normalizedTheme).replace('{accessToken}', accessToken);
+        const accessToken = opts.accessToken || getMapAccessToken(normalizedTheme);
+        const styleUrl = getLeafletTileStyleUrl(opts.tileUrl || opts.styleUrl || getMapStyleUrl(normalizedTheme)).replace('{accessToken}', accessToken);
         return window.L.tileLayer(styleUrl, {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery &copy; <a href="https://www.mapbox.com/">Mapbox</a>',
             maxZoom: 30,
@@ -1299,11 +1309,23 @@
         const opts = options || {};
         const theme = normalizeMapTheme(opts.theme);
         const map = window.L.map(elementId).setView(center, typeof zoom === 'number' ? zoom : 8);
-        window.addEventListener('resize', function () {
+        function handleResize() {
+            const container = typeof map.getContainer === 'function' ? map.getContainer() : null;
+            if (!container || !container.parentNode || !map._mapPane) {
+                return;
+            }
             map.invalidateSize();
+        }
+        window.addEventListener('resize', handleResize);
+        map.once('unload', function () {
+            window.removeEventListener('resize', handleResize);
         });
         map._stravaBaseTheme = theme;
-        map._stravaBaseTileLayer = createBaseTileLayer(theme);
+        map._stravaBaseTileLayer = createBaseTileLayer(theme, {
+            styleUrl: opts.styleUrl,
+            tileUrl: opts.tileUrl,
+            accessToken: opts.accessToken
+        });
         map._stravaBaseTileLayer.on('tileerror', function (event) {
             console.warn('Mapbox tile failed to load', {
                 theme: map._stravaBaseTheme,

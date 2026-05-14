@@ -1384,6 +1384,18 @@
                 defaultPitch: 0,
                 defaultBearing: 0
             },
+            satellite: {
+                id: 'satellite',
+                label: 'Satellite',
+                theme: 'light',
+                renderer: 'leaflet',
+                styleUrl: 'mapbox://styles/ckneeland/cmp5jc7gz002k01s88cvd0ddj',
+                tileUrl: 'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg?access_token={accessToken}',
+                accessToken: MAPBOX_ACCESS_TOKEN,
+                supports3d: false,
+                defaultPitch: 0,
+                defaultBearing: 0
+            },
             dark: {
                 id: 'dark',
                 label: 'Dark 3D',
@@ -1407,7 +1419,7 @@
                 defaultBearing: 0
             }
         };
-        const MAP_STYLE_ORDER = ['light', 'dark', 'darkFlat'];
+        const MAP_STYLE_ORDER = ['light', 'satellite', 'dark', 'darkFlat'];
         const SPEED_SMOOTHING_RADIUS = 3;
         const SPEED_SEGMENT_SUBDIVISIONS = 3;
         const DETAILS_SPEED_CHART_ID = 'details-speed-chart';
@@ -1638,6 +1650,9 @@
         }
 
         function getMapStyleIconMarkup(config) {
+            if (config && config.id === 'satellite') {
+                return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 5.5 9 3l6 2.5L20 3v15.5L15 21l-6-2.5L4 21V5.5Zm6-.3v11.5l4 1.7V6.9l-4-1.7ZM6 6.7v11.1l2-1V5.7l-2 1Zm10 .6v11.1l2-1V6.3l-2 1Z'></path></svg>";
+            }
             if (config && config.supports3d) {
                 return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 5.9 3.3L12 10.8 6.1 7.6 12 4.3ZM5 9.3l6 3.3v6.7l-6-3.3V9.3Zm8 10v-6.7l6-3.3V16l-6 3.3Z'></path></svg>";
             }
@@ -1896,8 +1911,13 @@
             return facade;
         }
 
-        function initializeLeafletMap(center, zoom) {
-            const map = StravaApp.initMap('map', center, zoom, { theme: 'light' });
+        function initializeLeafletMap(config, center, zoom) {
+            const map = StravaApp.initMap('map', center, zoom, {
+                theme: config && config.theme ? config.theme : 'light',
+                styleUrl: config ? config.styleUrl : '',
+                tileUrl: config ? config.tileUrl : '',
+                accessToken: config ? config.accessToken : ''
+            });
             if (!map.getPane(SPEED_PANE_NAME)) {
                 map.createPane(SPEED_PANE_NAME);
             }
@@ -1962,7 +1982,7 @@
             if (config.renderer === 'mapboxgl') {
                 return initializeMapboxMap(config, center, zoom);
             }
-            return initializeLeafletMap(center, zoom);
+            return initializeLeafletMap(config, center, zoom);
         }
 
         async function initializeActiveMap(center, zoom) {
