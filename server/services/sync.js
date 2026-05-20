@@ -369,11 +369,11 @@ async function fetchActivityStreams(user, activityId) {
     const streamData = await stravaFetchJson(`/activities/${activityId}/streams`, authedUser.access_token, {
         keys: 'latlng,velocity_smooth,time',
         key_by_type: 'true',
-        resolution: 'medium',
+        resolution: 'high',
         series_type: 'time'
     });
     const streamUpdate = {
-        stream_resolution: 'medium',
+        stream_resolution: 'high',
         stream_series_type: 'time',
         stream_latlng: Array.isArray(streamData && streamData.latlng && streamData.latlng.data) ? streamData.latlng.data : [],
         stream_velocity_smooth: Array.isArray(streamData && streamData.velocity_smooth && streamData.velocity_smooth.data) ? streamData.velocity_smooth.data : [],

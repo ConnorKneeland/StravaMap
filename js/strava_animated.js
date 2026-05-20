@@ -147,6 +147,15 @@
         return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
     }
 
+    function getActivityAnimationSpeedMultiplier(activity) {
+        const multiplier = Number(activity && (
+            activity.animation_speed_multiplier !== undefined
+                ? activity.animation_speed_multiplier
+                : activity.custom_animation_speed_multiplier
+        ));
+        return Number.isFinite(multiplier) && multiplier > 0 ? Math.max(0.25, Math.min(4, multiplier)) : 1;
+    }
+
     function isSpeedColorPaletteEnabled() {
         return StravaAnimated.ENABLE_SPEED_COLOR_PALETTE !== false;
     }
@@ -193,7 +202,10 @@
     }
 
     function getDurationMs(activity) {
-        const rawDuration = Number(activity.elapsed_time || 0) * StravaAnimated.DURATION_PER_SECOND * getAnimationDurationMultiplier();
+        const rawDuration = Number(activity.elapsed_time || 0)
+            * StravaAnimated.DURATION_PER_SECOND
+            * getAnimationDurationMultiplier()
+            / getActivityAnimationSpeedMultiplier(activity);
         return Math.max(StravaAnimated.MIN_DURATION_MS, Math.min(StravaAnimated.MAX_DURATION_MS, rawDuration));
     }
 
@@ -405,6 +417,7 @@
     StravaAnimated.getSpeedPalette = getSpeedPalette;
     StravaAnimated.getSpeedPaletteWeights = getSpeedPaletteWeights;
     StravaAnimated.getSpeedLineWeightMultiplier = getSpeedLineWeightMultiplier;
+    StravaAnimated.getActivityAnimationSpeedMultiplier = getActivityAnimationSpeedMultiplier;
     StravaAnimated.isSpeedColorPaletteEnabled = isSpeedColorPaletteEnabled;
     StravaAnimated.wait = wait;
 

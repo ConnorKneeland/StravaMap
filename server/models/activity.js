@@ -64,6 +64,7 @@ const activitySchema = new mongoose.Schema({
     line_color: { type: String },
     line_thickness: { type: Number },
     line_opacity: { type: Number },
+    animation_speed_multiplier: { type: Number },
     segment_efforts: { type: [Mixed], default: void 0 },
     laps: { type: [Mixed], default: void 0 },
     splits_metric: { type: [Mixed], default: void 0 },

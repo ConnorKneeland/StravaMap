@@ -168,16 +168,16 @@
         workout: 'Workout'
     };
     const ACTIVITY_COLOR_MAP = {
-        run: 'red',
-        trailrun: 'red',
-        virtualrun: 'red',
-        ride: '#ff8000ff',
-        mountainbikeride: '#ff8000ff',
-        gravelride: '#ff8000ff',
-        ebikeride: '#ff8000ff',
-        emountainbikeride: '#ff8000ff',
-        velomobile: '#ff8000ff',
-        virtualride: '#ff8000ff',
+        run: '#ff0000',
+        trailrun: '#ff0000',
+        virtualrun: '#ff0000',
+        ride: '#ff8000',
+        mountainbikeride: '#ff8000',
+        gravelride: '#ff8000',
+        ebikeride: '#ff8000',
+        emountainbikeride: '#ff8000',
+        velomobile: '#ff8000',
+        virtualride: '#ff8000',
         swim: '#1648ebff',
         walk: '#000000',
         alpineski: '#5f99cf',
@@ -185,7 +185,13 @@
         nordicski: '#5f99cf',
         snowboard: '#5f99cf',
         golf: '#0a7b0a',
-        default: 'purple'
+        default: '#800080'
+    };
+    const ROUTE_SMOOTHING_CONFIG = {
+        enabled: true,
+        iterations: 1,
+        tension: 0.18,
+        maxSourcePoints: 500
     };
     const USER_CONFIGS = {
         connor: { slug: 'connor', displayName: 'Connor', title: "Connor's Map", clientId: 162238, clientSecret: '526b6989b62616ce1416f27e0414866958666013', refreshToken: '23227cb9c49a632130451aa2206241479b6dd842', lat: 43.0722, lng: -89.4008, pages: 10, color: '#ff412e' },
@@ -352,6 +358,9 @@
         if (normalized.line_opacity === undefined && activity.custom_line_opacity !== undefined) {
             normalized.line_opacity = activity.custom_line_opacity;
         }
+        if (normalized.animation_speed_multiplier === undefined && activity.custom_animation_speed_multiplier !== undefined) {
+            normalized.animation_speed_multiplier = activity.custom_animation_speed_multiplier;
+        }
         return normalized;
     }
 
@@ -376,8 +385,22 @@
         if (/^#[0-9a-fA-F]{6}$/.test(raw)) {
             return raw.toLowerCase();
         }
+        if (/^#[0-9a-fA-F]{8}$/.test(raw)) {
+            return raw.slice(0, 7).toLowerCase();
+        }
+        if (/^[0-9a-fA-F]{6}$/.test(raw)) {
+            return ('#' + raw).toLowerCase();
+        }
+        if (/^[0-9a-fA-F]{8}$/.test(raw)) {
+            return ('#' + raw.slice(0, 6)).toLowerCase();
+        }
         if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
             return ('#' + raw.slice(1).split('').map(function (character) {
+                return character + character;
+            }).join('')).toLowerCase();
+        }
+        if (/^[0-9a-fA-F]{3}$/.test(raw)) {
+            return ('#' + raw.split('').map(function (character) {
                 return character + character;
             }).join('')).toLowerCase();
         }
@@ -419,6 +442,17 @@
         return Math.max(0, Math.min(1, numeric));
     }
 
+    function normalizeAnimationSpeedMultiplier(value) {
+        if (value === undefined || value === null || value === '') {
+            return null;
+        }
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return null;
+        }
+        return Math.max(0.25, Math.min(4, numeric));
+    }
+
     function getActivityLineWeight(activity, fallbackWeight) {
         const normalized = normalizeActivityRecord(activity);
         const customWeight = normalizeLineThickness(normalized.line_thickness);
@@ -429,6 +463,12 @@
         const normalized = normalizeActivityRecord(activity);
         const customOpacity = normalizeLineOpacity(normalized.line_opacity);
         return customOpacity !== null ? customOpacity : fallbackOpacity;
+    }
+
+    function getActivityAnimationSpeedMultiplier(activity, fallbackMultiplier) {
+        const normalized = normalizeActivityRecord(activity);
+        const customMultiplier = normalizeAnimationSpeedMultiplier(normalized.animation_speed_multiplier);
+        return customMultiplier !== null ? customMultiplier : fallbackMultiplier;
     }
 
     function decodePolyline(encoded) {
@@ -460,6 +500,55 @@
             coordinates.push([lat / 1e5, lng / 1e5]);
         }
         return coordinates;
+    }
+
+    function normalizeRouteCoordinates(points) {
+        return (Array.isArray(points) ? points : []).map(function (point) {
+            if (!Array.isArray(point) || point.length !== 2) {
+                return null;
+            }
+            const lat = Number(point[0]);
+            const lng = Number(point[1]);
+            return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+        }).filter(Boolean);
+    }
+
+    function getActivityRouteCoordinates(activity) {
+        const normalized = normalizeActivityRecord(activity);
+        const streamCoordinates = normalizeRouteCoordinates(normalized.stream_latlng);
+        if (streamCoordinates.length > 1) {
+            return streamCoordinates;
+        }
+        return smoothRouteCoordinates(decodePolyline(normalized.map && normalized.map.summary_polyline));
+    }
+
+    function interpolateRouteCoordinate(start, end, ratio) {
+        return [
+            start[0] + ((end[0] - start[0]) * ratio),
+            start[1] + ((end[1] - start[1]) * ratio)
+        ];
+    }
+
+    function smoothRouteCoordinates(points, options) {
+        const config = Object.assign({}, ROUTE_SMOOTHING_CONFIG, options || {});
+        let smoothed = normalizeRouteCoordinates(points);
+        if (!config.enabled || smoothed.length < 3 || smoothed.length > config.maxSourcePoints) {
+            return smoothed;
+        }
+        const iterations = Math.max(0, Math.min(3, Math.round(Number(config.iterations) || 0)));
+        const tension = Math.max(0.05, Math.min(0.45, Number(config.tension) || 0.18));
+        for (let iteration = 0; iteration < iterations; iteration += 1) {
+            const next = [smoothed[0]];
+            for (let index = 0; index < smoothed.length - 1; index += 1) {
+                const start = smoothed[index];
+                const end = smoothed[index + 1];
+                next.push(interpolateRouteCoordinate(start, end, tension));
+                next.push(interpolateRouteCoordinate(start, end, 1 - tension));
+            }
+            next.push(smoothed[smoothed.length - 1]);
+            smoothed = next;
+        }
+        return smoothed;
     }
 
     function createDataAccumulator() {
@@ -752,10 +841,7 @@
 
     function createActivityDescriptor(activity, options) {
         const normalized = normalizeActivityRecord(activity);
-        if (!normalized.map || !normalized.map.summary_polyline) {
-            return null;
-        }
-        const coordinates = decodePolyline(normalized.map.summary_polyline);
+        const coordinates = getActivityRouteCoordinates(normalized);
         if (!coordinates.length) {
             return null;
         }
@@ -765,6 +851,7 @@
             color: opts.color || getActivityColor(normalized),
             weight: getActivityLineWeight(normalized, typeof opts.lineWeight === 'number' ? opts.lineWeight : lineStyle.LINE_WEIGHT),
             opacity: getActivityLineOpacity(normalized, typeof opts.opacityWeight === 'number' ? opts.opacityWeight : lineStyle.OPACITY_WEIGHT),
+            lineCap: 'round',
             lineJoin: 'round'
         };
         return {
@@ -1211,7 +1298,7 @@
         return stravaFetchJson(`/activities/${activityId}/streams`, accessToken, {
             keys: streamKeys.join(','),
             key_by_type: 'true',
-            resolution: opts.resolution || 'medium',
+            resolution: opts.resolution || 'high',
             series_type: opts.seriesType || 'time'
         }).then(function (streamData) {
             const latlngStream = streamData && streamData.latlng && Array.isArray(streamData.latlng.data)
@@ -1227,7 +1314,7 @@
                 latlng: latlngStream,
                 velocity_smooth: velocityStream,
                 time: timeStream,
-                resolution: opts.resolution || 'medium',
+                resolution: opts.resolution || 'high',
                 series_type: opts.seriesType || 'time'
             };
         });
@@ -1518,6 +1605,7 @@
         SUMMARY_LABEL_MAP: SUMMARY_LABEL_MAP,
         SUMMARY_COLOR_MAP: SUMMARY_COLOR_MAP,
         ACTIVITY_COLOR_MAP: ACTIVITY_COLOR_MAP,
+        ROUTE_SMOOTHING_CONFIG: ROUTE_SMOOTHING_CONFIG,
         TOOLTIP_OPTIONS: TOOLTIP_OPTIONS,
         STRAVA_AUTH_URL: STRAVA_AUTH_URL,
         STRAVA_ACTIVITIES_URL: STRAVA_ACTIVITIES_URL,
@@ -1535,10 +1623,15 @@
         getActivityColor: getActivityColor,
         normalizeLineThickness: normalizeLineThickness,
         normalizeLineOpacity: normalizeLineOpacity,
+        normalizeAnimationSpeedMultiplier: normalizeAnimationSpeedMultiplier,
         getActivityLineWeight: getActivityLineWeight,
         getActivityLineOpacity: getActivityLineOpacity,
+        getActivityAnimationSpeedMultiplier: getActivityAnimationSpeedMultiplier,
         getLineStyle: getLineStyle,
         decodePolyline: decodePolyline,
+        normalizeRouteCoordinates: normalizeRouteCoordinates,
+        smoothRouteCoordinates: smoothRouteCoordinates,
+        getActivityRouteCoordinates: getActivityRouteCoordinates,
         createDataAccumulator: createDataAccumulator,
         drawMilesChart: drawMilesChart,
         drawSummaryChart: drawSummaryChart,

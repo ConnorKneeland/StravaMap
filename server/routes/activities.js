@@ -42,6 +42,15 @@ function normalizeHexColor(value) {
     if (/^#[0-9a-fA-F]{6}$/.test(raw)) {
         return raw.toLowerCase();
     }
+    if (/^#[0-9a-fA-F]{8}$/.test(raw)) {
+        return raw.slice(0, 7).toLowerCase();
+    }
+    if (/^[0-9a-fA-F]{6}$/.test(raw)) {
+        return `#${raw}`.toLowerCase();
+    }
+    if (/^[0-9a-fA-F]{8}$/.test(raw)) {
+        return `#${raw.slice(0, 6)}`.toLowerCase();
+    }
     if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
         return `#${raw.slice(1).split('').map((character) => character + character).join('')}`.toLowerCase();
     }
@@ -76,10 +85,21 @@ function parseLineOpacity(value) {
     return { valid: true, value: numeric };
 }
 
+function parseAnimationSpeedMultiplier(value) {
+    if (value === undefined || value === null || value === '') {
+        return { valid: true, value: null };
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0.25 || numeric > 4) {
+        return { valid: false };
+    }
+    return { valid: true, value: numeric };
+}
+
 function buildActivityStreamResponse(activity, cached) {
     return {
         strava_id: activity.strava_id,
-        stream_resolution: activity.stream_resolution || 'medium',
+        stream_resolution: activity.stream_resolution || 'high',
         stream_series_type: activity.stream_series_type || 'time',
         stream_latlng: activity.stream_latlng || [],
         stream_velocity_smooth: activity.stream_velocity_smooth || [],
@@ -175,7 +195,8 @@ router.patch('/activities/:id', async (req, res) => {
     const hasLineColor = Object.prototype.hasOwnProperty.call(body, 'line_color');
     const hasLineThickness = Object.prototype.hasOwnProperty.call(body, 'line_thickness');
     const hasLineOpacity = Object.prototype.hasOwnProperty.call(body, 'line_opacity');
-    if (!hasLineColor && !hasLineThickness && !hasLineOpacity) {
+    const hasAnimationSpeed = Object.prototype.hasOwnProperty.call(body, 'animation_speed_multiplier');
+    if (!hasLineColor && !hasLineThickness && !hasLineOpacity && !hasAnimationSpeed) {
         res.status(400).json({ error: 'At least one line setting is required' });
         return;
     }
@@ -204,6 +225,14 @@ router.patch('/activities/:id', async (req, res) => {
             return;
         }
         updates.line_opacity = opacity.value;
+    }
+    if (hasAnimationSpeed) {
+        const speed = parseAnimationSpeedMultiplier(body.animation_speed_multiplier);
+        if (!speed.valid) {
+            res.status(400).json({ error: 'animation_speed_multiplier must be between 0.25 and 4' });
+            return;
+        }
+        updates.animation_speed_multiplier = speed.value;
     }
 
     const filter = { strava_id: activityId };
@@ -242,7 +271,8 @@ router.get('/activities/:id/streams', async (req, res) => {
     const hasCachedStream = Array.isArray(activity.stream_latlng)
         && activity.stream_latlng.length
         && Array.isArray(activity.stream_velocity_smooth)
-        && activity.stream_velocity_smooth.length;
+        && activity.stream_velocity_smooth.length
+        && activity.stream_resolution === 'high';
 
     if (hasCachedStream && !isTruthy(req.query.refresh)) {
         res.json(buildActivityStreamResponse(activity, true));
