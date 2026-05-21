@@ -210,7 +210,7 @@
             flex:0 0 auto;
             display:flex;
             align-items:center;
-            gap:10px;
+            gap:9px;
             min-height:42px;
             padding:7px 10px 7px 12px;
             border:1px solid var(--border);
@@ -218,6 +218,31 @@
             color:var(--text);
             border-radius:12px;
             box-shadow:var(--shadow);
+        }
+        .nav-stream-field{
+            display:flex;
+            align-items:center;
+            gap:7px;
+        }
+        .nav-stream-label{
+            color:var(--muted);
+            font-size:11px;
+            letter-spacing:0.08em;
+            text-transform:uppercase;
+            white-space:nowrap;
+        }
+        .nav-stream-select{
+            min-width:94px;
+            border:1px solid rgba(255,255,255,0.12);
+            background:#111a27;
+            color:#fff;
+            border-radius:9px;
+            padding:7px 8px;
+            font:inherit;
+            font-size:14px;
+        }
+        .nav-stream-select option{
+            color:#000;
         }
         .nav-palette-title{
             color:#fff;
@@ -622,6 +647,25 @@
             letter-spacing:0.08em;
             text-transform:uppercase;
             color:var(--muted);
+        }
+        .details-card-heading-row{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:10px;
+        }
+        .details-metric-select{
+            min-width:120px;
+            border:1px solid rgba(255,255,255,0.12);
+            background:#111a27;
+            color:#fff;
+            border-radius:10px;
+            padding:8px 10px;
+            font:inherit;
+            font-size:14px;
+        }
+        .details-metric-select option{
+            color:#000;
         }
         .details-grid{
             display:grid;
@@ -1034,6 +1078,165 @@
         .intro-animation-control[hidden]{
             display:none;
         }
+        .intro-kpi-panel{
+            position:fixed;
+            bottom:30px;
+            left:50%;
+            transform:translateX(-50%);
+            z-index:1300;
+            width:min(1180px, calc(100vw - 36px));
+            color:rgba(248,247,236,0.92);
+            display:grid;
+            grid-template-columns:1fr;
+            justify-items:center;
+            gap:12px;
+            pointer-events:none;
+            font-family:"Segoe UI Variable Display", "Segoe UI", "Aptos", "Helvetica Neue", Arial, system-ui, sans-serif;
+            text-shadow:
+                -1px 0 rgba(20,22,26,0.86),
+                1px 0 rgba(20,22,26,0.86),
+                0 -1px rgba(20,22,26,0.86),
+                0 1px rgba(20,22,26,0.86),
+                0 2px 8px rgba(0,0,0,0.28);
+        }
+        .intro-kpi-panel[hidden]{
+            display:none;
+        }
+        .intro-kpi-title{
+            width:100%;
+            color:rgba(248,247,236,0.94);
+            font-size:clamp(22px, 3vw, 42px);
+            font-weight:800;
+            line-height:1;
+            text-align:center;
+            text-transform:uppercase;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            transition:color 260ms ease, text-shadow 260ms ease, transform 260ms ease;
+        }
+        .intro-kpi-grid{
+            display:grid;
+            grid-template-columns:repeat(3, minmax(0, 1fr));
+            align-items:end;
+            gap:clamp(12px, 2.6vw, 36px);
+            width:100%;
+        }
+        .intro-kpi-item{
+            min-width:0;
+            display:grid;
+            justify-items:center;
+            gap:6px;
+            overflow:hidden;
+        }
+        .intro-kpi-value{
+            color:rgba(248,247,236,0.92);
+            font-size:clamp(34px, 4.85vw, 66px);
+            font-weight:800;
+            line-height:1;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            font-variant-numeric:tabular-nums lining-nums;
+            font-feature-settings:"tnum" 1, "lnum" 1;
+            max-width:100%;
+            transition:color 260ms ease, text-shadow 260ms ease, transform 260ms ease;
+        }
+        .intro-kpi-label{
+            color:rgba(248,247,236,0.86);
+            font-size:clamp(12px, 1.1vw, 16px);
+            font-weight:800;
+            letter-spacing:0.12em;
+            text-transform:uppercase;
+            transition:color 260ms ease, text-shadow 260ms ease;
+        }
+        .intro-kpi-panel.is-locked .intro-kpi-title,
+        .intro-kpi-panel.is-locked .intro-kpi-value{
+            color:rgba(70,76,84,0.96);
+            text-shadow:
+                -1px 0 rgba(238,238,226,0.52),
+                1px 0 rgba(238,238,226,0.52),
+                0 -1px rgba(238,238,226,0.52),
+                0 1px rgba(238,238,226,0.52),
+                0 2px 8px rgba(0,0,0,0.2);
+            animation:introKpiLockIn 420ms cubic-bezier(.18,.84,.24,1) both;
+        }
+        .intro-kpi-panel.is-locked .intro-kpi-label{
+            color:rgba(70,76,84,0.9);
+            text-shadow:
+                -1px 0 rgba(238,238,226,0.5),
+                1px 0 rgba(238,238,226,0.5),
+                0 -1px rgba(238,238,226,0.5),
+                0 1px rgba(238,238,226,0.5);
+        }
+        .intro-ticker-text{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            max-width:100%;
+            height:1em;
+            white-space:nowrap;
+        }
+        .intro-ticker-char{
+            position:relative;
+            display:inline-block;
+            min-width:0.56em;
+            height:1em;
+            overflow:hidden;
+            line-height:1;
+            text-align:center;
+            vertical-align:top;
+            perspective:420px;
+            transform-style:preserve-3d;
+        }
+        .intro-ticker-char.is-space{
+            min-width:0.34em;
+        }
+        .intro-ticker-char.is-punct{
+            min-width:0.34em;
+        }
+        .intro-ticker-char.is-wide{
+            min-width:0.72em;
+        }
+        .intro-ticker-current,
+        .intro-ticker-old{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            width:100%;
+            height:1em;
+            line-height:1;
+            backface-visibility:hidden;
+            transform-origin:center center;
+        }
+        .intro-ticker-char.is-changing .intro-ticker-current,
+        .intro-ticker-char.is-changing .intro-ticker-old{
+            position:absolute;
+            left:0;
+            top:0;
+        }
+        .intro-ticker-char.is-changing .intro-ticker-current{
+            animation:introTickerIn 540ms cubic-bezier(.16,.82,.2,1) both;
+        }
+        .intro-ticker-char.is-changing .intro-ticker-old{
+            color:rgba(248,247,236,0.38);
+            animation:introTickerOut 540ms cubic-bezier(.16,.82,.2,1) both;
+        }
+        @keyframes introTickerIn{
+            0%{ transform:rotateX(-88deg) translateY(0.04em); opacity:0.34; }
+            52%{ opacity:0.92; }
+            100%{ transform:rotateX(0deg) translateY(0); opacity:1; }
+        }
+        @keyframes introTickerOut{
+            0%{ transform:rotateX(0deg) translateY(0); opacity:0.72; }
+            48%{ opacity:0.44; }
+            100%{ transform:rotateX(88deg) translateY(-0.04em); opacity:0; }
+        }
+        @keyframes introKpiLockIn{
+            0%{ transform:scale(1); }
+            42%{ transform:scale(1.035); }
+            100%{ transform:scale(1); }
+        }
         .collection-playback{
             position:fixed;
             left:18px;
@@ -1361,6 +1564,25 @@
                 min-width:0;
                 padding:11px 14px;
             }
+            .intro-kpi-panel{
+                bottom:18px;
+                width:calc(100vw - 28px);
+                gap:10px;
+            }
+            .intro-kpi-grid{
+                grid-template-columns:repeat(3, minmax(0, 1fr));
+                gap:6px;
+            }
+            .intro-kpi-value{
+                font-size:clamp(22px, 6.2vw, 32px);
+            }
+            .intro-kpi-title{
+                font-size:clamp(17px, 5.6vw, 28px);
+            }
+            .intro-kpi-label{
+                font-size:10px;
+                letter-spacing:0.06em;
+            }
             .map-action-fab{
                 padding:10px 12px;
             }
@@ -1372,6 +1594,15 @@
             .nav-palette-control{
                 gap:7px;
                 padding:7px 9px;
+            }
+            .nav-stream-label,
+            .nav-palette-title{
+                display:none;
+            }
+            .nav-stream-select{
+                min-width:86px;
+                max-width:94px;
+                padding:7px 6px;
             }
             .nav-palette-title{
                 font-size:13px;
@@ -1407,6 +1638,10 @@
         </div>
         <div id="nav-right">
             <div class="nav-palette-control" aria-label="Speed color palette">
+                <label class="nav-stream-field" for="stream-color-metric-select">
+                    <span class="nav-stream-label">Color By</span>
+                    <select id="stream-color-metric-select" class="nav-stream-select" aria-label="Choose stream coloring metric"></select>
+                </label>
                 <span class="nav-palette-title">Colorful Lines</span>
                 <label class="toggle-switch" for="speed-palette-toggle" aria-label="Toggle line color palette">
                     <input id="speed-palette-toggle" type="checkbox" checked>
@@ -1441,6 +1676,7 @@
 
     <div id="map"></div>
     <button id="intro-animation-control" class="intro-animation-control" type="button" hidden>Skip Animation</button>
+    <div id="intro-kpi-panel" class="intro-kpi-panel" hidden></div>
     <div class="map-action-stack">
         <button id="collections-open-btn" class="map-action-fab" type="button">Open Collections</button>
         <button id="map-clear-filters-fab" class="map-action-fab" type="button">Clear Filters</button>
@@ -1544,8 +1780,9 @@
         const NOTES_LOCAL_STORAGE_KEY = 'strava_activity_notes_' + requestedUser;
         const ALL_FILTER_KEYS = ['collection', 'activityType', 'monthYear', 'year', 'date', 'season', 'timeOfDay', 'city', 'regionState', 'country'];
         const SPEED_PANE_NAME = 'strava-speed-pane';
-        const SPEED_STREAM_OPTIONS = { resolution: 'high', seriesType: 'time' };
+        const SPEED_STREAM_OPTIONS = { profile: 'speed', resolution: 'high', seriesType: 'time' };
         const SPEED_PALETTE_SESSION_KEY = 'strava_speed_palette_enabled';
+        const STREAM_COLOR_METRIC_SESSION_KEY = 'strava_stream_color_metric';
         const MAP_STYLE_SESSION_KEY = 'strava_map_style';
         const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
         const DEFAULT_MAP_STYLE_ID = 'light';
@@ -1594,15 +1831,29 @@
                 defaultBearing: 0
             }
         };
-        const MAP_STYLE_ORDER = ['light', 'satellite', 'dark', 'darkFlat'];
+        const MAP_STYLE_ORDER = ['light', 'satellite'];
         const SPEED_SMOOTHING_RADIUS = 3;
         const SPEED_SEGMENT_SUBDIVISIONS = 3;
         const CLOSE_ZOOM_LINE_WEIGHT_BOOST = {
-            startZoom: 19,
+            startZoom: 18,
             fullBoostZoom: 21,
-            desktopExtraWeight: 10,
+            desktopExtraWeight: 15,
             mobileExtraWeight: 15
         };
+        const CLOSE_ZOOM_WEIGHT_BUCKET_SIZE = 0.5;
+        const ROUTE_CULLING_CONFIG = {
+            enabled: true,
+            minRouteCount: 150,
+            viewportPaddingRatio: 0.85
+        };
+        const STREAM_COLOR_METRICS = {
+            speed: { id: 'speed', label: 'Speed', streamKey: 'velocity_smooth', unit: 'mph', axisTitle: 'Speed (mph)' },
+            altitude: { id: 'altitude', label: 'Altitude', streamKey: 'altitude', unit: 'ft', axisTitle: 'Altitude (ft)' },
+            heartrate: { id: 'heartrate', label: 'Heart Rate', streamKey: 'heartrate', unit: 'bpm', axisTitle: 'Heart Rate (bpm)' },
+            cadence: { id: 'cadence', label: 'Cadence', streamKey: 'cadence', unit: 'rpm', axisTitle: 'Cadence (rpm)' },
+            watts: { id: 'watts', label: 'Watts', streamKey: 'watts', unit: 'W', axisTitle: 'Power (W)' }
+        };
+        const STREAM_COLOR_METRIC_ORDER = ['speed', 'altitude', 'heartrate', 'cadence', 'watts'];
         const DETAILS_SPEED_CHART_ID = 'details-speed-chart';
         const FILTER_DEFINITIONS = {
             collection: { label: 'Collection', placeholder: 'All Collections' },
@@ -1661,6 +1912,7 @@
         const mapStyleIcon = document.getElementById('map-style-icon');
         const mapStyleLabel = document.getElementById('map-style-label');
         const speedPaletteToggle = document.getElementById('speed-palette-toggle');
+        const streamColorMetricSelect = document.getElementById('stream-color-metric-select');
         const toggleButton = document.getElementById('toggle-btn');
         const detailsPanel = document.getElementById('details-panel');
         const detailsClose = document.getElementById('details-close');
@@ -1693,6 +1945,7 @@
         const collectionPlaybackDetails = document.getElementById('collection-playback-details');
         const collectionNoteDetail = document.getElementById('collection-note-detail');
         const collectionPlaybackMembership = document.getElementById('collection-playback-membership');
+        const introKpiPanel = document.getElementById('intro-kpi-panel');
         const splashText = document.getElementById('splash-text');
         const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
 
@@ -1766,11 +2019,17 @@
             mapStyleConfig: MAP_STYLE_CONFIGS[DEFAULT_MAP_STYLE_ID],
             mapSwitching: false,
             speedPaletteEnabled: true,
+            streamColorMetric: 'speed',
+            detailsChartMetricsByKey: new Map(),
             hoveredLayer: null,
+            routeZoomStyleBucket: '',
+            routeCullingSuspendedUntil: 0,
             introAnimationActive: false,
             introSkipRequested: false,
             introRemainingDescriptors: [],
             introAllWorkoutsRendered: false,
+            introKpiDisplayedValues: new Map(),
+            introKpiTickerUpdatedAt: new Map(),
             collections: [],
             collectionsById: new Map(),
             activityCollectionsById: new Map(),
@@ -1779,6 +2038,7 @@
             shareMode: Boolean(requestedCollectionToken),
             activityNotesById: new Map(),
             notePromises: new Map(),
+            activityKpisByCategory: new Map(),
             playback: {
                 collection: null,
                 items: [],
@@ -1834,6 +2094,10 @@
             return MAP_STYLE_CONFIGS[styleId] || MAP_STYLE_CONFIGS[DEFAULT_MAP_STYLE_ID];
         }
 
+        function getSelectableMapStyleId(styleId) {
+            return MAP_STYLE_ORDER.indexOf(styleId) !== -1 ? styleId : DEFAULT_MAP_STYLE_ID;
+        }
+
         function getMapStyleIconMarkup(config) {
             if (config && config.id === 'satellite') {
                 return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 5.5 9 3l6 2.5L20 3v15.5L15 21l-6-2.5L4 21V5.5Zm6-.3v11.5l4 1.7V6.9l-4-1.7ZM6 6.7v11.1l2-1V5.7l-2 1Zm10 .6v11.1l2-1V6.3l-2 1Z'></path></svg>";
@@ -1850,11 +2114,10 @@
         function readSessionMapStyleId() {
             try {
                 const storedValue = window.sessionStorage.getItem(MAP_STYLE_SESSION_KEY);
-                if (MAP_STYLE_CONFIGS[storedValue]) {
+                if (MAP_STYLE_ORDER.indexOf(storedValue) !== -1) {
                     return storedValue;
                 }
-                const legacyTheme = window.sessionStorage.getItem('strava_map_theme');
-                return legacyTheme === 'dark' ? 'dark' : DEFAULT_MAP_STYLE_ID;
+                return DEFAULT_MAP_STYLE_ID;
             } catch (error) {
                 return DEFAULT_MAP_STYLE_ID;
             }
@@ -1888,7 +2151,7 @@
         }
 
         async function setMapStyle(styleId, options) {
-            const nextConfig = getMapStyleConfig(styleId);
+            const nextConfig = getMapStyleConfig(getSelectableMapStyleId(styleId));
             if (state.mapStyleId === nextConfig.id && !(options && options.force)) {
                 syncMapStyleMenuUi();
                 return;
@@ -2038,6 +2301,13 @@
                 getZoom: function () {
                     return glMap.getZoom();
                 },
+                getBounds: function () {
+                    const bounds = glMap.getBounds();
+                    return window.L.latLngBounds(
+                        [bounds.getSouth(), bounds.getWest()],
+                        [bounds.getNorth(), bounds.getEast()]
+                    );
+                },
                 once: function (eventName, callback) {
                     glMap.once(eventName, callback);
                 },
@@ -2109,6 +2379,7 @@
             map.getPane(SPEED_PANE_NAME).style.zIndex = '675';
             map.getPane(SPEED_PANE_NAME).style.pointerEvents = 'none';
             map.on('zoomend', syncVisibleRouteStylesForZoom);
+            map.on('moveend', refreshVisibleRouteCulling);
             return Promise.resolve(map);
         }
 
@@ -2149,6 +2420,7 @@
                     settled = true;
                     glMap.addControl(new window.mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-left');
                     glMap.on('zoomend', syncVisibleRouteStylesForZoom);
+                    glMap.on('moveend', refreshVisibleRouteCulling);
                     glMap.on('error', function (event) {
                         const error = event && event.error ? event.error : event;
                         console.warn('Mapbox GL runtime style error', {
@@ -2239,6 +2511,89 @@
             }
         }
 
+        function getLatLngsCacheKey(latLngs) {
+            const points = Array.isArray(latLngs) ? latLngs : [];
+            if (!points.length) {
+                return '0';
+            }
+            const first = points[0] || [];
+            const middle = points[Math.floor(points.length / 2)] || [];
+            const last = points[points.length - 1] || [];
+            return [
+                points.length,
+                Number(first[0] || 0).toFixed(6),
+                Number(first[1] || 0).toFixed(6),
+                Number(middle[0] || 0).toFixed(6),
+                Number(middle[1] || 0).toFixed(6),
+                Number(last[0] || 0).toFixed(6),
+                Number(last[1] || 0).toFixed(6)
+            ].join('|');
+        }
+
+        function getStyleCacheKey(style) {
+            const nextStyle = style || {};
+            return [
+                nextStyle.color || '',
+                Number(nextStyle.weight || 0).toFixed(3),
+                Number(nextStyle.opacity == null ? 1 : nextStyle.opacity).toFixed(3)
+            ].join('|');
+        }
+
+        function createRouteDisplayCache(initialLatLngs, initialStyle) {
+            return {
+                latLngsKey: getLatLngsCacheKey(initialLatLngs),
+                styleKey: getStyleCacheKey(initialStyle),
+                paint: {},
+                boundsKey: '',
+                bounds: null
+            };
+        }
+
+        function getDescriptorRouteBounds(layer) {
+            if (!layer || !layer._stravaDescriptor || !window.L) {
+                return null;
+            }
+            const cache = layer._routeDisplayCache || (layer._routeDisplayCache = createRouteDisplayCache([], {}));
+            const coordinates = layer._stravaDescriptor.coordinates || [];
+            const boundsKey = getLatLngsCacheKey(coordinates);
+            if (!cache.bounds || cache.boundsKey !== boundsKey) {
+                cache.bounds = window.L.latLngBounds(coordinates);
+                cache.boundsKey = boundsKey;
+            }
+            return cache.bounds;
+        }
+
+        function patchRouteLayerDisplayCache(layer, initialLatLngs, initialStyle) {
+            if (!layer || layer._displayCachePatched) {
+                return layer;
+            }
+            const originalSetLatLngs = typeof layer.setLatLngs === 'function' ? layer.setLatLngs.bind(layer) : null;
+            const originalSetStyle = typeof layer.setStyle === 'function' ? layer.setStyle.bind(layer) : null;
+            layer._routeDisplayCache = createRouteDisplayCache(initialLatLngs || [], initialStyle || {});
+            layer._displayCachePatched = true;
+            if (originalSetLatLngs) {
+                layer.setLatLngs = function (nextLatLngs) {
+                    const nextKey = getLatLngsCacheKey(nextLatLngs || []);
+                    if (layer._routeDisplayCache.latLngsKey === nextKey) {
+                        return layer;
+                    }
+                    layer._routeDisplayCache.latLngsKey = nextKey;
+                    return originalSetLatLngs(nextLatLngs || []);
+                };
+            }
+            if (originalSetStyle) {
+                layer.setStyle = function (style) {
+                    const nextKey = getStyleCacheKey(style || {});
+                    if (layer._routeDisplayCache.styleKey === nextKey) {
+                        return layer;
+                    }
+                    layer._routeDisplayCache.styleKey = nextKey;
+                    return originalSetStyle(style || {});
+                };
+            }
+            return layer;
+        }
+
         function createMapboxRouteLayer(map, descriptor, latLngs) {
             const glMap = map.glMap;
             const activityKey = descriptor.meta.activityKey;
@@ -2261,6 +2616,7 @@
                 _sourceId: sourceId,
                 _layerId: layerId,
                 _latLngs: initialLatLngs.slice(),
+                _routeDisplayCache: createRouteDisplayCache(initialLatLngs, descriptor.style),
                 _lastLngLat: null,
                 on: function (eventName, handler) {
                     handlers[eventName] = handlers[eventName] || [];
@@ -2293,6 +2649,11 @@
                     return layer;
                 },
                 setLatLngs: function (nextLatLngs) {
+                    const nextKey = getLatLngsCacheKey(nextLatLngs || []);
+                    if (layer._routeDisplayCache.latLngsKey === nextKey) {
+                        return layer;
+                    }
+                    layer._routeDisplayCache.latLngsKey = nextKey;
                     layer._latLngs = (nextLatLngs || []).slice();
                     const source = glMap.getSource(sourceId);
                     if (source) {
@@ -2303,15 +2664,25 @@
                 setStyle: function (style) {
                     const nextStyle = style || {};
                     if (glMap.getLayer(layerId)) {
-                        if (nextStyle.color !== undefined) {
+                        const paint = layer._routeDisplayCache.paint;
+                        if (nextStyle.color !== undefined && paint.color !== nextStyle.color) {
+                            paint.color = nextStyle.color;
                             glMap.setPaintProperty(layerId, 'line-color', nextStyle.color);
                         }
                         if (nextStyle.weight !== undefined) {
-                            glMap.setPaintProperty(layerId, 'line-width', Number(nextStyle.weight));
+                            const weight = Number(nextStyle.weight);
+                            if (paint.weight !== weight) {
+                                paint.weight = weight;
+                                glMap.setPaintProperty(layerId, 'line-width', weight);
+                            }
                         }
                         if (nextStyle.opacity !== undefined) {
                             const opacity = Number(nextStyle.opacity);
-                            glMap.setPaintProperty(layerId, 'line-opacity', Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1);
+                            const normalizedOpacity = Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
+                            if (paint.opacity !== normalizedOpacity) {
+                                paint.opacity = normalizedOpacity;
+                                glMap.setPaintProperty(layerId, 'line-opacity', normalizedOpacity);
+                            }
                         }
                     }
                     return layer;
@@ -2393,6 +2764,11 @@
                     'line-opacity': descriptor.style.opacity
                 }
             });
+            layer._routeDisplayCache.paint = {
+                color: descriptor.style.color,
+                weight: Number(descriptor.style.weight),
+                opacity: Number(descriptor.style.opacity)
+            };
             glMap.on('mouseenter', layerId, function (event) {
                 glMap.getCanvas().style.cursor = 'pointer';
                 layer._lastLngLat = event.lngLat;
@@ -2528,7 +2904,9 @@
             if (isMapboxMap(state.map)) {
                 return createMapboxRouteLayer(state.map, descriptor, latLngs || descriptor.coordinates);
             }
-            return StravaApp.createPolylineLayer(state.map, descriptor, latLngs || descriptor.coordinates);
+            const coordinates = latLngs || descriptor.coordinates;
+            const layer = StravaApp.createPolylineLayer(state.map, descriptor, coordinates);
+            return patchRouteLayerDisplayCache(layer, coordinates, descriptor.style);
         }
 
         function renderRouteDescriptors(descriptors) {
@@ -2550,14 +2928,18 @@
             });
         }
 
-        function fetchActivityStreamData(activityId) {
+        function fetchActivityStreamData(activityId, streamKeys) {
+            const keys = Array.isArray(streamKeys) && streamKeys.length ? streamKeys : getRequiredStreamKeysForMetric(getActiveStreamColorMetricId());
             return runtimeDataSource.runWithFallback('activity stream', function (requestOptions) {
                 return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities/' + activityId + '/streams', {
-                    user: userConfig.slug
+                    user: userConfig.slug,
+                    keys: keys.join(','),
+                    resolution: SPEED_STREAM_OPTIONS.resolution,
+                    series_type: SPEED_STREAM_OPTIONS.seriesType
                 }, requestOptions);
             }, function () {
                 return ensureDirectAccessToken().then(function (accessToken) {
-                    return StravaApp.stravaFetchActivityStreams(accessToken, activityId, SPEED_STREAM_OPTIONS);
+                    return StravaApp.stravaFetchActivityStreams(accessToken, activityId, Object.assign({}, SPEED_STREAM_OPTIONS, { keys: keys }));
                 });
             });
         }
@@ -3062,11 +3444,60 @@
             }
         }
 
+        function readSessionStreamColorMetric() {
+            try {
+                return getStreamMetricConfig(window.sessionStorage.getItem(STREAM_COLOR_METRIC_SESSION_KEY)).id;
+            } catch (error) {
+                return 'speed';
+            }
+        }
+
         function syncSpeedPaletteToggleUi() {
             if (!speedPaletteToggle) {
                 return;
             }
             speedPaletteToggle.checked = isSpeedPaletteEnabled();
+        }
+
+        function syncStreamColorMetricUi() {
+            if (!streamColorMetricSelect) {
+                return;
+            }
+            streamColorMetricSelect.innerHTML = getStreamMetricOptionsMarkup(state.streamColorMetric);
+            streamColorMetricSelect.value = getActiveStreamColorMetricId();
+        }
+
+        function resetMetricOverlayGroups() {
+            (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).forEach(function (layer) {
+                destroySpeedOverlayGroup(layer);
+                syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
+            });
+        }
+
+        function setStreamColorMetric(metricId, options) {
+            const nextMetricId = getStreamMetricConfig(metricId).id;
+            if (state.streamColorMetric === nextMetricId && !(options && options.force)) {
+                syncStreamColorMetricUi();
+                return;
+            }
+            state.streamColorMetric = nextMetricId;
+            syncStreamColorMetricUi();
+            try {
+                window.sessionStorage.setItem(STREAM_COLOR_METRIC_SESSION_KEY, nextMetricId);
+            } catch (error) {
+                // Ignore session storage failures and keep the in-memory selection.
+            }
+            if (options && options.skipRefresh) {
+                return;
+            }
+            resetMetricOverlayGroups();
+            if (state.selectedLayer && detailsPanelIsOpen()) {
+                fetchSpeedStreamForLayer(state.selectedLayer, nextMetricId).finally(function () {
+                    if (state.selectedLayer) {
+                        renderDetailsPanel(state.selectedLayer);
+                    }
+                });
+            }
         }
 
         function setSpeedPaletteEnabled(enabled, options) {
@@ -3085,10 +3516,9 @@
             if (state.map && Array.isArray(state.map._stravaPolylines)) {
                 state.map._stravaPolylines.forEach(function (layer) {
                     layer._speedHoverActive = Boolean(layer._hoverActive);
-                    if (layer._speedSeries) {
-                        rebuildSpeedOverlayGroup(layer);
+                    if (state.map.hasLayer(layer) || (layer._speedOverlayGroup && state.map.hasLayer(layer._speedOverlayGroup))) {
+                        syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                     }
-                    syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                 });
                 refreshMapFilters();
             }
@@ -3103,6 +3533,8 @@
 
         state.speedPaletteEnabled = readSessionSpeedPaletteEnabled();
         setSpeedPaletteEnabled(state.speedPaletteEnabled, { skipRefresh: true });
+        state.streamColorMetric = readSessionStreamColorMetric();
+        setStreamColorMetric(state.streamColorMetric, { skipRefresh: true });
         state.mapStyleId = readSessionMapStyleId();
         state.mapStyleConfig = getMapStyleConfig(state.mapStyleId);
         syncMapStyleMenuUi();
@@ -3222,6 +3654,100 @@
             };
         }
 
+        const KPI_CYCLING_TYPES = new Set(['ride', 'gravelride', 'mountainbikeride', 'virtualride', 'ebikeride', 'emountainbikeride', 'velomobile', 'handcycle']);
+        const KPI_RUNNING_TYPES = new Set(['run', 'trailrun', 'virtualrun']);
+        const KPI_CATEGORY_LABELS = {
+            cycling: 'Cycling',
+            running: 'Running',
+            swim: 'Swimming',
+            walk: 'Walking',
+            hike: 'Hiking',
+            workout: 'Workout',
+            weighttraining: 'Weight Training',
+            yoga: 'Yoga',
+            golf: 'Golf',
+            other: 'Other'
+        };
+
+        function normalizeKpiActivityType(value) {
+            return String(value || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        }
+
+        function titleCaseKpiType(value) {
+            return String(value || 'Other').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').split(/\s+/).filter(Boolean).map(function (part) {
+                return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+            }).join(' ') || 'Other';
+        }
+
+        function getActivityKpiCategory(activity) {
+            const normalized = StravaApp.normalizeActivityRecord(activity || {});
+            const rawType = normalized.sport_type || normalized.type || '';
+            const type = normalizeKpiActivityType(rawType);
+            if (KPI_CYCLING_TYPES.has(type)) {
+                return { key: 'cycling', label: 'Cycling' };
+            }
+            if (KPI_RUNNING_TYPES.has(type)) {
+                return { key: 'running', label: 'Running' };
+            }
+            if (KPI_CATEGORY_LABELS[type]) {
+                return { key: type, label: KPI_CATEGORY_LABELS[type] };
+            }
+            return {
+                key: type || 'other',
+                label: titleCaseKpiType(rawType || type || 'Other')
+            };
+        }
+
+        function getActivityKpiValues(activity) {
+            return {
+                count: 1,
+                distance_meters: Number(activity && activity.distance || 0),
+                moving_time_seconds: Number(activity && activity.moving_time || 0),
+                elapsed_time_seconds: Number(activity && activity.elapsed_time || 0),
+                elevation_gain_meters: Number(activity && activity.total_elevation_gain || 0)
+            };
+        }
+
+        function buildActivityKpiSnapshots(activities) {
+            const snapshotsByKey = new Map();
+            (activities || []).forEach(function (activity) {
+                const category = getActivityKpiCategory(activity);
+                if (!snapshotsByKey.has(category.key)) {
+                    snapshotsByKey.set(category.key, {
+                        id: userConfig.slug + ':' + category.key,
+                        user_slug: userConfig.slug,
+                        category_key: category.key,
+                        category_label: category.label,
+                        count: 0,
+                        distance_meters: 0,
+                        moving_time_seconds: 0,
+                        elapsed_time_seconds: 0,
+                        elevation_gain_meters: 0
+                    });
+                }
+                const snapshot = snapshotsByKey.get(category.key);
+                const values = getActivityKpiValues(activity);
+                snapshot.count += values.count;
+                snapshot.distance_meters += values.distance_meters;
+                snapshot.moving_time_seconds += values.moving_time_seconds;
+                snapshot.elapsed_time_seconds += values.elapsed_time_seconds;
+                snapshot.elevation_gain_meters += values.elevation_gain_meters;
+            });
+            return snapshotsByKey;
+        }
+
+        async function loadActivityKpisData(activities) {
+            return runtimeDataSource.runWithFallback('activity KPI load', function (requestOptions) {
+                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/users/' + encodeURIComponent(userConfig.slug) + '/activity-kpis', {}, requestOptions).then(function (snapshots) {
+                    return new Map((Array.isArray(snapshots) ? snapshots : []).map(function (snapshot) {
+                        return [snapshot.category_key, snapshot];
+                    }));
+                });
+            }, function () {
+                return Promise.resolve(buildActivityKpiSnapshots(activities));
+            });
+        }
+
         function buildOptionCollections(activityItems) {
             const collections = {
                 collection: new Map(),
@@ -3323,17 +3849,80 @@
             return speed > 0 ? (speed * 2.2369362920544).toFixed(2) + ' mph' : 'N/A';
         }
 
+        function getStreamMetricConfig(metricId) {
+            return STREAM_COLOR_METRICS[metricId] || STREAM_COLOR_METRICS.speed;
+        }
+
+        function getStreamMetricOptionsMarkup(selectedMetricId) {
+            const selected = getStreamMetricConfig(selectedMetricId).id;
+            return STREAM_COLOR_METRIC_ORDER.map(function (metricId) {
+                const metric = getStreamMetricConfig(metricId);
+                return "<option value='" + escapeHtml(metric.id) + "'" + (metric.id === selected ? " selected" : "") + ">" + escapeHtml(metric.label) + "</option>";
+            }).join('');
+        }
+
+        function getRequiredStreamKeysForMetric(metricId) {
+            const metric = getStreamMetricConfig(metricId);
+            return Array.from(new Set(['latlng', 'time', 'velocity_smooth', metric.streamKey]));
+        }
+
+        function convertMetricValue(metricId, value) {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) {
+                return null;
+            }
+            if (metricId === 'speed') {
+                return numeric * 2.2369362920544;
+            }
+            if (metricId === 'altitude') {
+                return numeric * 3.28084;
+            }
+            return numeric;
+        }
+
+        function formatStreamMetricValue(metricId, value, options) {
+            const converted = convertMetricValue(metricId, value);
+            if (converted === null) {
+                return 'N/A';
+            }
+            const metric = getStreamMetricConfig(metricId);
+            const digits = options && typeof options.digits === 'number'
+                ? options.digits
+                : metricId === 'speed' ? 1 : 0;
+            return converted.toFixed(digits) + ' ' + metric.unit;
+        }
+
+        function getActiveStreamColorMetricId() {
+            return getStreamMetricConfig(state.streamColorMetric).id;
+        }
+
+        function getDetailsChartMetricId(layer) {
+            const activityKey = layer && layer._stravaMeta ? layer._stravaMeta.activityKey : '';
+            return getStreamMetricConfig(activityKey && state.detailsChartMetricsByKey.has(activityKey)
+                ? state.detailsChartMetricsByKey.get(activityKey)
+                : state.streamColorMetric).id;
+        }
+
         function getActivityId(activity) {
             return Number(activity && (activity.id || activity.strava_id) || 0);
         }
 
         function normalizeStreamPayload(streamData) {
+            const streams = streamData && streamData.streams && typeof streamData.streams === 'object'
+                ? streamData.streams
+                : streamData && streamData.stream_data && typeof streamData.stream_data === 'object'
+                    ? streamData.stream_data
+                    : {};
             return {
-                latlng: Array.isArray(streamData && streamData.latlng) ? streamData.latlng : Array.isArray(streamData && streamData.stream_latlng) ? streamData.stream_latlng : [],
-                velocity_smooth: Array.isArray(streamData && streamData.velocity_smooth) ? streamData.velocity_smooth : Array.isArray(streamData && streamData.stream_velocity_smooth) ? streamData.stream_velocity_smooth : [],
-                time: Array.isArray(streamData && streamData.time) ? streamData.time : Array.isArray(streamData && streamData.stream_time) ? streamData.stream_time : [],
+                streams: streams,
+                latlng: Array.isArray(streams.latlng) ? streams.latlng : Array.isArray(streamData && streamData.latlng) ? streamData.latlng : Array.isArray(streamData && streamData.stream_latlng) ? streamData.stream_latlng : [],
+                velocity_smooth: Array.isArray(streams.velocity_smooth) ? streams.velocity_smooth : Array.isArray(streamData && streamData.velocity_smooth) ? streamData.velocity_smooth : Array.isArray(streamData && streamData.stream_velocity_smooth) ? streamData.stream_velocity_smooth : [],
+                time: Array.isArray(streams.time) ? streams.time : Array.isArray(streamData && streamData.time) ? streamData.time : Array.isArray(streamData && streamData.stream_time) ? streamData.stream_time : [],
                 resolution: streamData && (streamData.resolution || streamData.stream_resolution) ? streamData.resolution || streamData.stream_resolution : SPEED_STREAM_OPTIONS.resolution,
                 series_type: streamData && (streamData.series_type || streamData.stream_series_type) ? streamData.series_type || streamData.stream_series_type : SPEED_STREAM_OPTIONS.seriesType,
+                stream_keys: Array.isArray(streamData && streamData.stream_keys) ? streamData.stream_keys : Object.keys(streams),
+                stream_requested_keys: Array.isArray(streamData && streamData.stream_requested_keys) ? streamData.stream_requested_keys : [],
+                stream_metadata: streamData && streamData.stream_metadata && typeof streamData.stream_metadata === 'object' ? streamData.stream_metadata : {},
                 cached: Boolean(streamData && streamData.cached),
                 fetched_at: streamData && (streamData.fetched_at || streamData.stream_fetched_at) ? streamData.fetched_at || streamData.stream_fetched_at : ''
             };
@@ -3373,51 +3962,80 @@
         }
 
         function getSpeedStats(activity, streamData, renderedSpeeds) {
-            const speeds = normalizeStreamPayload(streamData).velocity_smooth.map(function (value) {
+            return getMetricStats(activity, streamData, 'speed', renderedSpeeds);
+        }
+
+        function getMetricRawValues(normalizedStream, metricId) {
+            const metric = getStreamMetricConfig(metricId);
+            const streamValues = normalizedStream && normalizedStream.streams && Array.isArray(normalizedStream.streams[metric.streamKey])
+                ? normalizedStream.streams[metric.streamKey]
+                : Array.isArray(normalizedStream && normalizedStream[metric.streamKey])
+                    ? normalizedStream[metric.streamKey]
+                    : [];
+            return streamValues.map(function (value) {
                 return Number(value);
             }).filter(function (value) {
-                return Number.isFinite(value) && value >= 0;
+                return Number.isFinite(value) && (metricId === 'altitude' || value >= 0);
             });
-            if (!speeds.length) {
+        }
+
+        function hasMetricStreamData(streamData, metricId) {
+            return getMetricRawValues(normalizeStreamPayload(streamData), metricId).length > 0;
+        }
+
+        function getMetricStats(activity, streamData, metricId, renderedValues) {
+            const values = getMetricRawValues(normalizeStreamPayload(streamData), metricId);
+            if (!values.length) {
                 return null;
             }
-            const min = Math.min.apply(null, speeds);
-            const max = Math.max.apply(null, speeds);
-            let average = Number(activity.average_speed || 0);
-            if (!(average > 0)) {
-                average = speeds.reduce(function (sum, value) { return sum + value; }, 0) / speeds.length;
+            const min = Math.min.apply(null, values);
+            const max = Math.max.apply(null, values);
+            let average = metricId === 'speed' ? Number(activity.average_speed || 0) : NaN;
+            if (!Number.isFinite(average) || !(average > 0)) {
+                average = values.reduce(function (sum, value) { return sum + value; }, 0) / values.length;
             }
             average = Math.max(min, Math.min(max, average));
             return {
                 min: min,
                 average: average,
                 max: max,
-                renderedMin: renderedSpeeds && renderedSpeeds.length ? Math.min.apply(null, renderedSpeeds) : min,
-                renderedMax: renderedSpeeds && renderedSpeeds.length ? Math.max.apply(null, renderedSpeeds) : max
+                renderedMin: renderedValues && renderedValues.length ? Math.min.apply(null, renderedValues) : min,
+                renderedMax: renderedValues && renderedValues.length ? Math.max.apply(null, renderedValues) : max
+            };
+        }
+
+        function buildMetricSeriesData(activity, streamData, metricId) {
+            const metric = getStreamMetricConfig(metricId);
+            const normalizedStream = normalizeStreamPayload(streamData);
+            const rawValues = getMetricRawValues(normalizedStream, metric.id);
+            if (!rawValues.length) {
+                return null;
+            }
+            const smoothedValues = smoothNumericSeries(rawValues, SPEED_SMOOTHING_RADIUS);
+            const times = getStreamTimes(activity, normalizedStream, smoothedValues.length);
+            const stats = getMetricStats(activity, normalizedStream, metric.id, smoothedValues);
+            const chartValues = smoothedValues.map(function (value) {
+                return convertMetricValue(metric.id, value);
+            }).filter(function (value) {
+                return value !== null;
+            });
+            return {
+                metricId: metric.id,
+                metric: metric,
+                stream: normalizedStream,
+                rawValues: rawValues,
+                smoothedValues: smoothedValues,
+                times: times,
+                chartValues: chartValues,
+                rawSpeeds: metric.id === 'speed' ? rawValues : [],
+                smoothedSpeeds: metric.id === 'speed' ? smoothedValues : [],
+                mphValues: metric.id === 'speed' ? chartValues : [],
+                stats: stats
             };
         }
 
         function buildSpeedSeriesData(activity, streamData) {
-            const normalizedStream = normalizeStreamPayload(streamData);
-            const rawSpeeds = normalizedStream.velocity_smooth.map(function (value) {
-                return Number(value);
-            }).filter(function (value) {
-                return Number.isFinite(value) && value >= 0;
-            });
-            if (!rawSpeeds.length) {
-                return null;
-            }
-            const smoothedSpeeds = smoothNumericSeries(rawSpeeds, SPEED_SMOOTHING_RADIUS);
-            const times = getStreamTimes(activity, normalizedStream, smoothedSpeeds.length);
-            const stats = getSpeedStats(activity, normalizedStream, smoothedSpeeds);
-            return {
-                stream: normalizedStream,
-                rawSpeeds: rawSpeeds,
-                smoothedSpeeds: smoothedSpeeds,
-                times: times,
-                mphValues: smoothedSpeeds.map(function (value) { return value * 2.2369362920544; }),
-                stats: stats
-            };
+            return buildMetricSeriesData(activity, streamData, 'speed');
         }
 
         function clampValue(value, min, max) {
@@ -3425,23 +4043,31 @@
         }
 
         function getNormalizedSpeedProgress(speed, stats) {
+            return getNormalizedMetricProgress(speed, stats);
+        }
+
+        function getNormalizedMetricProgress(value, stats) {
             if (!stats || !(stats.max > stats.min)) {
                 return 0.5;
             }
-            const numericSpeed = Number(speed);
-            if (!Number.isFinite(numericSpeed)) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
                 return 0.5;
             }
-            return clampValue((numericSpeed - stats.min) / Math.max(stats.max - stats.min, 0.00001), 0, 1);
+            return clampValue((numericValue - stats.min) / Math.max(stats.max - stats.min, 0.00001), 0, 1);
         }
 
         function getSpeedBucketIndex(speed, stats) {
+            return getMetricBucketIndex(speed, stats);
+        }
+
+        function getMetricBucketIndex(value, stats) {
             const palette = getSpeedPalette();
             if (!palette.length) {
                 return 0;
             }
             const weights = getSpeedPaletteWeights();
-            const progress = getNormalizedSpeedProgress(speed, stats);
+            const progress = getNormalizedMetricProgress(value, stats);
             for (let index = 0; index < palette.length; index += 1) {
                 const lowerBound = Number(weights[index]);
                 const upperBound = Number(weights[index + 1]);
@@ -3459,8 +4085,12 @@
         }
 
         function getSpeedColor(speed, stats) {
+            return getMetricColor(speed, stats);
+        }
+
+        function getMetricColor(value, stats) {
             const palette = getSpeedPalette();
-            return palette[getSpeedBucketIndex(speed, stats)] || palette[palette.length - 1] || '#f5f7fb';
+            return palette[getMetricBucketIndex(value, stats)] || palette[palette.length - 1] || '#f5f7fb';
         }
 
         function getAverageSpeedPaletteColor(stats) {
@@ -3488,7 +4118,7 @@
             if (!isSpeedPaletteEnabled()) {
                 return false;
             }
-            return Boolean(layer && layer._speedOverlayGroup && (
+            return Boolean(layer && (layer._speedOverlayGroup || layer._speedSeries) && (
                 (state.selectedLayer === layer && detailsPanelIsOpen())
                 || layer._speedHoverActive
             ));
@@ -3508,10 +4138,21 @@
             const maxExtraWeight = window.innerWidth <= 900
                 ? config.mobileExtraWeight
                 : config.desktopExtraWeight;
-            return progress * maxExtraWeight;
+            const rawBoost = progress * maxExtraWeight;
+            return Math.round(rawBoost / CLOSE_ZOOM_WEIGHT_BUCKET_SIZE) * CLOSE_ZOOM_WEIGHT_BUCKET_SIZE;
         }
 
-        function syncVisibleRouteStylesForZoom() {
+        function getCloseZoomStyleBucket() {
+            return String(getCloseZoomLineWeightBoost().toFixed(2)) + '|' + (window.innerWidth <= 900 ? 'mobile' : 'desktop');
+        }
+
+        function syncVisibleRouteStylesForZoom(options) {
+            const bucket = getCloseZoomStyleBucket();
+            if (!(options && options.force) && state.routeZoomStyleBucket === bucket) {
+                refreshVisibleRouteCulling();
+                return;
+            }
+            state.routeZoomStyleBucket = bucket;
             (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).forEach(function (layer) {
                 if (layer && state.map.hasLayer(layer)) {
                     syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
@@ -3683,10 +4324,10 @@
                 return [];
             }
             const latlngs = speedSeries.stream.latlng;
-            const speeds = speedSeries.smoothedSpeeds;
+            const values = speedSeries.smoothedValues || speedSeries.smoothedSpeeds || [];
             const times = speedSeries.times;
             const stats = speedSeries.stats;
-            const segmentLimit = Math.min(latlngs.length - 1, speeds.length - 1, times.length - 1);
+            const segmentLimit = Math.min(latlngs.length - 1, values.length - 1, times.length - 1);
             const segments = [];
 
             for (let index = 1; index <= segmentLimit; index += 1) {
@@ -3700,9 +4341,9 @@
                 if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) {
                     continue;
                 }
-                const startSpeed = Number(speeds[index - 1]);
-                const endSpeed = Number(speeds[index]);
-                if (!Number.isFinite(startSpeed) || !Number.isFinite(endSpeed)) {
+                const startValue = Number(values[index - 1]);
+                const endValue = Number(values[index]);
+                if (!Number.isFinite(startValue) || !Number.isFinite(endValue)) {
                     continue;
                 }
                 for (let subdivision = 0; subdivision < SPEED_SEGMENT_SUBDIVISIONS; subdivision += 1) {
@@ -3712,13 +4353,13 @@
                     const segmentEnd = interpolateCoordinate(start, end, endRatio);
                     const segmentTimeStart = startTime + ((endTime - startTime) * startRatio);
                     const segmentTimeEnd = startTime + ((endTime - startTime) * endRatio);
-                    const segmentSpeed = startSpeed + ((endSpeed - startSpeed) * ((startRatio + endRatio) / 2));
+                    const segmentValue = startValue + ((endValue - startValue) * ((startRatio + endRatio) / 2));
                     segments.push({
                         start: segmentStart,
                         end: segmentEnd,
                         startTime: segmentTimeStart,
                         endTime: segmentTimeEnd,
-                        color: getSpeedColor(segmentSpeed, stats)
+                        color: getMetricColor(segmentValue, stats)
                     });
                 }
             }
@@ -3786,20 +4427,67 @@
             syncStandardLayerDisplay(layer);
         }
 
-        function createSpeedOverlayGroup(layer, streamData) {
-            const speedSeries = buildSpeedSeriesData(layer._stravaDescriptor.activity, streamData);
-            if (!speedSeries) {
+        function mergeStreamPayloads(existingStream, nextStream) {
+            const existing = normalizeStreamPayload(existingStream || {});
+            const incoming = normalizeStreamPayload(nextStream || {});
+            const streams = Object.assign({}, existing.streams || {}, incoming.streams || {});
+            ['latlng', 'velocity_smooth', 'time'].forEach(function (key) {
+                if (Array.isArray(incoming[key]) && incoming[key].length) {
+                    streams[key] = incoming[key];
+                } else if (Array.isArray(existing[key]) && existing[key].length && !streams[key]) {
+                    streams[key] = existing[key];
+                }
+            });
+            return Object.assign({}, existing, incoming, {
+                streams: streams,
+                latlng: streams.latlng || [],
+                velocity_smooth: streams.velocity_smooth || [],
+                time: streams.time || [],
+                stream_keys: Array.from(new Set([].concat(existing.stream_keys || [], incoming.stream_keys || [], Object.keys(streams)))),
+                stream_requested_keys: Array.from(new Set([].concat(existing.stream_requested_keys || [], incoming.stream_requested_keys || [])))
+            });
+        }
+
+        function getLayerMetricSeries(layer, metricId) {
+            if (!layer || !layer._stravaDescriptor || !layer._speedStream) {
                 return null;
             }
-            const segments = buildSpeedSegments(speedSeries);
+            const metric = getStreamMetricConfig(metricId);
+            layer._metricSeriesById = layer._metricSeriesById || {};
+            if (!Object.prototype.hasOwnProperty.call(layer._metricSeriesById, metric.id)) {
+                layer._metricSeriesById[metric.id] = buildMetricSeriesData(layer._stravaDescriptor.activity, layer._speedStream, metric.id);
+            }
+            return layer._metricSeriesById[metric.id];
+        }
+
+        function destroySpeedOverlayGroup(layer) {
+            if (!layer) {
+                return;
+            }
+            if (layer._speedOverlayGroup && state.map && state.map.hasLayer(layer._speedOverlayGroup)) {
+                state.map.removeLayer(layer._speedOverlayGroup);
+            }
+            if (layer._speedOverlayGroup && layer._speedOverlayGroup._isMapboxSpeedOverlayGroup && typeof layer._speedOverlayGroup.destroy === 'function') {
+                layer._speedOverlayGroup.destroy();
+            }
+            layer._speedOverlayGroup = null;
+            layer._speedOverlayStyle = null;
+        }
+
+        function createSpeedOverlayGroup(layer, streamData) {
+            const metricSeries = getLayerMetricSeries(layer, getActiveStreamColorMetricId()) || buildMetricSeriesData(layer._stravaDescriptor.activity, streamData, getActiveStreamColorMetricId());
+            if (!metricSeries) {
+                return null;
+            }
+            const segments = buildSpeedSegments(metricSeries);
             if (!segments.length) {
                 return null;
             }
             const overlayStyle = getSpeedDisplayStyles(layer);
             if (isMapboxRouteLayer(layer)) {
-                const group = createMapboxSpeedOverlayGroup(layer, segments, speedSeries, overlayStyle);
-                group._pathLatLngs = Array.isArray(speedSeries.stream.latlng) ? speedSeries.stream.latlng.slice() : [];
-                group._speedSeries = speedSeries;
+                const group = createMapboxSpeedOverlayGroup(layer, segments, metricSeries, overlayStyle);
+                group._pathLatLngs = Array.isArray(metricSeries.stream.latlng) ? metricSeries.stream.latlng.slice() : [];
+                group._speedSeries = metricSeries;
                 group._speedSegments = segments;
                 return group;
             }
@@ -3814,8 +4502,8 @@
                     interactive: false
                 });
             }));
-            group._pathLatLngs = Array.isArray(speedSeries.stream.latlng) ? speedSeries.stream.latlng.slice() : [];
-            group._speedSeries = speedSeries;
+            group._pathLatLngs = Array.isArray(metricSeries.stream.latlng) ? metricSeries.stream.latlng.slice() : [];
+            group._speedSeries = metricSeries;
             group._speedSegments = segments;
             return group;
         }
@@ -3831,9 +4519,27 @@
             });
         }
 
+        function removeSpeedOverlayFromMap(layer) {
+            if (layer && layer._speedOverlayGroup && state.map && state.map.hasLayer(layer._speedOverlayGroup)) {
+                state.map.removeLayer(layer._speedOverlayGroup);
+            }
+        }
+
+        function ensureSpeedOverlayGroup(layer) {
+            if (!layer || layer._speedOverlayGroup || !isSpeedPaletteEnabled() || !layer._speedSeries) {
+                return layer ? layer._speedOverlayGroup : null;
+            }
+            layer._speedOverlayGroup = createSpeedOverlayGroup(layer, layer._speedStream || layer._speedSeries.stream);
+            layer._speedOverlayStyle = layer._speedOverlayGroup ? getSpeedDisplayStyles(layer) : null;
+            return layer._speedOverlayGroup;
+        }
+
         function syncSpeedOverlayVisibility(layer, visible) {
             if (!layer || !state.map) {
                 return;
+            }
+            if (visible) {
+                ensureSpeedOverlayGroup(layer);
             }
             const shouldDisplay = Boolean(visible && layer._speedOverlayGroup);
             if (shouldDisplay) {
@@ -3860,9 +4566,7 @@
                 bringSpeedOverlayToFront(layer);
                 return;
             }
-            if (layer._speedOverlayGroup && state.map.hasLayer(layer._speedOverlayGroup)) {
-                state.map.removeLayer(layer._speedOverlayGroup);
-            }
+            removeSpeedOverlayFromMap(layer);
             syncStandardLayerDisplay(layer);
         }
 
@@ -3870,14 +4574,7 @@
             if (!layer) {
                 return null;
             }
-            if (layer._speedOverlayGroup && state.map && state.map.hasLayer(layer._speedOverlayGroup)) {
-                state.map.removeLayer(layer._speedOverlayGroup);
-            }
-            if (layer._speedOverlayGroup && layer._speedOverlayGroup._isMapboxSpeedOverlayGroup && typeof layer._speedOverlayGroup.destroy === 'function') {
-                layer._speedOverlayGroup.destroy();
-            }
-            layer._speedOverlayGroup = null;
-            layer._speedOverlayStyle = null;
+            destroySpeedOverlayGroup(layer);
             if (!isSpeedPaletteEnabled() || !layer._speedSeries) {
                 syncStandardLayerDisplay(layer);
                 return null;
@@ -3893,7 +4590,7 @@
             if (!layer) {
                 return null;
             }
-            const normalizedStream = normalizeStreamPayload(streamData);
+            const normalizedStream = mergeStreamPayloads(layer._speedStream, streamData);
             const streamCoordinates = typeof StravaApp.normalizeRouteCoordinates === 'function'
                 ? StravaApp.normalizeRouteCoordinates(normalizedStream.latlng)
                 : [];
@@ -3902,13 +4599,20 @@
                 layer._stravaDescriptor.activity = StravaApp.normalizeActivityRecord(Object.assign({}, layer._stravaDescriptor.activity, {
                     stream_latlng: streamCoordinates
                 }));
+                normalizedStream.streams.latlng = streamCoordinates;
+                normalizedStream.latlng = streamCoordinates;
             }
             const speedSeries = buildSpeedSeriesData(layer._stravaDescriptor.activity, normalizedStream);
             layer._speedStream = normalizedStream;
             layer._speedSeries = speedSeries;
             layer._speedStats = speedSeries ? speedSeries.stats : null;
-            layer._speedSegments = speedSeries ? buildSpeedSegments(speedSeries) : null;
-            return rebuildSpeedOverlayGroup(layer);
+            layer._speedSegments = null;
+            layer._metricSeriesById = {};
+            if (speedSeries) {
+                layer._metricSeriesById.speed = speedSeries;
+            }
+            destroySpeedOverlayGroup(layer);
+            return syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
         }
 
         function fetchActivityDetailForLayer(layer) {
@@ -3944,32 +4648,28 @@
             return request;
         }
 
-        function fetchSpeedStreamForLayer(layer) {
+        function fetchSpeedStreamForLayer(layer, metricId) {
             if (!layer || !layer._stravaDescriptor) {
                 return Promise.resolve(null);
             }
+            const metric = getStreamMetricConfig(metricId || getActiveStreamColorMetricId());
+            const requiredKeys = getRequiredStreamKeysForMetric(metric.id);
             const activityId = getActivityId(layer._stravaDescriptor.activity);
             const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : String(activityId || '');
             if (!activityId) {
                 return Promise.resolve(null);
             }
-            if (layer._speedStream && layer._speedSeries) {
-                if (isSpeedPaletteEnabled()) {
-                    rebuildSpeedOverlayGroup(layer);
-                } else {
-                    syncSpeedOverlayVisibility(layer, false);
-                }
+            if (layer._speedStream && layer._speedSeries && requiredKeys.every(function (key) {
+                return key === 'latlng' || key === 'time' || key === 'velocity_smooth' || hasMetricStreamData(layer._speedStream, metric.id);
+            })) {
                 syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                 return Promise.resolve(layer._speedStream || null);
             }
-            if (layer._speedOverlayGroup) {
-                syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
-                return Promise.resolve(layer._speedStream || null);
+            const streamPromiseKey = activityKey + ':' + requiredKeys.join(',');
+            if (state.streamPromises.has(streamPromiseKey)) {
+                return state.streamPromises.get(streamPromiseKey);
             }
-            if (state.streamPromises.has(activityKey)) {
-                return state.streamPromises.get(activityKey);
-            }
-            const request = fetchActivityStreamData(activityId).then(function (streamData) {
+            const request = fetchActivityStreamData(activityId, requiredKeys).then(function (streamData) {
                 applySpeedDataToLayer(layer, streamData);
                 syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                 if (state.activeDetailKey === activityKey) {
@@ -3980,10 +4680,16 @@
                 console.warn('Unable to fetch activity speed stream', error);
                 return null;
             }).finally(function () {
-                state.streamPromises.delete(activityKey);
+                state.streamPromises.delete(streamPromiseKey);
             });
-            state.streamPromises.set(activityKey, request);
+            state.streamPromises.set(streamPromiseKey, request);
             return request;
+        }
+
+        function isStreamRequestPendingForActivity(activityKey) {
+            return Array.from(state.streamPromises.keys()).some(function (key) {
+                return key === activityKey || key.indexOf(activityKey + ':') === 0;
+            });
         }
 
         function fetchActivityDetailForDescriptor(descriptor) {
@@ -4016,7 +4722,7 @@
             });
         }
 
-        function fetchSpeedStreamForDescriptor(descriptor) {
+        function fetchSpeedStreamForDescriptor(descriptor, metricId) {
             if (!descriptor || !descriptor.activity) {
                 return Promise.resolve(null);
             }
@@ -4027,7 +4733,7 @@
             if (!activityId) {
                 return Promise.resolve(null);
             }
-            return fetchActivityStreamData(activityId).then(function (streamData) {
+            return fetchActivityStreamData(activityId, getRequiredStreamKeysForMetric(metricId || getActiveStreamColorMetricId())).then(function (streamData) {
                 return normalizeStreamPayload(streamData);
             }).catch(function (error) {
                 console.warn('Unable to fetch descriptor speed stream', error);
@@ -4270,6 +4976,7 @@
                     fallbackDurationSeconds: Number(descriptor.activity.elapsed_time || 0),
                     durationMs: typeof options === 'object' && typeof options.durationMs === 'number' ? options.durationMs : durationMs,
                     shouldCancel: options && typeof options.shouldCancel === 'function' ? options.shouldCancel : null,
+                    onStart: options && typeof options.onStart === 'function' ? options.onStart : null,
                     onFrame: function (frame) {
                         layer.setLatLngs(frame.visibleCoordinates);
                         layer.setStyle({
@@ -4280,7 +4987,11 @@
                         if (typeof layer.bringToFront === 'function') {
                             layer.bringToFront();
                         }
-                    }
+                        if (options && typeof options.onFrame === 'function') {
+                            options.onFrame(frame);
+                        }
+                    },
+                    onComplete: options && typeof options.onComplete === 'function' ? options.onComplete : null
                 });
             } finally {
                 syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
@@ -4295,16 +5006,19 @@
         }
 
         async function animateLayerWithSpeed(layer, options) {
-            if (!isSpeedPaletteEnabled() || !layer || !layer._stravaDescriptor || !layer._speedSeries) {
-                return animateLayerPlain(layer, options || {});
+            const opts = options || {};
+            const metricId = getStreamMetricConfig(opts.metricId || getActiveStreamColorMetricId()).id;
+            const metricSeries = getLayerMetricSeries(layer, metricId);
+            if (!isSpeedPaletteEnabled() || !layer || !layer._stravaDescriptor || !layer._speedSeries || !metricSeries) {
+                return animateLayerPlain(layer, opts);
             }
             const descriptor = layer._stravaDescriptor;
             const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : '';
             const styles = getSpeedDisplayStyles(layer, { animation: true });
-            const animationScene = createSpeedAnimationScene(state.map, descriptor, layer._speedSeries, styles);
+            const animationScene = createSpeedAnimationScene(state.map, descriptor, metricSeries, styles);
             if (!animationScene.points.length) {
                 animationScene.destroy();
-                return animateLayerPlain(layer, options);
+                return animateLayerPlain(layer, opts);
             }
 
             state.replayAnimatingKey = activityKey;
@@ -4323,11 +5037,16 @@
                     points: animationScene.points,
                     times: animationScene.times,
                     fallbackDurationSeconds: Number(descriptor.activity.elapsed_time || 0),
-                    durationMs: typeof options === 'object' && typeof options.durationMs === 'number' ? options.durationMs : durationMs,
-                    shouldCancel: options && typeof options.shouldCancel === 'function' ? options.shouldCancel : null,
+                    durationMs: typeof opts.durationMs === 'number' ? opts.durationMs : durationMs,
+                    shouldCancel: typeof opts.shouldCancel === 'function' ? opts.shouldCancel : null,
+                    onStart: typeof opts.onStart === 'function' ? opts.onStart : null,
                     onFrame: function (frame) {
                         animationScene.update(frame);
-                    }
+                        if (typeof opts.onFrame === 'function') {
+                            opts.onFrame(frame);
+                        }
+                    },
+                    onComplete: typeof opts.onComplete === 'function' ? opts.onComplete : null
                 });
             } finally {
                 animationScene.destroy();
@@ -4365,7 +5084,7 @@
             if (shouldCancel()) {
                 return createRouteLayer(descriptor, descriptor.coordinates);
             }
-            const streamData = await fetchSpeedStreamForDescriptor(descriptor);
+            const streamData = await fetchSpeedStreamForDescriptor(descriptor, opts.metricId || getActiveStreamColorMetricId());
             if (shouldCancel()) {
                 return createRouteLayer(descriptor, descriptor.coordinates);
             }
@@ -4456,6 +5175,7 @@
             if (!state.map || !bounds || !bounds.isValid || !bounds.isValid()) {
                 return;
             }
+            suspendRouteCulling(1200);
             state.map.fitBounds(bounds, getCollectionPlaybackFitOptions());
         }
 
@@ -4470,6 +5190,7 @@
             if (!state.map || !layer || !layer.getBounds || !layer.getBounds().isValid()) {
                 return;
             }
+            suspendRouteCulling(1200);
             state.map.fitBounds(layer.getBounds(), {
                 paddingTopLeft: [28, 28],
                 paddingBottomRight: [getDetailsPanelWidth() + 28, 28],
@@ -4486,10 +5207,12 @@
 
         function renderSpeedChart(layer) {
             const chart = document.getElementById(DETAILS_SPEED_CHART_ID);
-            if (!chart || !layer || !layer._speedSeries || !window.Plotly) {
+            const metricId = getDetailsChartMetricId(layer);
+            const series = getLayerMetricSeries(layer, metricId);
+            if (!chart || !layer || !series || !window.Plotly) {
                 return;
             }
-            const series = layer._speedSeries;
+            const metric = getStreamMetricConfig(metricId);
             const palette = getSpeedPalette();
             const tracesByColor = palette.map(function (color) {
                 return {
@@ -4508,12 +5231,12 @@
                 };
             });
 
-            for (let index = 1; index < series.mphValues.length; index += 1) {
+            for (let index = 1; index < series.chartValues.length; index += 1) {
                 const x0 = series.times[index - 1] / 60;
                 const x1 = series.times[index] / 60;
-                const y0 = series.mphValues[index - 1];
-                const y1 = series.mphValues[index];
-                const bucketIndex = getSpeedBucketIndex(series.smoothedSpeeds[index], series.stats);
+                const y0 = series.chartValues[index - 1];
+                const y1 = series.chartValues[index];
+                const bucketIndex = getMetricBucketIndex(series.smoothedValues[index], series.stats);
                 tracesByColor[bucketIndex].x.push(x0, x1, null);
                 tracesByColor[bucketIndex].y.push(y0, y1, null);
             }
@@ -4521,7 +5244,7 @@
             const traces = tracesByColor.filter(function (trace) {
                 return trace.x.length > 0;
             });
-            const averageMph = Number(series.stats && series.stats.average ? series.stats.average : 0) * 2.2369362920544;
+            const averageDisplayValue = convertMetricValue(metricId, Number(series.stats && Number.isFinite(series.stats.average) ? series.stats.average : NaN));
             const maxDurationMinutes = Math.max(series.times.length ? series.times[series.times.length - 1] / 60 : 0, 1);
 
             window.Plotly.react(chart, traces, {
@@ -4539,29 +5262,29 @@
                     range: [0, maxDurationMinutes]
                 },
                 yaxis: {
-                    title: 'Speed (mph)',
+                    title: metric.axisTitle,
                     color: '#d6dee9',
                     gridcolor: 'rgba(255,255,255,0.08)',
                     zeroline: false
                 },
-                shapes: averageMph > 0 ? [{
+                shapes: Number.isFinite(averageDisplayValue) ? [{
                     type: 'line',
                     x0: 0,
                     x1: maxDurationMinutes,
-                    y0: averageMph,
-                        y1: averageMph,
+                    y0: averageDisplayValue,
+                        y1: averageDisplayValue,
                         line: {
-                            color: getAverageSpeedPaletteColor(series.stats),
+                            color: getMetricColor(series.stats.average, series.stats),
                             width: 1.2,
                             dash: 'dot'
                         }
                     }] : [],
-                annotations: averageMph > 0 ? [{
+                annotations: Number.isFinite(averageDisplayValue) ? [{
                     x: maxDurationMinutes,
-                    y: averageMph,
+                    y: averageDisplayValue,
                     xanchor: 'right',
                     yanchor: 'bottom',
-                    text: 'Avg ' + formatSpeedValue(series.stats.average),
+                    text: 'Avg ' + formatStreamMetricValue(metricId, series.stats.average),
                     showarrow: false,
                     font: {
                         family: 'Aptos Narrow, sans-serif',
@@ -6468,6 +7191,30 @@
             }
         }
 
+        function renderDetailsMetricControl(metricId) {
+            return "<select id='details-stream-metric-select' class='details-metric-select' aria-label='Choose chart metric'>"
+                + getStreamMetricOptionsMarkup(metricId)
+                + "</select>";
+        }
+
+        function bindDetailsMetricControls(layer) {
+            const select = document.getElementById('details-stream-metric-select');
+            if (!select || !layer || !layer._stravaMeta) {
+                return;
+            }
+            select.addEventListener('change', function () {
+                const nextMetricId = getStreamMetricConfig(select.value).id;
+                state.detailsChartMetricsByKey.set(layer._stravaMeta.activityKey, nextMetricId);
+                const request = fetchSpeedStreamForLayer(layer, nextMetricId);
+                renderDetailsPanel(layer);
+                request.finally(function () {
+                    if (state.selectedLayer === layer && detailsPanelIsOpen()) {
+                        renderDetailsPanel(layer);
+                    }
+                });
+            });
+        }
+
         function renderDetailsPanel(layer) {
             if (!layer || !layer._stravaDescriptor) {
                 return;
@@ -6494,16 +7241,21 @@
                 rows.push(createDetailRow('Max Heart Rate', Number(activity.max_heartrate).toFixed(0) + ' bpm'));
             }
 
-            let speedContent = "<div class='details-note'>High-resolution speed data will load for this workout on the first request and then be cached.</div>";
+            const chartMetricId = getDetailsChartMetricId(layer);
+            const chartMetric = getStreamMetricConfig(chartMetricId);
+            const metricControl = renderDetailsMetricControl(chartMetricId);
+            let speedContent = "<div class='details-note'>High-resolution stream data will load for this workout on the first request and then be cached.</div>";
             if (layer._speedSeries && layer._speedStream) {
-                speedContent = ""
-                    + "<div class='details-chart-shell'><div id='" + DETAILS_SPEED_CHART_ID + "' class='details-chart'></div></div>"
-                    + "<div class='details-note'>Blueer = Slower, Yellower = Faster"
-                    //+ (layer._speedStream.cached ? ', served from cache.' : '.')
-                    + (!isSpeedPaletteEnabled() ? ' <br> Map speed shading is currently off in the navigation bar.' : '')
-                    + "</div>";
-            } else if (state.streamPromises.has(activityKey)) {
-                speedContent = "<div class='details-note'>Loading the speed profile for this workout.</div>";
+                const chartSeries = getLayerMetricSeries(layer, chartMetricId);
+                speedContent = chartSeries
+                    ? ""
+                        + "<div class='details-chart-shell'><div id='" + DETAILS_SPEED_CHART_ID + "' class='details-chart'></div></div>"
+                        + "<div class='details-note'>Bluer = lower " + escapeHtml(chartMetric.label.toLowerCase()) + ", yellower = higher " + escapeHtml(chartMetric.label.toLowerCase()) + "."
+                        + (!isSpeedPaletteEnabled() ? ' <br> Map stream coloring is currently off in the navigation bar.' : '')
+                        + "</div>"
+                    : "<div class='details-note'>" + escapeHtml(chartMetric.label) + " stream data is not available for this workout.</div>";
+            } else if (isStreamRequestPendingForActivity(activityKey)) {
+                speedContent = "<div class='details-note'>Loading the workout stream profile.</div>";
             }
 
             detailsTitle.textContent = activity.name || 'Workout Details';
@@ -6512,13 +7264,14 @@
                 + "<div class='details-card'><div class='details-card-title'>Overview</div><div class='details-grid'>"
                 + rows.join('')
                 + "</div></div>"
-                + "<div class='details-card'><div class='details-card-title'>Speed Profile</div>" + speedContent + "</div>"
+                + "<div class='details-card'><div class='details-card-heading-row'><div class='details-card-title'>Workout Profile</div>" + metricControl + "</div>" + speedContent + "</div>"
                 + renderDetailsCollectionCard(activity)
                 + renderDetailsLineColorCard(activity);
             syncReplayButtonState();
             bindDetailsLineColorControls(layer);
             bindDetailsCollectionControls(layer);
-            if (layer._speedSeries && layer._speedStream) {
+            bindDetailsMetricControls(layer);
+            if (layer._speedStream && getLayerMetricSeries(layer, chartMetricId)) {
                 renderSpeedChart(layer);
             }
         }
@@ -6586,6 +7339,7 @@
                     if (typeof layer.openTooltip === 'function') {
                         layer.openTooltip();
                     }
+                    fetchSpeedStreamForLayer(layer, getActiveStreamColorMetricId());
                     syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                     bringSpeedOverlayToFront(layer);
                 });
@@ -6680,6 +7434,110 @@
             });
         }
 
+        function shouldSuspendRouteCulling() {
+            return !ROUTE_CULLING_CONFIG.enabled
+                || state.introAnimationActive
+                || Boolean(state.playback && state.playback.collection)
+                || Date.now() < state.routeCullingSuspendedUntil;
+        }
+
+        function suspendRouteCulling(milliseconds) {
+            state.routeCullingSuspendedUntil = Math.max(state.routeCullingSuspendedUntil, Date.now() + (milliseconds || 900));
+        }
+
+        function getPaddedRouteViewportBounds() {
+            if (!state.map || typeof state.map.getBounds !== 'function' || !window.L) {
+                return null;
+            }
+            const bounds = state.map.getBounds();
+            if (!bounds || !bounds.isValid || !bounds.isValid()) {
+                return null;
+            }
+            return bounds.pad(ROUTE_CULLING_CONFIG.viewportPaddingRatio);
+        }
+
+        function shouldBypassRouteCulling(layer) {
+            return Boolean(
+                !layer
+                || layer === state.selectedLayer
+                || layer === state.hoveredLayer
+                || (state.playback && state.playback.currentLayer === layer)
+                || (layer._stravaMeta && layer._stravaMeta.isLatestAnimated)
+                || layer._hoverActive
+            );
+        }
+
+        function shouldCullRouteLayer(layer, cullingContext) {
+            if (!cullingContext.enabled || shouldBypassRouteCulling(layer)) {
+                return false;
+            }
+            const layerBounds = getDescriptorRouteBounds(layer);
+            if (!layerBounds || !layerBounds.isValid || !layerBounds.isValid()) {
+                return false;
+            }
+            return !cullingContext.bounds.intersects(layerBounds);
+        }
+
+        function getRouteCullingContext() {
+            const layers = state.map && Array.isArray(state.map._stravaPolylines) ? state.map._stravaPolylines : [];
+            const bounds = getPaddedRouteViewportBounds();
+            return {
+                enabled: Boolean(
+                    bounds
+                    && layers.length >= ROUTE_CULLING_CONFIG.minRouteCount
+                    && !shouldSuspendRouteCulling()
+                ),
+                bounds: bounds
+            };
+        }
+
+        function setRouteLayerVisible(layer, visible) {
+            if (!state.map || !layer) {
+                return;
+            }
+            if (visible) {
+                if (!state.map.hasLayer(layer)) {
+                    layer.addTo(state.map);
+                }
+                return;
+            }
+            if (state.map.hasLayer(layer)) {
+                state.map.removeLayer(layer);
+            }
+        }
+
+        function getCurrentlyVisibleRouteLayers() {
+            return (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).filter(function (layer) {
+                return state.map.hasLayer(layer);
+            });
+        }
+
+        function refreshVisibleRouteCulling() {
+            if (!state.map || !Array.isArray(state.map._stravaPolylines)) {
+                return [];
+            }
+            const cullingContext = getRouteCullingContext();
+            const visibleLayers = [];
+            state.map._stravaPolylines.forEach(function (layer) {
+                const filterVisible = layer._filterVisible !== false;
+                const culled = filterVisible && shouldCullRouteLayer(layer, cullingContext);
+                const wasVisible = state.map.hasLayer(layer);
+                layer._routeCulled = culled;
+                const visible = filterVisible && !culled;
+                setRouteLayerVisible(layer, visible);
+                if (visible) {
+                    const overlayVisible = layer._speedOverlayGroup && state.map.hasLayer(layer._speedOverlayGroup);
+                    if (!wasVisible || overlayVisible || shouldShowSpeedOverlay(layer)) {
+                        syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
+                    }
+                    visibleLayers.push(layer);
+                } else {
+                    removeSpeedOverlayFromMap(layer);
+                }
+            });
+            return visibleLayers;
+        }
+
         function getFilteredActivityItems() {
             return state.activityItems.filter(function (item) {
                 return matchesActiveFilters(item.filterMeta);
@@ -6697,20 +7555,21 @@
 
         function refreshMapFilters() {
             const visibleLayers = [];
+            const cullingContext = getRouteCullingContext();
             (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).forEach(function (layer) {
                 const meta = (layer._stravaMeta && layer._stravaMeta.filterMeta) || null;
-                const visible = meta ? matchesActiveFilters(meta) : true;
+                const filterVisible = meta ? matchesActiveFilters(meta) : true;
+                const culled = filterVisible && shouldCullRouteLayer(layer, cullingContext);
+                const visible = filterVisible && !culled;
+                layer._filterVisible = filterVisible;
+                layer._routeCulled = culled;
                 if (visible) {
-                    if (!state.map.hasLayer(layer)) {
-                        layer.addTo(state.map);
-                    }
+                    setRouteLayerVisible(layer, true);
                     syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                     visibleLayers.push(layer);
                 } else {
-                    syncSpeedOverlayVisibility(layer, false);
-                    if (state.map.hasLayer(layer)) {
-                        state.map.removeLayer(layer);
-                    }
+                    removeSpeedOverlayFromMap(layer);
+                    setRouteLayerVisible(layer, false);
                 }
             });
             visibleLayers.forEach(function (layer) {
@@ -6742,6 +7601,7 @@
                 });
             }
             if (matchingLayers.length) {
+                suspendRouteCulling(1200);
                 StravaApp.fitMapToLayers(state.map, matchingLayers, { padding: [30, 30], maxZoom: 13 });
             }
         }
@@ -6961,7 +7821,7 @@
             if (moreFilterShell.classList.contains('is-open')) {
                 renderMoreFilterMenu();
             }
-            const visibleLayers = refreshMapFilters();
+            const visibleLayers = options && options.skipMapRefresh ? getCurrentlyVisibleRouteLayers() : refreshMapFilters();
             if (state.selectedLayer && visibleLayers.indexOf(state.selectedLayer) === -1) {
                 closeDetailsPanel();
             }
@@ -7088,6 +7948,10 @@
             setSpeedPaletteEnabled(speedPaletteToggle.checked);
         });
 
+        streamColorMetricSelect.addEventListener('change', function () {
+            setStreamColorMetric(streamColorMetricSelect.value);
+        });
+
         document.addEventListener('click', function () {
             closeAllMenus();
         });
@@ -7098,7 +7962,8 @@
             }
             state.resizeFrame = window.requestAnimationFrame(function () {
                 state.resizeFrame = 0;
-                refreshFilterSummary();
+                refreshFilterSummary({ skipMapRefresh: true });
+                syncVisibleRouteStylesForZoom({ force: true });
                 if (state.selectedLayer && detailsPanel.classList.contains('is-open')) {
                     focusMapForLayer(state.selectedLayer);
                     resizeDetailsChart();
@@ -7254,6 +8119,188 @@
             introAnimationControl.textContent = 'Skip Animation';
         }
 
+        function formatIntroKpiNumber(value, digits) {
+            return Number(value || 0).toLocaleString(undefined, {
+                minimumFractionDigits: digits,
+                maximumFractionDigits: digits
+            });
+        }
+
+        function formatIntroKpiMinutes(seconds) {
+            return formatIntroKpiNumber(Number(seconds || 0) / 60, 1);
+        }
+
+        function formatOrdinalNumber(value) {
+            const number = Math.max(0, Math.round(Number(value || 0)));
+            const lastTwoDigits = number % 100;
+            if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+                return number.toLocaleString() + 'th';
+            }
+            const lastDigit = number % 10;
+            const suffix = lastDigit === 1 ? 'st' : lastDigit === 2 ? 'nd' : lastDigit === 3 ? 'rd' : 'th';
+            return number.toLocaleString() + suffix;
+        }
+
+        function getIntroTickerCharacterClass(character) {
+            if (character === ' ') {
+                return ' is-space';
+            }
+            if (/[^a-zA-Z0-9]/.test(character)) {
+                return ' is-punct';
+            }
+            if (character === 'W' || character === 'M') {
+                return ' is-wide';
+            }
+            return '';
+        }
+
+        function buildIntroTickerHtml(previousValue, nextValue) {
+            const priorValue = String(previousValue || '');
+            const currentValue = String(nextValue || '');
+            const maxLength = Math.max(priorValue.length, currentValue.length);
+            let html = '';
+            for (let index = 0; index < maxLength; index += 1) {
+                const currentCharacter = currentValue[index] || ' ';
+                const previousCharacter = priorValue[index] || ' ';
+                const isChanging = currentCharacter !== previousCharacter;
+                html += "<span class='intro-ticker-char" + getIntroTickerCharacterClass(currentCharacter) + (isChanging ? " is-changing" : "") + "' aria-hidden='true'>";
+                if (isChanging) {
+                    html += "<span class='intro-ticker-old'>" + escapeHtml(previousCharacter) + "</span>";
+                }
+                html += "<span class='intro-ticker-current'>" + escapeHtml(currentCharacter) + "</span>";
+                html += "</span>";
+            }
+            return html;
+        }
+
+        function ensureIntroKpiPanelStructure() {
+            if (!introKpiPanel || introKpiPanel.dataset.ready === 'true') {
+                return;
+            }
+            introKpiPanel.innerHTML = ""
+                + "<div class='intro-kpi-title'><span class='intro-ticker-text' data-intro-ticker='title'></span></div>"
+                + "<div class='intro-kpi-grid'>"
+                + "<div class='intro-kpi-item'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='miles'></span></div><div class='intro-kpi-label'>Miles</div></div>"
+                + "<div class='intro-kpi-item'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='elevation'></span></div><div class='intro-kpi-label'>Elevation</div></div>"
+                + "<div class='intro-kpi-item'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='minutes'></span></div><div class='intro-kpi-label'>Minutes</div></div>"
+                + "</div>";
+            introKpiPanel.dataset.ready = 'true';
+        }
+
+        function updateIntroTickerElement(key, value, options) {
+            if (!introKpiPanel) {
+                return;
+            }
+            ensureIntroKpiPanelStructure();
+            const element = introKpiPanel.querySelector("[data-intro-ticker='" + key + "']");
+            if (!element) {
+                return;
+            }
+            const nextValue = String(value || '');
+            const previousValue = state.introKpiDisplayedValues.has(key)
+                ? String(state.introKpiDisplayedValues.get(key))
+                : nextValue;
+            if (previousValue === nextValue && element.childNodes.length) {
+                return;
+            }
+            const now = window.performance && typeof window.performance.now === 'function' ? window.performance.now() : Date.now();
+            const lastUpdatedAt = Number(state.introKpiTickerUpdatedAt.get(key) || 0);
+            if (!(options && options.force) && element.childNodes.length && now - lastUpdatedAt < 110) {
+                return;
+            }
+            element.setAttribute('aria-label', nextValue);
+            element.innerHTML = buildIntroTickerHtml(previousValue, nextValue);
+            state.introKpiDisplayedValues.set(key, nextValue);
+            state.introKpiTickerUpdatedAt.set(key, now);
+        }
+
+        function getIntroUserFirstName() {
+            const displayName = String(userConfig && userConfig.displayName || 'Athlete').trim();
+            return displayName.split(/\s+/)[0] || displayName || 'Athlete';
+        }
+
+        function getIntroWorkoutTypeLabel(activity, category) {
+            if (category && category.key === 'cycling') {
+                return 'Cycling Workout';
+            }
+            const activityType = StravaApp.normalizeActivityType(activity || {});
+            const activityLabel = StravaApp.getActivityLabel(activityType);
+            if (activityLabel) {
+                return activityLabel;
+            }
+            return category && category.label ? category.label : 'Workout';
+        }
+
+        function getIntroKpiTitle(snapshot, activity) {
+            return getIntroUserFirstName() + "'s "
+                + formatOrdinalNumber(snapshot.titleCount)
+                + ' '
+                + getIntroWorkoutTypeLabel(activity, snapshot.category);
+        }
+
+        function getIntroKpiProgressSnapshot(activity, progress) {
+            const category = getActivityKpiCategory(activity);
+            const total = state.activityKpisByCategory.get(category.key) || {
+                category_key: category.key,
+                category_label: category.label,
+                count: 0,
+                distance_meters: 0,
+                moving_time_seconds: 0,
+                elapsed_time_seconds: 0,
+                elevation_gain_meters: 0
+            };
+            const values = getActivityKpiValues(activity);
+            const ratio = clampValue(Number(progress || 0), 0, 1);
+            const before = {
+                count: Math.max(0, Number(total.count || 0) - values.count),
+                distance_meters: Math.max(0, Number(total.distance_meters || 0) - values.distance_meters),
+                moving_time_seconds: Math.max(0, Number(total.moving_time_seconds || 0) - values.moving_time_seconds),
+                elapsed_time_seconds: Math.max(0, Number(total.elapsed_time_seconds || 0) - values.elapsed_time_seconds),
+                elevation_gain_meters: Math.max(0, Number(total.elevation_gain_meters || 0) - values.elevation_gain_meters)
+            };
+            const ordinalCount = Math.max(Number(total.count || 0), before.count + values.count);
+            return {
+                category: category,
+                ordinalCount: ordinalCount,
+                titleCount: ratio > 0 ? ordinalCount : Math.max(1, before.count),
+                count: ratio >= 1 ? Number(total.count || 0) : before.count,
+                distance_meters: before.distance_meters + (values.distance_meters * ratio),
+                moving_time_seconds: before.moving_time_seconds + (values.moving_time_seconds * ratio),
+                elapsed_time_seconds: before.elapsed_time_seconds + (values.elapsed_time_seconds * ratio),
+                elevation_gain_meters: before.elevation_gain_meters + (values.elevation_gain_meters * ratio)
+            };
+        }
+
+        function updateIntroKpiPanel(activity, progress) {
+            if (!introKpiPanel || !activity) {
+                return;
+            }
+            const snapshot = getIntroKpiProgressSnapshot(activity, progress);
+            const title = getIntroKpiTitle(snapshot, activity).toUpperCase();
+            const miles = formatIntroKpiNumber(StravaApp.getMiles(snapshot.distance_meters), 1);
+            const elevation = formatIntroKpiNumber(snapshot.elevation_gain_meters * 3.28084, 1);
+            const minutes = formatIntroKpiMinutes(snapshot.moving_time_seconds || snapshot.elapsed_time_seconds);
+            const forceUpdate = Number(progress || 0) >= 1;
+            introKpiPanel.hidden = false;
+            ensureIntroKpiPanelStructure();
+            introKpiPanel.classList.toggle('is-locked', forceUpdate);
+            updateIntroTickerElement('title', title, { force: true });
+            updateIntroTickerElement('miles', miles, { force: forceUpdate });
+            updateIntroTickerElement('elevation', elevation, { force: forceUpdate });
+            updateIntroTickerElement('minutes', minutes, { force: forceUpdate });
+        }
+
+        function hideIntroKpiPanel() {
+            if (introKpiPanel) {
+                introKpiPanel.hidden = true;
+                introKpiPanel.innerHTML = '';
+                introKpiPanel.dataset.ready = 'false';
+                introKpiPanel.classList.remove('is-locked');
+            }
+            state.introKpiDisplayedValues.clear();
+            state.introKpiTickerUpdatedAt.clear();
+        }
+
         function renderDescriptorBatch(descriptors) {
             const descriptorsToRender = (descriptors || []).filter(function (descriptor) {
                 return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
@@ -7329,6 +8376,7 @@
 
             let activities = loadResult.activities;
             let latestCenter = loadResult.latestCenter;
+            state.activityKpisByCategory = await loadActivityKpisData(activities);
 
             state.activityItems = activities.map(function (activity) {
                 return {
@@ -7387,6 +8435,16 @@
             if (animatedSelection.animated.length) {
                 const animatedLayers = await Promise.all(animatedSelection.animated.map(function (descriptor) {
                     return animateDescriptorWithSpeed(descriptor, {
+                        metricId: getActiveStreamColorMetricId(),
+                        onStart: function () {
+                            updateIntroKpiPanel(descriptor.activity, 0);
+                        },
+                        onFrame: function (frame) {
+                            updateIntroKpiPanel(descriptor.activity, frame && Number.isFinite(frame.progress) ? frame.progress : 0);
+                        },
+                        onComplete: function () {
+                            updateIntroKpiPanel(descriptor.activity, 1);
+                        },
                         shouldCancel: function () {
                             return state.introSkipRequested;
                         }
@@ -7412,8 +8470,10 @@
                 if (!state.introSkipRequested) {
                     await StravaAnimated.wait(StravaAnimated.POST_ANIMATION_DELAY_MS);
                 }
+                hideIntroKpiPanel();
             } else {
                 dismissTitle();
+                hideIntroKpiPanel();
                 state.introRemainingDescriptors = state.allDescriptors.filter(function (descriptor) {
                     return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
                 });

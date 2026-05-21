@@ -4,9 +4,15 @@ const {
     ensureUserForSync,
     fetchActivityDetail,
     fetchActivityStreams,
+    recomputeActivityKpiSnapshots,
     getUserStore,
-    getActivityStore
+    getActivityStore,
+    getActivityKpiSnapshotStore
 } = require('../services/sync');
+const {
+    normalizeStreamKeys,
+    normalizeStreamRequest
+} = require('../stream_config');
 
 const router = express.Router();
 
@@ -96,14 +102,71 @@ function parseAnimationSpeedMultiplier(value) {
     return { valid: true, value: numeric };
 }
 
+function getActivityStreamData(activity) {
+    const streamData = activity && activity.stream_data && typeof activity.stream_data === 'object'
+        ? Object.assign({}, activity.stream_data)
+        : {};
+    if (Array.isArray(activity && activity.stream_latlng) && activity.stream_latlng.length && !streamData.latlng) {
+        streamData.latlng = activity.stream_latlng;
+    }
+    if (Array.isArray(activity && activity.stream_velocity_smooth) && activity.stream_velocity_smooth.length && !streamData.velocity_smooth) {
+        streamData.velocity_smooth = activity.stream_velocity_smooth;
+    }
+    if (Array.isArray(activity && activity.stream_time) && activity.stream_time.length && !streamData.time) {
+        streamData.time = activity.stream_time;
+    }
+    return streamData;
+}
+
+function hasLegacyStreamCache(activity, streamRequest) {
+    if (!activity || activity.stream_resolution !== streamRequest.resolution || activity.stream_series_type !== streamRequest.seriesType) {
+        return false;
+    }
+    const requestedKeys = normalizeStreamKeys(streamRequest.keys);
+    return requestedKeys.every((key) => {
+        if (key === 'latlng') {
+            return Array.isArray(activity.stream_latlng) && activity.stream_latlng.length;
+        }
+        if (key === 'velocity_smooth') {
+            return Array.isArray(activity.stream_velocity_smooth) && activity.stream_velocity_smooth.length;
+        }
+        if (key === 'time') {
+            return Array.isArray(activity.stream_time) && activity.stream_time.length;
+        }
+        return false;
+    });
+}
+
+function hasRequestedStreamCache(activity, streamRequest) {
+    if (!activity || activity.stream_resolution !== streamRequest.resolution || activity.stream_series_type !== streamRequest.seriesType) {
+        return false;
+    }
+    const requestedKeys = normalizeStreamKeys(streamRequest.keys);
+    const priorRequestedKeys = normalizeStreamKeys(activity.stream_requested_keys);
+    if (priorRequestedKeys.length) {
+        return requestedKeys.every((key) => priorRequestedKeys.includes(key));
+    }
+    return hasLegacyStreamCache(activity, streamRequest);
+}
+
 function buildActivityStreamResponse(activity, cached) {
+    const streams = getActivityStreamData(activity);
+    const streamKeys = normalizeStreamKeys(activity.stream_keys && activity.stream_keys.length ? activity.stream_keys : Object.keys(streams));
     return {
         strava_id: activity.strava_id,
         stream_resolution: activity.stream_resolution || 'high',
         stream_series_type: activity.stream_series_type || 'time',
-        stream_latlng: activity.stream_latlng || [],
-        stream_velocity_smooth: activity.stream_velocity_smooth || [],
-        stream_time: activity.stream_time || [],
+        stream_data: streams,
+        streams: streams,
+        stream_keys: streamKeys,
+        stream_requested_keys: normalizeStreamKeys(activity.stream_requested_keys),
+        stream_metadata: activity.stream_metadata || {},
+        stream_latlng: streams.latlng || activity.stream_latlng || [],
+        stream_velocity_smooth: streams.velocity_smooth || activity.stream_velocity_smooth || [],
+        stream_time: streams.time || activity.stream_time || [],
+        latlng: streams.latlng || activity.stream_latlng || [],
+        velocity_smooth: streams.velocity_smooth || activity.stream_velocity_smooth || [],
+        time: streams.time || activity.stream_time || [],
         stream_fetched_at: activity.stream_fetched_at || null,
         cached: Boolean(cached)
     };
@@ -116,6 +179,16 @@ router.post('/sync/:slug', async (req, res) => {
         return;
     }
     res.json(await syncUserActivities(user));
+});
+
+router.get('/users/:slug/activity-kpis', async (req, res) => {
+    const userSlug = String(req.params.slug || '').toLowerCase();
+    const snapshotStore = getActivityKpiSnapshotStore();
+    let snapshots = await snapshotStore.find({ user_slug: userSlug }, { sort: { category_label: 1 } });
+    if (!snapshots.length && await getActivityStore().count({ user_slug: userSlug })) {
+        snapshots = await recomputeActivityKpiSnapshots(userSlug);
+    }
+    res.json(snapshots);
 });
 
 router.get('/activities', async (req, res) => {
@@ -256,6 +329,12 @@ router.get('/activities/:id/streams', async (req, res) => {
         res.status(400).json({ error: 'Invalid activity id' });
         return;
     }
+    const streamRequest = normalizeStreamRequest({
+        profile: req.query.profile,
+        keys: req.query.keys,
+        resolution: req.query.resolution,
+        seriesType: req.query.series_type || req.query.seriesType
+    });
 
     const filter = { strava_id: activityId };
     if (req.query.user) {
@@ -268,13 +347,7 @@ router.get('/activities/:id/streams', async (req, res) => {
         return;
     }
 
-    const hasCachedStream = Array.isArray(activity.stream_latlng)
-        && activity.stream_latlng.length
-        && Array.isArray(activity.stream_velocity_smooth)
-        && activity.stream_velocity_smooth.length
-        && activity.stream_resolution === 'high';
-
-    if (hasCachedStream && !isTruthy(req.query.refresh)) {
+    if (hasRequestedStreamCache(activity, streamRequest) && !isTruthy(req.query.refresh)) {
         res.json(buildActivityStreamResponse(activity, true));
         return;
     }
@@ -285,7 +358,7 @@ router.get('/activities/:id/streams', async (req, res) => {
         return;
     }
 
-    const streamActivity = await fetchActivityStreams(user, activityId);
+    const streamActivity = await fetchActivityStreams(user, activityId, streamRequest);
     res.json(buildActivityStreamResponse(streamActivity, false));
 });
 

@@ -1,8 +1,14 @@
 const { isMongoConnected, memoryStore, wrapModel } = require('../db');
 const getUserModel = require('../models/user');
 const getActivityModel = require('../models/activity');
+const getActivityKpiSnapshotModel = require('../models/activity_kpi_snapshot');
 const { getFrontendUserBySlug } = require('../frontend_user_configs');
 const { enrichActivityLocation } = require('./location_geocode');
+const { buildKpiSnapshots } = require('../activity_kpis');
+const {
+    STRAVA_STREAM_REGISTRY,
+    normalizeStreamRequest
+} = require('../stream_config');
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API_BASE_URL = 'https://www.strava.com/api/v3';
 const SYNC_OVERLAP_MS = 24 * 60 * 60 * 1000;
@@ -13,6 +19,10 @@ function getUserStore() {
 
 function getActivityStore() {
     return isMongoConnected() ? wrapModel(getActivityModel()) : memoryStore.activities;
+}
+
+function getActivityKpiSnapshotStore() {
+    return isMongoConnected() ? wrapModel(getActivityKpiSnapshotModel()) : memoryStore.activityKpiSnapshots;
 }
 
 function getStorageLabel() {
@@ -363,21 +373,86 @@ async function fetchActivityDetail(user, activityId) {
     });
 }
 
-async function fetchActivityStreams(user, activityId) {
+function extractStreamPayload(streamData, key) {
+    const stream = streamData && streamData[key];
+    if (stream && Array.isArray(stream.data)) {
+        return stream.data;
+    }
+    return Array.isArray(stream) ? stream : [];
+}
+
+function extractStreamMetadata(streamData, key) {
+    const stream = streamData && streamData[key];
+    if (!stream || typeof stream !== 'object' || Array.isArray(stream)) {
+        return null;
+    }
+    return compactObject({
+        original_size: stream.original_size,
+        resolution: stream.resolution,
+        series_type: stream.series_type
+    });
+}
+
+function getStoredStreamData(activity) {
+    const streams = activity && activity.stream_data && typeof activity.stream_data === 'object'
+        ? Object.assign({}, activity.stream_data)
+        : {};
+    if (Array.isArray(activity && activity.stream_latlng) && activity.stream_latlng.length && !streams.latlng) {
+        streams.latlng = activity.stream_latlng;
+    }
+    if (Array.isArray(activity && activity.stream_velocity_smooth) && activity.stream_velocity_smooth.length && !streams.velocity_smooth) {
+        streams.velocity_smooth = activity.stream_velocity_smooth;
+    }
+    if (Array.isArray(activity && activity.stream_time) && activity.stream_time.length && !streams.time) {
+        streams.time = activity.stream_time;
+    }
+    return streams;
+}
+
+function mergeUniqueStrings(left, right) {
+    return Array.from(new Set([...(left || []), ...(right || [])].map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+async function fetchActivityStreams(user, activityId, options) {
     const activityStore = getActivityStore();
     const authedUser = await refreshUserAccessToken(user);
+    const streamRequest = normalizeStreamRequest(options);
+    const existingActivity = await activityStore.findOne({ strava_id: Number(activityId) });
     const streamData = await stravaFetchJson(`/activities/${activityId}/streams`, authedUser.access_token, {
-        keys: 'latlng,velocity_smooth,time',
+        keys: streamRequest.keys.join(','),
         key_by_type: 'true',
-        resolution: 'high',
-        series_type: 'time'
+        resolution: streamRequest.resolution,
+        series_type: streamRequest.seriesType
     });
+    const streams = {};
+    const streamMetadata = {};
+    Object.keys(STRAVA_STREAM_REGISTRY).forEach((key) => {
+        const values = extractStreamPayload(streamData, key);
+        if (values.length) {
+            streams[key] = values;
+        }
+        const metadata = extractStreamMetadata(streamData, key);
+        if (metadata) {
+            streamMetadata[key] = metadata;
+        }
+    });
+    const canMergeExisting = existingActivity
+        && existingActivity.stream_resolution === streamRequest.resolution
+        && existingActivity.stream_series_type === streamRequest.seriesType;
+    const mergedStreams = Object.assign({}, canMergeExisting ? getStoredStreamData(existingActivity) : {}, streams);
+    const mergedMetadata = Object.assign({}, canMergeExisting && existingActivity.stream_metadata ? existingActivity.stream_metadata : {}, streamMetadata);
+    const mergedRequestedKeys = mergeUniqueStrings(canMergeExisting && existingActivity ? existingActivity.stream_requested_keys : [], streamRequest.keys);
+    const mergedStreamKeys = mergeUniqueStrings(canMergeExisting && existingActivity ? existingActivity.stream_keys : [], Object.keys(mergedStreams));
     const streamUpdate = {
-        stream_resolution: 'high',
-        stream_series_type: 'time',
-        stream_latlng: Array.isArray(streamData && streamData.latlng && streamData.latlng.data) ? streamData.latlng.data : [],
-        stream_velocity_smooth: Array.isArray(streamData && streamData.velocity_smooth && streamData.velocity_smooth.data) ? streamData.velocity_smooth.data : [],
-        stream_time: Array.isArray(streamData && streamData.time && streamData.time.data) ? streamData.time.data : [],
+        stream_resolution: streamRequest.resolution,
+        stream_series_type: streamRequest.seriesType,
+        stream_data: mergedStreams,
+        stream_keys: mergedStreamKeys,
+        stream_requested_keys: mergedRequestedKeys,
+        stream_metadata: mergedMetadata,
+        stream_latlng: mergedStreams.latlng || [],
+        stream_velocity_smooth: mergedStreams.velocity_smooth || [],
+        stream_time: mergedStreams.time || [],
         stream_fetched_at: new Date()
     };
     await activityStore.upsertOne({ strava_id: Number(activityId) }, streamUpdate);
@@ -386,6 +461,10 @@ async function fetchActivityStreams(user, activityId) {
         strava_id: cached.strava_id,
         stream_resolution: cached.stream_resolution,
         stream_series_type: cached.stream_series_type,
+        stream_data: cached.stream_data || {},
+        stream_keys: cached.stream_keys || [],
+        stream_requested_keys: cached.stream_requested_keys || [],
+        stream_metadata: cached.stream_metadata || {},
         stream_latlng: cached.stream_latlng || [],
         stream_velocity_smooth: cached.stream_velocity_smooth || [],
         stream_time: cached.stream_time || [],
@@ -410,6 +489,28 @@ async function fetchActivitySummaries(accessToken, numPages, afterEpochSeconds) 
         }
     }
     return activities;
+}
+
+async function recomputeActivityKpiSnapshots(userSlug) {
+    const normalizedSlug = String(userSlug || '').toLowerCase();
+    const activityStore = getActivityStore();
+    const snapshotStore = getActivityKpiSnapshotStore();
+    const activities = await activityStore.find({ user_slug: normalizedSlug }, { sort: { start_date: 1 } });
+    const snapshots = buildKpiSnapshots(normalizedSlug, activities);
+    const activeIds = new Set(snapshots.map((snapshot) => snapshot.id));
+
+    for (const snapshot of snapshots) {
+        await snapshotStore.upsertOne({ id: snapshot.id }, snapshot);
+    }
+
+    const existingSnapshots = await snapshotStore.find({ user_slug: normalizedSlug });
+    for (const snapshot of existingSnapshots) {
+        if (!activeIds.has(snapshot.id)) {
+            await snapshotStore.deleteOne({ id: snapshot.id });
+        }
+    }
+
+    return snapshots;
 }
 
 function getAfterEpochSeconds(activity) {
@@ -444,6 +545,7 @@ async function syncUserActivities(user) {
     const stravaDetailFetchedCount = 0;
     const stravaRecordsPulled = recordsInserted;
     const storedActivityCount = await activityStore.count({ user_slug: authedUser.slug });
+    const activityKpiSnapshots = await recomputeActivityKpiSnapshots(authedUser.slug);
     const storage = getStorageLabel();
     const lastSync = new Date();
 
@@ -457,7 +559,8 @@ async function syncUserActivities(user) {
         stravaRecordsPulled: stravaRecordsPulled,
         recordsInserted: recordsInserted,
         recordsUpdated: recordsUpdated,
-        storedActivityCount: storedActivityCount
+        storedActivityCount: storedActivityCount,
+        activityKpiSnapshotCount: activityKpiSnapshots.length
     });
 
     const updatedUser = await userStore.updateOne({ slug: user.slug }, {
@@ -485,6 +588,7 @@ async function syncUserActivities(user) {
         stravaDetailFetchedCount: stravaDetailFetchedCount,
         stravaRecordsPulled: stravaRecordsPulled,
         storedActivityCount: storedActivityCount,
+        activityKpiSnapshotCount: activityKpiSnapshots.length,
         activitiesSynced: stravaSummaryFetchedCount
     };
 }
@@ -495,6 +599,8 @@ module.exports = {
     ensureUserForSync,
     fetchActivityDetail,
     fetchActivityStreams,
+    recomputeActivityKpiSnapshots,
     getUserStore,
-    getActivityStore
+    getActivityStore,
+    getActivityKpiSnapshotStore
 };

@@ -16,6 +16,24 @@
         offset: [0, -18],
         className: 'left-align strava-tooltip'
     };
+    const STRAVA_STREAM_REGISTRY = Object.freeze({
+        time: { key: 'time', type: 'number[]', unit: 'seconds', availability: 'activity_stream' },
+        distance: { key: 'distance', type: 'number[]', unit: 'meters', availability: 'activity_stream' },
+        latlng: { key: 'latlng', type: '[lat,lng][]', unit: 'coordinates', availability: 'activity_stream' },
+        altitude: { key: 'altitude', type: 'number[]', unit: 'meters', availability: 'activity_stream' },
+        velocity_smooth: { key: 'velocity_smooth', type: 'number[]', unit: 'meters/second', availability: 'activity_stream' },
+        heartrate: { key: 'heartrate', type: 'number[]', unit: 'bpm', availability: 'activity_stream' },
+        cadence: { key: 'cadence', type: 'number[]', unit: 'rpm', availability: 'activity_stream' },
+        watts: { key: 'watts', type: 'number[]', unit: 'watts', availability: 'activity_stream' },
+        temp: { key: 'temp', type: 'number[]', unit: 'Celsius', availability: 'activity_stream' },
+        moving: { key: 'moving', type: 'boolean[]', unit: 'boolean', availability: 'activity_stream' },
+        grade_smooth: { key: 'grade_smooth', type: 'number[]', unit: 'percent grade', availability: 'activity_stream' }
+    });
+    const STRAVA_STREAM_PROFILES = Object.freeze({
+        route: ['latlng', 'time'],
+        speed: ['latlng', 'velocity_smooth', 'time'],
+        full: Object.keys(STRAVA_STREAM_REGISTRY)
+    });
     const SUMMARY_LABEL_MAP = {
         run: 'Run',
         trailrun: 'Trail Run',
@@ -938,7 +956,11 @@
     }
 
     function createPolylineLayer(map, descriptor, latLngs) {
-        const layer = window.L.polyline(latLngs || descriptor.coordinates, descriptor.style).addTo(map);
+        const routeStyle = Object.assign({}, descriptor.style);
+        if (map && map._stravaRouteRenderer) {
+            routeStyle.renderer = map._stravaRouteRenderer;
+        }
+        const layer = window.L.polyline(latLngs || descriptor.coordinates, routeStyle).addTo(map);
         layer.bindTooltip(descriptor.tooltipHtml, Object.assign({}, TOOLTIP_OPTIONS, descriptor.tooltipOptions || {}));
         applyHoverHandlers(layer, descriptor.style);
         registerPolyline(map, layer, descriptor);
@@ -1292,30 +1314,66 @@
         return stravaFetchJson(`/activities/${activityId}`, accessToken).then(normalizeActivityRecord);
     }
 
-    function stravaFetchActivityStreams(accessToken, activityId, options) {
+    function normalizeStreamKeys(keys) {
+        const values = Array.isArray(keys) ? keys : String(keys || '').split(',');
+        const normalized = [];
+        values.forEach(function (value) {
+            const key = String(value || '').trim();
+            if (STRAVA_STREAM_REGISTRY[key] && normalized.indexOf(key) === -1) {
+                normalized.push(key);
+            }
+        });
+        return normalized;
+    }
+
+    function getStreamKeysForProfile(profile) {
+        const profileId = String(profile || 'speed').trim();
+        return (STRAVA_STREAM_PROFILES[profileId] || STRAVA_STREAM_PROFILES.speed).slice();
+    }
+
+    function normalizeStreamRequestOptions(options) {
         const opts = options || {};
-        const streamKeys = Array.isArray(opts.keys) && opts.keys.length ? opts.keys : ['latlng', 'velocity_smooth', 'time'];
-        return stravaFetchJson(`/activities/${activityId}/streams`, accessToken, {
-            keys: streamKeys.join(','),
-            key_by_type: 'true',
+        const explicitKeys = normalizeStreamKeys(opts.keys);
+        const keys = explicitKeys.length ? explicitKeys : getStreamKeysForProfile(opts.profile || 'speed');
+        return {
+            keys: keys,
             resolution: opts.resolution || 'high',
-            series_type: opts.seriesType || 'time'
+            seriesType: opts.seriesType || opts.series_type || 'time'
+        };
+    }
+
+    function extractStreamValues(streamData, key) {
+        const stream = streamData && streamData[key];
+        if (stream && Array.isArray(stream.data)) {
+            return stream.data;
+        }
+        return Array.isArray(stream) ? stream : [];
+    }
+
+    function stravaFetchActivityStreams(accessToken, activityId, options) {
+        const opts = normalizeStreamRequestOptions(options);
+        return stravaFetchJson(`/activities/${activityId}/streams`, accessToken, {
+            keys: opts.keys.join(','),
+            key_by_type: 'true',
+            resolution: opts.resolution,
+            series_type: opts.seriesType
         }).then(function (streamData) {
-            const latlngStream = streamData && streamData.latlng && Array.isArray(streamData.latlng.data)
-                ? streamData.latlng.data
-                : Array.isArray(streamData && streamData.latlng) ? streamData.latlng : [];
-            const velocityStream = streamData && streamData.velocity_smooth && Array.isArray(streamData.velocity_smooth.data)
-                ? streamData.velocity_smooth.data
-                : Array.isArray(streamData && streamData.velocity_smooth) ? streamData.velocity_smooth : [];
-            const timeStream = streamData && streamData.time && Array.isArray(streamData.time.data)
-                ? streamData.time.data
-                : Array.isArray(streamData && streamData.time) ? streamData.time : [];
+            const streams = {};
+            Object.keys(STRAVA_STREAM_REGISTRY).forEach(function (key) {
+                const values = extractStreamValues(streamData, key);
+                if (values.length) {
+                    streams[key] = values;
+                }
+            });
             return {
-                latlng: latlngStream,
-                velocity_smooth: velocityStream,
-                time: timeStream,
-                resolution: opts.resolution || 'high',
-                series_type: opts.seriesType || 'time'
+                streams: streams,
+                latlng: streams.latlng || [],
+                velocity_smooth: streams.velocity_smooth || [],
+                time: streams.time || [],
+                stream_requested_keys: opts.keys,
+                stream_keys: Object.keys(streams),
+                resolution: opts.resolution,
+                series_type: opts.seriesType
             };
         });
     }
@@ -1421,6 +1479,9 @@
         });
         map._stravaBaseTileLayer.addTo(map);
         map._stravaPolylines = [];
+        if (window.L.canvas) {
+            map._stravaRouteRenderer = window.L.canvas({ padding: 0.5 });
+        }
         return map;
     }
 
@@ -1605,6 +1666,8 @@
         SUMMARY_LABEL_MAP: SUMMARY_LABEL_MAP,
         SUMMARY_COLOR_MAP: SUMMARY_COLOR_MAP,
         ACTIVITY_COLOR_MAP: ACTIVITY_COLOR_MAP,
+        STRAVA_STREAM_REGISTRY: STRAVA_STREAM_REGISTRY,
+        STRAVA_STREAM_PROFILES: STRAVA_STREAM_PROFILES,
         ROUTE_SMOOTHING_CONFIG: ROUTE_SMOOTHING_CONFIG,
         TOOLTIP_OPTIONS: TOOLTIP_OPTIONS,
         STRAVA_AUTH_URL: STRAVA_AUTH_URL,
@@ -1651,6 +1714,9 @@
         apiPost: apiPost,
         apiPatch: apiPatch,
         apiDelete: apiDelete,
+        normalizeStreamKeys: normalizeStreamKeys,
+        getStreamKeysForProfile: getStreamKeysForProfile,
+        normalizeStreamRequestOptions: normalizeStreamRequestOptions,
         stravaReAuthorize: stravaReAuthorize,
         stravaFetchActivity: stravaFetchActivity,
         stravaFetchActivityStreams: stravaFetchActivityStreams,

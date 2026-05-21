@@ -5,7 +5,8 @@ const memoryState = {
     activities: [],
     competitions: [],
     collections: [],
-    activityNotes: []
+    activityNotes: [],
+    activityKpiSnapshots: []
 };
 
 function clone(value) {
@@ -235,7 +236,8 @@ const memoryStore = {
     activities: createMemoryCollection('activities', 'strava_id'),
     competitions: createMemoryCollection('competitions', 'id'),
     collections: createMemoryCollection('collections', 'id'),
-    activityNotes: createMemoryCollection('activityNotes', 'id')
+    activityNotes: createMemoryCollection('activityNotes', 'id'),
+    activityKpiSnapshots: createMemoryCollection('activityKpiSnapshots', 'id')
 };
 
 module.exports = {
