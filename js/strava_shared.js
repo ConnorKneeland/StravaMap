@@ -217,6 +217,7 @@
         quinn: { slug: 'quinn', displayName: 'Quinn', title: "Quinn's Map", clientId: 100558, clientSecret: 'dde52b1f1718be7fb8e2d3d0e75d7cbd8eac3910', refreshToken: '93bfb1298cb4e356053a8116127327d78a607608', lat: 43.034, lng: -87.912, pages: 10, color: '#1648ebff' },
         michael: { slug: 'michael', displayName: 'Michael', title: "Michael's Map", clientId: 162250, clientSecret: '730145084c5ba6dce48c112dee1156c426ee951c', refreshToken: 'b769e8affe3469c2acf39bfca5752ef06fea5f1d', lat: 44.43475, lng: -88.06789, pages: 10, color: '#0a7b0a' },
         mwelsh: { slug: 'mwelsh', displayName: 'Mwelsh', title: "Mwelsh's Map", clientId: 216000, clientSecret: '1cf9ccdbac63f92e3c62991df61b030bf1329f47', refreshToken: '6ce920762a92619324899932cca36fd33a90e119', lat: 43.0722, lng: -89.4008, pages: 5, color: '#8c564b' },
+        kemily: { slug: 'kemily', displayName: 'Kemily', title: "Kemily's Map", clientId: 249867, clientSecret: 'b18781e72b031c087a3e1ad70d143ec7e0c79b12', refreshToken: 'fbde056c0d903b952e7e9fc3da70f5c1a17b9957', lat: 43.0722, lng: -89.4008, pages: 10, color: '#d45087' },
         lee: { slug: 'lee', displayName: 'Lee', title: "Lee's Map", clientId: 100558, clientSecret: 'dde52b1f1718be7fb8e2d3d0e75d7cbd8eac3910', refreshToken: '6568dbed5af3c4fa40e7dabc6f5768039e2cb53d', lat: 39.6351, lng: -106.5221, pages: 12, color: '#bcbd22' }
     };
 
