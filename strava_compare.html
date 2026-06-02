@@ -1,74 +1,351 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Strava Comparison Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
         integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
     <style>
-        #map { height:100vh; width:100vw; margin:0; padding:0; display:block; }
-        #analytics{ height:100vh; width:100vw; display:none; overflow-y:scroll; padding:24px; box-sizing:border-box; background:#fff; }
-        body{ margin:0; font-family:'Aptos Narrow', sans-serif; overflow:hidden; height:100vh; background:#000; }
-        .glass-panel,.glass-pill,.glass-toggle{ background:rgba(255,255,255,0.18); backdrop-filter:blur(12px) saturate(160%); -webkit-backdrop-filter:blur(12px) saturate(160%); border:1px solid rgba(255,255,255,0.4); border-radius:16px; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.35); font-family:'Aptos Narrow', sans-serif; }
-        #controls{ position:fixed; top:12px; left:12px; z-index:1250; width:min(360px, calc(100vw - 24px)); padding:12px; box-sizing:border-box; }
-        #controls-toggle{ width:100%; display:flex; justify-content:space-between; background:transparent; border:none; color:#fff; font:inherit; cursor:pointer; padding:0; }
-        #controls-body{ margin-top:12px; display:grid; gap:12px; }
-        .section{ display:grid; gap:8px; }
-        .label{ font-size:16px; }
-        .chip-row,.pill-row{ display:flex; flex-wrap:wrap; gap:8px; }
-        .glass-pill{ padding:8px 12px; background:rgba(255,255,255,0.12); border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
-        .glass-pill.inactive{ opacity:0.3; }
-        .color-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
-        .input-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .filter-input,.metric-select{ background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); color:#fff; border-radius:10px; font:inherit; padding:8px 10px; }
-        .filter-input::-webkit-calendar-picker-indicator{ filter:invert(1); }
-        .metric-select option{ color:#000; }
-        #leaderboard{ position:fixed; top:72px; right:12px; z-index:1250; width:min(280px, calc(100vw - 24px)); padding:12px; box-sizing:border-box; }
-        #leaderboard-list{ display:grid; gap:8px; margin-top:10px; }
-        .leader-row{ display:grid; grid-template-columns:24px 16px 1fr auto; align-items:center; gap:8px; }
-        #toggle-btn{ position:fixed; top:12px; right:12px; z-index:1300; padding:10px 18px; cursor:pointer; border:none; }
-        .chart-container{ width:100%; height:560px; margin-bottom:32px; }
-        @media(max-width:600px){ #leaderboard{ display:none; } }
+        :root{
+            --panel:#0f1722;
+            --panel-strong:#121b28;
+            --border:rgba(148,163,184,0.22);
+            --text:#f8fafc;
+            --muted:#a7b0bf;
+            --accent:#38bdf8;
+            --danger:#fca5a5;
+        }
+        *{ box-sizing:border-box; }
+        html, body{ height:100%; margin:0; }
+        body{ overflow:hidden; background:#05080d; color:var(--text); font-family:"Aptos", "Segoe UI", Arial, sans-serif; }
+        #map{ width:100vw; height:100vh; }
+        .setup-panel,
+        .filter-panel,
+        .leaderboard,
+        .details-panel{
+            position:fixed;
+            z-index:1300;
+            background:rgba(8,13,20,0.94);
+            border:1px solid var(--border);
+            border-radius:12px;
+            box-shadow:0 18px 44px rgba(0,0,0,0.36);
+            color:var(--text);
+        }
+        .setup-panel{
+            top:18px;
+            left:18px;
+            width:min(460px, calc(100vw - 36px));
+            padding:16px;
+            display:grid;
+            gap:14px;
+        }
+        .filter-panel{
+            top:18px;
+            left:18px;
+            width:min(520px, calc(100vw - 36px));
+            padding:14px;
+            display:none;
+            gap:12px;
+        }
+        .filter-panel.is-open{ display:grid; }
+        .leaderboard{
+            top:18px;
+            right:18px;
+            width:min(300px, calc(100vw - 36px));
+            padding:14px;
+            display:none;
+        }
+        .leaderboard.is-open{ display:block; }
+        .panel-title{
+            font-size:18px;
+            font-weight:700;
+            line-height:1.1;
+        }
+        .panel-note,
+        .message,
+        .details-note{
+            color:var(--muted);
+            font-size:14px;
+            line-height:1.35;
+        }
+        .user-grid{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:8px;
+        }
+        .chip{
+            border:1px solid var(--border);
+            background:#111a27;
+            color:var(--text);
+            border-radius:10px;
+            padding:10px 12px;
+            display:flex;
+            align-items:center;
+            gap:8px;
+            font:inherit;
+            cursor:pointer;
+            text-align:left;
+        }
+        .chip.is-active{
+            border-color:rgba(56,189,248,0.72);
+            box-shadow:0 0 0 1px rgba(56,189,248,0.24);
+        }
+        .color-dot{
+            width:11px;
+            height:11px;
+            border-radius:999px;
+            flex:0 0 auto;
+        }
+        .button-row{
+            display:flex;
+            flex-wrap:wrap;
+            gap:8px;
+        }
+        .button,
+        .details-action{
+            border:1px solid rgba(148,163,184,0.28);
+            background:#111a27;
+            color:#fff;
+            border-radius:10px;
+            padding:9px 12px;
+            font:inherit;
+            cursor:pointer;
+        }
+        .button.primary{
+            background:#12324a;
+            border-color:rgba(56,189,248,0.7);
+        }
+        .button:disabled,
+        .details-action:disabled{
+            opacity:0.45;
+            cursor:not-allowed;
+        }
+        .filter-grid{
+            display:grid;
+            grid-template-columns:repeat(3, minmax(0, 1fr));
+            gap:8px;
+        }
+        .field{
+            display:grid;
+            gap:4px;
+            min-width:0;
+        }
+        .field span{
+            color:var(--muted);
+            font-size:11px;
+            letter-spacing:0.08em;
+            text-transform:uppercase;
+        }
+        .field input,
+        .field select{
+            min-width:0;
+            width:100%;
+            border:1px solid rgba(148,163,184,0.26);
+            background:#111a27;
+            color:#fff;
+            border-radius:10px;
+            padding:9px 10px;
+            font:inherit;
+        }
+        .field option{ color:#000; }
+        .leaderboard-list{
+            display:grid;
+            gap:8px;
+            margin-top:12px;
+        }
+        .leader-row{
+            display:grid;
+            grid-template-columns:24px 16px 1fr auto;
+            align-items:center;
+            gap:8px;
+            font-size:14px;
+        }
+        .details-panel{
+            top:0;
+            right:0;
+            width:min(420px, 34vw);
+            height:100vh;
+            border-radius:0;
+            border-top:0;
+            border-right:0;
+            border-bottom:0;
+            padding:16px;
+            overflow:auto;
+            transform:translateX(100%);
+            transition:transform 180ms ease;
+        }
+        .details-panel.is-open{ transform:translateX(0); }
+        .details-header{
+            display:grid;
+            grid-template-columns:1fr auto;
+            gap:10px;
+            align-items:start;
+            margin-bottom:12px;
+        }
+        .details-title{
+            font-size:21px;
+            font-weight:700;
+            line-height:1.05;
+        }
+        .details-subtitle{
+            color:var(--muted);
+            margin-top:4px;
+        }
+        .close-button{
+            border:1px solid rgba(148,163,184,0.35);
+            background:#111a27;
+            color:#fff;
+            border-radius:10px;
+            width:38px;
+            height:38px;
+            cursor:pointer;
+            font:inherit;
+        }
+        .details-actions{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:8px;
+            margin-bottom:12px;
+        }
+        .details-card{
+            border:1px solid rgba(148,163,184,0.18);
+            background:rgba(8,13,20,0.62);
+            border-radius:10px;
+            padding:12px;
+            margin-bottom:12px;
+        }
+        .details-card-title{
+            color:var(--muted);
+            font-size:13px;
+            letter-spacing:0.08em;
+            text-transform:uppercase;
+            margin-bottom:10px;
+        }
+        .details-grid{
+            display:grid;
+            gap:8px;
+        }
+        .details-row{
+            display:grid;
+            grid-template-columns:1fr auto;
+            gap:10px;
+        }
+        .details-label{ color:var(--muted); }
+        .details-value{ text-align:right; font-weight:600; }
+        .line-settings{
+            display:grid;
+            gap:10px;
+        }
+        .settings-row{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:8px;
+        }
+        .settings-row input{
+            width:100%;
+            border:1px solid rgba(148,163,184,0.26);
+            background:#111a27;
+            color:#fff;
+            border-radius:10px;
+            padding:8px 10px;
+            font:inherit;
+        }
+        .map-empty{
+            position:fixed;
+            left:50%;
+            top:50%;
+            transform:translate(-50%, -50%);
+            z-index:1200;
+            color:#fff;
+            background:rgba(8,13,20,0.9);
+            border:1px solid var(--border);
+            border-radius:12px;
+            padding:14px 16px;
+            display:none;
+        }
+        .map-empty.is-visible{ display:block; }
+        @media(max-width:900px){
+            .filter-panel,
+            .setup-panel{
+                top:10px;
+                left:10px;
+                width:calc(100vw - 20px);
+            }
+            .filter-grid{
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+            }
+            .leaderboard{ display:none !important; }
+            .details-panel{
+                width:78vw;
+                min-width:0;
+            }
+        }
     </style>
 </head>
 
 <body>
-    <div id="controls" class="glass-panel">
-        <button id="controls-toggle" type="button"><span id="controls-label">▼ Filters</span><span id="controls-count">0</span></button>
-        <div id="controls-body">
-            <div class="section">
-                <div class="label">Users</div>
-                <div id="user-chips" class="chip-row"></div>
-            </div>
-            <div class="section">
-                <div class="input-grid">
-                    <label class="label">From<input id="date-from" class="filter-input" type="date" /></label>
-                    <label class="label">To<input id="date-to" class="filter-input" type="date" /></label>
-                </div>
-            </div>
-            <div class="section">
-                <div class="label">Activity Types</div>
-                <div id="type-pills" class="pill-row"></div>
-            </div>
-            <div class="section">
-                <div class="label">Metric</div>
-                <select id="metric-select" class="metric-select">
-                    <option value="distance">distance</option>
-                    <option value="time">time</option>
-                    <option value="count">count</option>
-                    <option value="elevation">elevation</option>
-                </select>
-            </div>
-        </div>
-    </div>
-    <div id="leaderboard" class="glass-panel">
-        <div>Leaderboard</div>
-        <div id="leaderboard-list"></div>
-    </div>
-    <button id="toggle-btn" class="glass-toggle">Show Analytics</button>
     <div id="map"></div>
-    <div id="analytics">
-        <div class="chart-container"><div id="comparisonChart"></div></div>
-        <div class="chart-container"><div id="totalsChart"></div></div>
+    <div id="map-empty" class="map-empty">No matching routed workouts.</div>
+
+    <aside id="setup-panel" class="setup-panel">
+        <div>
+            <div class="panel-title">Comparison Map</div>
+            <div class="panel-note">Select at least two users. Activities are loaded from the backend database only.</div>
+        </div>
+        <div id="setup-user-grid" class="user-grid"></div>
+        <div class="button-row">
+            <button id="load-comparison-btn" class="button primary" type="button" disabled>Load Comparison</button>
+            <span id="setup-message" class="message"></span>
+        </div>
+    </aside>
+
+    <aside id="filter-panel" class="filter-panel">
+        <div>
+            <div class="panel-title">Filters</div>
+            <div id="filter-count" class="panel-note">0 activities</div>
+        </div>
+        <div id="filter-user-grid" class="user-grid"></div>
+        <div class="filter-grid">
+            <label class="field"><span>Activity Type</span><select id="type-filter"></select></label>
+            <label class="field"><span>From</span><input id="date-from" type="date"></label>
+            <label class="field"><span>To</span><input id="date-to" type="date"></label>
+            <label class="field"><span>City</span><select id="city-filter"></select></label>
+            <label class="field"><span>State</span><select id="state-filter"></select></label>
+            <label class="field"><span>Country</span><select id="country-filter"></select></label>
+        </div>
+        <div class="button-row">
+            <button id="apply-filters-btn" class="button primary" type="button">Apply Filters</button>
+            <button id="clear-filters-btn" class="button" type="button">Clear Filters</button>
+            <button id="toggle-analytics-btn" class="button" type="button">Show Analytics</button>
+        </div>
+        <div id="filter-message" class="message"></div>
+    </aside>
+
+    <aside id="leaderboard" class="leaderboard">
+        <div class="panel-title">Totals</div>
+        <div id="leaderboard-list" class="leaderboard-list"></div>
+    </aside>
+
+    <aside id="details-panel" class="details-panel" aria-hidden="true">
+        <div class="details-header">
+            <div>
+                <div id="details-title" class="details-title">Workout</div>
+                <div id="details-subtitle" class="details-subtitle"></div>
+            </div>
+            <button id="details-close" class="close-button" type="button">X</button>
+        </div>
+        <div class="details-actions">
+            <button id="details-user-map" class="details-action" type="button">Open User Map</button>
+            <button id="details-replay" class="details-action" type="button">Replay Workout</button>
+        </div>
+        <div id="details-body"></div>
+    </aside>
+
+    <div id="analytics" style="display:none;position:fixed;inset:0;z-index:1100;background:#fff;overflow:auto;padding:24px;">
+        <div style="height:520px;"><div id="comparison-chart"></div></div>
+        <div style="height:520px;"><div id="totals-chart"></div></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
@@ -84,352 +361,539 @@
         }());
     </script>
     <script src="js/strava_shared.js"></script>
+    <script src="js/strava_animated.js"></script>
     <script>
-        const userOrder = ['connor', 'tim', 'quinn'];
-        const params = new URLSearchParams(window.location.search);
-        const mapDiv = document.getElementById('map');
-        const analyticsDiv = document.getElementById('analytics');
-        const controls = document.getElementById('controls');
-        const leaderboard = document.getElementById('leaderboard');
-        const toggleButton = document.getElementById('toggle-btn');
-        const controlsToggle = document.getElementById('controls-toggle');
-        const controlsLabel = document.getElementById('controls-label');
-        const controlsCount = document.getElementById('controls-count');
-        const controlsBody = document.getElementById('controls-body');
-        const userChips = document.getElementById('user-chips');
-        const typePills = document.getElementById('type-pills');
-        const leaderboardList = document.getElementById('leaderboard-list');
-        const metricSelect = document.getElementById('metric-select');
-        const dateFromInput = document.getElementById('date-from');
-        const dateToInput = document.getElementById('date-to');
         const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
+        const allUserSlugs = Object.keys(StravaApp.USER_CONFIGS || {}).sort(function (left, right) {
+            return StravaApp.USER_CONFIGS[left].displayName.localeCompare(StravaApp.USER_CONFIGS[right].displayName);
+        });
         const state = {
-            map: StravaApp.initMap('map', [43.3, -88.6], 7),
+            map: StravaApp.initMap('map', [43.0722, -89.4008], 6),
+            selectedUsers: new Set(),
+            loadedUsers: new Set(),
+            activities: [],
+            descriptors: [],
+            layers: [],
+            selectedLayer: null,
             analyticsVisible: false,
-            filtersCollapsed: false,
-            users: {},
-            filters: { users: new Set(userOrder), types: new Set(), dateFrom: '', dateTo: '', metric: 'distance' },
-            directAccessTokens: new Map()
+            filters: {
+                users: new Set(),
+                type: '',
+                dateFrom: '',
+                dateTo: '',
+                city: '',
+                regionState: '',
+                country: ''
+            },
+            replaying: false
         };
 
-        document.title = 'Strava Comparison';
+        const setupPanel = document.getElementById('setup-panel');
+        const setupUserGrid = document.getElementById('setup-user-grid');
+        const loadComparisonButton = document.getElementById('load-comparison-btn');
+        const setupMessage = document.getElementById('setup-message');
+        const filterPanel = document.getElementById('filter-panel');
+        const filterUserGrid = document.getElementById('filter-user-grid');
+        const typeFilter = document.getElementById('type-filter');
+        const dateFromInput = document.getElementById('date-from');
+        const dateToInput = document.getElementById('date-to');
+        const cityFilter = document.getElementById('city-filter');
+        const stateFilter = document.getElementById('state-filter');
+        const countryFilter = document.getElementById('country-filter');
+        const applyFiltersButton = document.getElementById('apply-filters-btn');
+        const clearFiltersButton = document.getElementById('clear-filters-btn');
+        const toggleAnalyticsButton = document.getElementById('toggle-analytics-btn');
+        const filterCount = document.getElementById('filter-count');
+        const filterMessage = document.getElementById('filter-message');
+        const leaderboard = document.getElementById('leaderboard');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const detailsPanel = document.getElementById('details-panel');
+        const detailsTitle = document.getElementById('details-title');
+        const detailsSubtitle = document.getElementById('details-subtitle');
+        const detailsBody = document.getElementById('details-body');
+        const detailsClose = document.getElementById('details-close');
+        const detailsUserMap = document.getElementById('details-user-map');
+        const detailsReplay = document.getElementById('details-replay');
+        const analyticsPanel = document.getElementById('analytics');
+        const mapEmpty = document.getElementById('map-empty');
 
-        function getBackendSourceLabel() {
-            return runtimeDataSource.apiBase && runtimeDataSource.apiBase.indexOf('localhost') !== -1
-                ? 'Local Backend API'
-                : 'Backend API';
+        function userConfig(slug) {
+            return StravaApp.USER_CONFIGS[slug] || {};
         }
 
-        window.addEventListener('strava:backend-fallback', function (event) {
-            console.warn('Falling back to direct Strava mode', event.detail);
-        });
+        function activityId(activity) {
+            return Number(activity && (activity.id || activity.strava_id) || 0);
+        }
 
-        async function ensureDirectAccessToken(slug) {
-            const existingToken = state.directAccessTokens.get(slug);
-            if (existingToken) {
-                return existingToken;
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatStart(activity) {
+            const date = new Date(activity.start_date || activity.start_date_local || 0);
+            if (Number.isNaN(date.getTime())) {
+                return 'Unavailable';
             }
-            const auth = await StravaApp.stravaReAuthorize(StravaApp.USER_CONFIGS[slug]);
-            state.directAccessTokens.set(slug, auth.access_token);
-            return auth.access_token;
+            return date.toLocaleString(undefined, {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            });
         }
 
-        function loadCompetitionLocal(id) {
-            return getLocalCompetition(id);
+        function formatDistance(activity) {
+            return StravaApp.getMiles(Number(activity.distance || 0)).toFixed(2) + ' miles';
         }
 
-        function loadUserActivities(slug) {
-            const config = StravaApp.USER_CONFIGS[slug];
-            return runtimeDataSource.runWithFallback(`compare ${slug} activities`, async function (requestOptions) {
-                const syncSummary = await StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${slug}`, {}, requestOptions);
-                const activities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', { user: slug }, requestOptions);
-                const normalizedActivities = StravaApp.sortActivitiesNewestFirst(activities.map(StravaApp.normalizeActivityRecord));
-                StravaApp.logDataLoadSummary({
-                    page: 'compare',
-                    user: slug,
-                    source: getBackendSourceLabel(),
-                    storage: syncSummary.storage || 'MongoDB',
-                    recordsPulled: syncSummary.storedActivityCount || normalizedActivities.length,
-                    stravaRecordsPulled: syncSummary.stravaRecordsPulled,
-                    recordsInserted: syncSummary.recordsInserted,
-                    recordsUpdated: syncSummary.recordsUpdated,
-                    stravaSummaryFetchedCount: syncSummary.stravaSummaryFetchedCount,
-                    stravaDetailFetchedCount: syncSummary.stravaDetailFetchedCount
+        function formatElevation(activity) {
+            return Math.round(Number(activity.total_elevation_gain || 0) * 3.28084).toLocaleString() + ' ft';
+        }
+
+        function formatAverage(activity) {
+            const mph = Number(activity.average_speed || 0) * 2.2369362920544;
+            return mph > 0 ? mph.toFixed(2) + ' mph' : 'N/A';
+        }
+
+        function addSelectOptions(select, values, placeholder) {
+            select.innerHTML = '';
+            const blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = placeholder;
+            select.appendChild(blank);
+            values.forEach(function (value) {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+        }
+
+        function buildUserButton(slug, selectedSet, onToggle) {
+            const config = userConfig(slug);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'chip' + (selectedSet.has(slug) ? ' is-active' : '');
+            button.innerHTML = "<span class='color-dot' style='background:" + escapeHtml(config.color || '#38bdf8') + "'></span><span>" + escapeHtml(config.displayName || slug) + "</span>";
+            button.addEventListener('click', function () {
+                if (selectedSet.has(slug)) {
+                    selectedSet.delete(slug);
+                } else {
+                    selectedSet.add(slug);
+                }
+                onToggle();
+            });
+            return button;
+        }
+
+        function renderSetupUsers() {
+            setupUserGrid.innerHTML = '';
+            allUserSlugs.forEach(function (slug) {
+                setupUserGrid.appendChild(buildUserButton(slug, state.selectedUsers, renderSetupUsers));
+            });
+            loadComparisonButton.disabled = state.selectedUsers.size < 2;
+            setupMessage.textContent = state.selectedUsers.size < 2 ? 'Select at least two users.' : '';
+        }
+
+        function renderFilterUsers() {
+            filterUserGrid.innerHTML = '';
+            Array.from(state.loadedUsers).forEach(function (slug) {
+                filterUserGrid.appendChild(buildUserButton(slug, state.filters.users, function () {
+                    renderFilterUsers();
+                    refreshComparisonView({ fit: true });
+                }));
+            });
+        }
+
+        function locationValue(activity, key) {
+            if (key === 'city') {
+                return String(activity.location_city || activity.map_city || '').trim();
+            }
+            if (key === 'regionState') {
+                return String(activity.location_state || activity.map_state || '').trim();
+            }
+            return String(activity.location_country || activity.map_country || '').trim();
+        }
+
+        function activityMatchesFilters(activity) {
+            const slug = String(activity.user_slug || '').toLowerCase();
+            const type = StravaApp.normalizeActivityType(activity);
+            const date = String(activity.start_date || '').split('T')[0];
+            if (state.filters.users.size && !state.filters.users.has(slug)) {
+                return false;
+            }
+            if (state.filters.type && type !== state.filters.type) {
+                return false;
+            }
+            if (state.filters.dateFrom && date < state.filters.dateFrom) {
+                return false;
+            }
+            if (state.filters.dateTo && date > state.filters.dateTo) {
+                return false;
+            }
+            if (state.filters.city && locationValue(activity, 'city') !== state.filters.city) {
+                return false;
+            }
+            if (state.filters.regionState && locationValue(activity, 'regionState') !== state.filters.regionState) {
+                return false;
+            }
+            if (state.filters.country && locationValue(activity, 'country') !== state.filters.country) {
+                return false;
+            }
+            return true;
+        }
+
+        function getFilteredLayers() {
+            return state.layers.filter(function (layer) {
+                return layer && layer._stravaDescriptor && activityMatchesFilters(layer._stravaDescriptor.activity);
+            });
+        }
+
+        function refreshFilterOptions() {
+            const filteredByUsers = state.activities.filter(function (activity) {
+                return state.filters.users.has(String(activity.user_slug || '').toLowerCase());
+            });
+            addSelectOptions(typeFilter, StravaApp.getDetectedTypes(filteredByUsers), 'All types');
+            addSelectOptions(cityFilter, Array.from(new Set(filteredByUsers.map(function (activity) {
+                return locationValue(activity, 'city');
+            }).filter(Boolean))).sort(), 'All cities');
+            addSelectOptions(stateFilter, Array.from(new Set(filteredByUsers.map(function (activity) {
+                return locationValue(activity, 'regionState');
+            }).filter(Boolean))).sort(), 'All states');
+            addSelectOptions(countryFilter, Array.from(new Set(filteredByUsers.map(function (activity) {
+                return locationValue(activity, 'country');
+            }).filter(Boolean))).sort(), 'All countries');
+            typeFilter.value = state.filters.type;
+            cityFilter.value = state.filters.city;
+            stateFilter.value = state.filters.regionState;
+            countryFilter.value = state.filters.country;
+        }
+
+        function refreshLeaderboard(filteredActivities) {
+            const rows = Array.from(state.filters.users).map(function (slug) {
+                const config = userConfig(slug);
+                const userActivities = filteredActivities.filter(function (activity) {
+                    return String(activity.user_slug || '').toLowerCase() === slug;
                 });
-                return normalizedActivities;
-            }, async function () {
-                const accessToken = await ensureDirectAccessToken(slug);
-                const activities = await StravaApp.stravaFetchActivities(accessToken, config.pages);
-                StravaApp.logDataLoadSummary({
-                    page: 'compare',
-                    user: slug,
-                    source: 'Direct Strava API',
-                    recordsPulled: activities.length
-                });
-                return activities;
-            });
-        }
-
-        function getAllActivities() {
-            return userOrder.flatMap(function (slug) {
-                return (state.users[slug] && state.users[slug].activities) || [];
-            });
-        }
-
-        function getFilteredActivities(slug) {
-            return StravaApp.filterActivities((state.users[slug] && state.users[slug].activities) || [], state.filters, slug);
-        }
-
-        function setOverlayVisibility(isMapVisible) {
-            controls.style.display = isMapVisible ? 'block' : 'none';
-            leaderboard.style.display = isMapVisible && window.innerWidth > 600 ? 'block' : 'none';
-        }
-
-        function drawTotalsChart() {
-            const activeUsers = userOrder.filter(function (slug) {
-                return state.filters.users.has(slug);
-            });
-            const values = activeUsers.map(function (slug) {
-                return getFilteredActivities(slug).reduce(function (total, activity) {
-                    return total + StravaApp.getMetricValue(activity, state.filters.metric);
-                }, 0);
-            });
-            const labels = activeUsers.map(function (slug) {
-                return StravaApp.USER_CONFIGS[slug].displayName;
-            });
-            const colors = activeUsers.map(function (slug) {
-                return StravaApp.USER_CONFIGS[slug].color;
-            });
-            window.Plotly.newPlot('totalsChart', [{
-                x: labels,
-                y: values,
-                type: 'bar',
-                marker: { color: colors },
-                text: values.map(function (value) { return StravaApp.formatMetricValue(value, state.filters.metric); }),
-                textposition: 'outside'
-            }], {
-                title: `Total ${state.filters.metric} by User`,
-                yaxis: { title: state.filters.metric }
-            }, { responsive: true });
-        }
-
-        function drawAnalytics() {
-            const chartUsers = userOrder.filter(function (slug) {
-                return state.filters.users.has(slug);
-            }).map(function (slug) {
-                const accumulator = StravaApp.createDataAccumulator();
-                getFilteredActivities(slug).forEach(accumulator.add);
-                return {
-                    name: StravaApp.USER_CONFIGS[slug].displayName,
-                    color: StravaApp.USER_CONFIGS[slug].color,
-                    workoutData: accumulator.workoutData
-                };
-            });
-            StravaApp.drawComparisonChart('comparisonChart', chartUsers);
-            drawTotalsChart();
-        }
-
-        function updateLeaderboard() {
-            const rows = userOrder.filter(function (slug) {
-                return state.filters.users.has(slug);
-            }).map(function (slug) {
                 return {
                     slug: slug,
-                    name: StravaApp.USER_CONFIGS[slug].displayName,
-                    color: StravaApp.USER_CONFIGS[slug].color,
-                    value: getFilteredActivities(slug).reduce(function (total, activity) {
-                        return total + StravaApp.getMetricValue(activity, state.filters.metric);
+                    name: config.displayName || slug,
+                    color: config.color || '#38bdf8',
+                    count: userActivities.length,
+                    distance: userActivities.reduce(function (sum, activity) {
+                        return sum + Number(activity.distance || 0);
                     }, 0)
                 };
             }).sort(function (left, right) {
-                return right.value - left.value;
+                return right.distance - left.distance;
             });
-
             leaderboardList.innerHTML = '';
             rows.forEach(function (row, index) {
                 const element = document.createElement('div');
                 element.className = 'leader-row';
-                element.innerHTML = `<span>${index + 1}</span><span class="color-dot" style="background:${row.color};"></span><span>${row.name}</span><span>${StravaApp.formatMetricValue(row.value, state.filters.metric)}</span>`;
+                element.innerHTML = '<span>' + (index + 1) + '</span>'
+                    + "<span class='color-dot' style='background:" + escapeHtml(row.color) + "'></span>"
+                    + '<span>' + escapeHtml(row.name) + '</span>'
+                    + '<span>' + StravaApp.getMiles(row.distance).toFixed(1) + ' mi</span>';
                 leaderboardList.appendChild(element);
             });
         }
 
-        function refreshView() {
-            const visibleLayers = StravaApp.applyFilters(state.map, state.filters);
-            controlsCount.textContent = userOrder.reduce(function (total, slug) {
-                return total + getFilteredActivities(slug).length;
-            }, 0);
-            updateLeaderboard();
+        function refreshAnalytics(filteredActivities) {
+            const chartUsers = Array.from(state.filters.users).map(function (slug) {
+                const config = userConfig(slug);
+                const accumulator = StravaApp.createDataAccumulator();
+                filteredActivities.filter(function (activity) {
+                    return String(activity.user_slug || '').toLowerCase() === slug;
+                }).forEach(accumulator.add);
+                return {
+                    name: config.displayName || slug,
+                    color: config.color || '#38bdf8',
+                    workoutData: accumulator.workoutData
+                };
+            });
+            StravaApp.drawComparisonChart('comparison-chart', chartUsers);
+            window.Plotly.newPlot('totals-chart', [{
+                x: chartUsers.map(function (user) { return user.name; }),
+                y: chartUsers.map(function (_, index) {
+                    const slug = Array.from(state.filters.users)[index];
+                    return filteredActivities.filter(function (activity) {
+                        return String(activity.user_slug || '').toLowerCase() === slug;
+                    }).length;
+                }),
+                type: 'bar'
+            }], { title: 'Workout Count by User' }, { responsive: true });
+        }
+
+        function refreshComparisonView(options) {
+            refreshFilterOptions();
+            renderFilterUsers();
+            const filteredActivities = state.activities.filter(activityMatchesFilters);
+            const visibleLayers = getFilteredLayers();
+            state.layers.forEach(function (layer) {
+                const visible = visibleLayers.indexOf(layer) !== -1;
+                if (visible && !state.map.hasLayer(layer)) {
+                    layer.addTo(state.map);
+                } else if (!visible && state.map.hasLayer(layer)) {
+                    state.map.removeLayer(layer);
+                }
+            });
+            filterCount.textContent = filteredActivities.length + (filteredActivities.length === 1 ? ' activity' : ' activities');
+            mapEmpty.classList.toggle('is-visible', !visibleLayers.length);
+            refreshLeaderboard(filteredActivities);
             if (state.analyticsVisible) {
-                drawAnalytics();
+                refreshAnalytics(filteredActivities);
             }
-            return visibleLayers;
-        }
-
-        function buildUserChips() {
-            userChips.innerHTML = '';
-            userOrder.forEach(function (slug) {
-                const config = StravaApp.USER_CONFIGS[slug];
-                const chip = document.createElement('button');
-                chip.type = 'button';
-                chip.className = 'glass-pill';
-                chip.dataset.slug = slug;
-                chip.innerHTML = `<span class="color-dot" style="background:${config.color};"></span><span>${config.displayName}</span>`;
-                chip.addEventListener('click', function () {
-                    if (state.filters.users.has(slug)) {
-                        state.filters.users.delete(slug);
-                    } else {
-                        state.filters.users.add(slug);
-                    }
-                    chip.classList.toggle('inactive', !state.filters.users.has(slug));
-                    refreshView();
-                });
-                userChips.appendChild(chip);
-            });
-        }
-
-        function buildTypePills(types) {
-            typePills.innerHTML = '';
-            state.filters.types = new Set(types);
-            types.forEach(function (type) {
-                const pill = document.createElement('button');
-                pill.type = 'button';
-                pill.className = 'glass-pill';
-                pill.dataset.type = type;
-                pill.textContent = StravaApp.getActivityLabel(type);
-                pill.addEventListener('click', function () {
-                    if (state.filters.types.has(type)) {
-                        state.filters.types.delete(type);
-                    } else {
-                        state.filters.types.add(type);
-                    }
-                    pill.classList.toggle('inactive', !state.filters.types.has(type));
-                    refreshView();
-                });
-                typePills.appendChild(pill);
-            });
-        }
-
-        function getLocalCompetition(id) {
-            return JSON.parse(window.localStorage.getItem('strava_competitions') || '[]').find(function (competition) {
-                return String(competition.id) === String(id);
-            });
-        }
-
-        async function loadCompetition(id) {
-            if (!id) {
-                return null;
+            if (options && options.fit && visibleLayers.length) {
+                StravaApp.fitMapToLayers(state.map, visibleLayers, { padding: [42, 42], maxZoom: 12 });
             }
-            return runtimeDataSource.runWithFallback('competition lookup', function (requestOptions) {
-                return StravaApp.apiGet(runtimeDataSource.apiBase, `/api/competitions/${id}`, {}, requestOptions);
-            }, function () {
-                return loadCompetitionLocal(id);
+            if (state.selectedLayer && visibleLayers.indexOf(state.selectedLayer) === -1) {
+                closeDetailsPanel();
+            }
+        }
+
+        function detailRow(label, value) {
+            return "<div class='details-row'><div class='details-label'>" + escapeHtml(label) + "</div><div class='details-value'>" + escapeHtml(value) + "</div></div>";
+        }
+
+        function renderDetailsPanel(layer) {
+            const activity = layer._stravaDescriptor.activity;
+            const config = userConfig(activity.user_slug);
+            detailsTitle.textContent = activity.name || 'Workout';
+            detailsSubtitle.textContent = (config.displayName || activity.user_slug || 'User') + ' - ' + formatStart(activity);
+            detailsBody.innerHTML = ''
+                + "<div class='details-card'><div class='details-card-title'>Overview</div><div class='details-grid'>"
+                + detailRow('User', config.displayName || activity.user_slug || 'Unknown')
+                + detailRow('Workout', activity.type || StravaApp.getActivityLabel(StravaApp.normalizeActivityType(activity)))
+                + detailRow('Started', formatStart(activity))
+                + detailRow('Distance', formatDistance(activity))
+                + detailRow('Time', StravaApp.formatTime(Number(activity.elapsed_time || 0)))
+                + detailRow('Average', formatAverage(activity))
+                + detailRow('Elevation', formatElevation(activity))
+                + detailRow('Location', [locationValue(activity, 'city'), locationValue(activity, 'regionState'), locationValue(activity, 'country')].filter(Boolean).join(', ') || 'Unavailable')
+                + "</div></div>"
+                + "<div class='details-card'><div class='details-card-title'>Line Settings</div><div class='line-settings'>"
+                + "<label class='field'><span>Line Color</span><input id='line-color-input' type='color' value='" + escapeHtml(StravaApp.normalizeHexColor(activity.line_color || layer._stravaDescriptor.style.color) || '#38bdf8') + "'></label>"
+                + "<div class='settings-row'>"
+                + "<label class='field'><span>Thickness</span><input id='line-thickness-input' type='number' min='1' max='32' step='0.5' value='" + escapeHtml(activity.line_thickness || layer._stravaDescriptor.style.weight || 4) + "'></label>"
+                + "<label class='field'><span>Opacity %</span><input id='line-opacity-input' type='number' min='0' max='100' step='1' value='" + escapeHtml(Math.round(Number(activity.line_opacity == null ? layer._stravaDescriptor.style.opacity : activity.line_opacity) * 100)) + "'></label>"
+                + "</div>"
+                + "<label class='field'><span>Animation Speed</span><input id='animation-speed-input' type='number' min='0.25' max='4' step='0.25' value='" + escapeHtml(activity.animation_speed_multiplier || 1) + "'></label>"
+                + "<div class='button-row'><button id='save-line-settings' class='button primary' type='button'>Save Line Settings</button><span id='line-settings-message' class='message'></span></div>"
+                + "</div></div>"
+                + "<div class='details-card'><div class='details-card-title'>Workout Profile</div><div class='details-note'>Open the user map for stream charts, notes, collections, and playback timeline controls.</div></div>";
+            bindLineSettings(layer);
+        }
+
+        function bindLineSettings(layer) {
+            const activity = layer._stravaDescriptor.activity;
+            const saveButton = document.getElementById('save-line-settings');
+            const message = document.getElementById('line-settings-message');
+            if (!saveButton) {
+                return;
+            }
+            saveButton.addEventListener('click', async function () {
+                const color = document.getElementById('line-color-input').value;
+                const thickness = Number(document.getElementById('line-thickness-input').value);
+                const opacity = Number(document.getElementById('line-opacity-input').value) / 100;
+                const animationSpeed = Number(document.getElementById('animation-speed-input').value);
+                message.textContent = 'Saving...';
+                try {
+                    const updated = await StravaApp.apiPatch(runtimeDataSource.apiBase, '/api/activities/' + activityId(activity) + '?user=' + encodeURIComponent(activity.user_slug), {
+                        line_color: color,
+                        line_thickness: thickness,
+                        line_opacity: opacity,
+                        animation_speed_multiplier: animationSpeed
+                    });
+                    Object.assign(activity, StravaApp.normalizeActivityRecord(updated));
+                    layer._stravaDescriptor.style.color = StravaApp.getActivityColor(activity);
+                    layer._stravaDescriptor.style.weight = StravaApp.getActivityLineWeight(activity, layer._stravaDescriptor.style.weight);
+                    layer._stravaDescriptor.style.opacity = StravaApp.getActivityLineOpacity(activity, layer._stravaDescriptor.style.opacity);
+                    layer.setStyle(layer._stravaDescriptor.style);
+                    message.textContent = 'Saved.';
+                } catch (error) {
+                    message.textContent = error && error.message ? error.message : 'Unable to save.';
+                }
             });
         }
 
-        async function loadUsers() {
-            const renderedLayers = [];
-            for (let index = 0; index < userOrder.length; index += 1) {
-                const slug = userOrder[index];
-                const config = StravaApp.USER_CONFIGS[slug];
-                const activities = await loadUserActivities(slug);
+        function openDetailsPanel(layer) {
+            if (!layer || !layer._stravaDescriptor) {
+                return;
+            }
+            state.selectedLayer = layer;
+            renderDetailsPanel(layer);
+            detailsPanel.classList.add('is-open');
+            detailsPanel.setAttribute('aria-hidden', 'false');
+            if (typeof layer.bringToFront === 'function') {
+                layer.bringToFront();
+            }
+        }
+
+        function closeDetailsPanel() {
+            detailsPanel.classList.remove('is-open');
+            detailsPanel.setAttribute('aria-hidden', 'true');
+            state.selectedLayer = null;
+        }
+
+        async function replaySelectedLayer() {
+            const layer = state.selectedLayer;
+            if (!layer || !layer._stravaDescriptor || state.replaying) {
+                return;
+            }
+            state.replaying = true;
+            detailsReplay.disabled = true;
+            const descriptor = layer._stravaDescriptor;
+            const coordinates = descriptor.coordinates || [];
+            const originalStyle = Object.assign({}, descriptor.style);
+            try {
+                layer.setLatLngs(coordinates.length ? [coordinates[0]] : []);
+                await StravaAnimated.animateTimedRoute({
+                    points: coordinates,
+                    fallbackDurationSeconds: Number(descriptor.activity.elapsed_time || 0),
+                    durationMs: StravaAnimated.getDurationMs(descriptor.activity),
+                    onFrame: function (frame) {
+                        layer.setLatLngs(frame.visibleCoordinates);
+                        layer.setStyle(Object.assign({}, originalStyle, { weight: Number(originalStyle.weight || 4) + 1.5 }));
+                    }
+                });
+                layer.setLatLngs(coordinates);
+                layer.setStyle(originalStyle);
+            } finally {
+                state.replaying = false;
+                detailsReplay.disabled = false;
+            }
+        }
+
+        function attachComparisonInteractions(layers) {
+            layers.forEach(function (layer) {
+                layer.on('click', function () {
+                    openDetailsPanel(layer);
+                });
+            });
+        }
+
+        function clearRenderedLayers() {
+            state.layers.forEach(function (layer) {
+                if (state.map.hasLayer(layer)) {
+                    state.map.removeLayer(layer);
+                }
+                if (typeof layer.destroy === 'function') {
+                    layer.destroy();
+                }
+            });
+            state.layers = [];
+            state.descriptors = [];
+            state.map._stravaPolylines = [];
+        }
+
+        async function loadComparison() {
+            if (state.selectedUsers.size < 2) {
+                return;
+            }
+            loadComparisonButton.disabled = true;
+            setupMessage.textContent = 'Loading from database...';
+            closeDetailsPanel();
+            clearRenderedLayers();
+            const users = Array.from(state.selectedUsers);
+            try {
+                const activities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
+                    users: users.join(',')
+                });
+                state.loadedUsers = new Set(users);
+                state.filters.users = new Set(users);
+                state.activities = StravaApp.sortActivitiesNewestFirst((activities || []).map(StravaApp.normalizeActivityRecord));
                 const lineStyle = StravaApp.getLineStyle();
-                const descriptors = activities.map(function (activity) {
+                state.descriptors = state.activities.map(function (activity) {
+                    const config = userConfig(activity.user_slug);
                     return StravaApp.createActivityDescriptor(activity, {
-                        color: config.color,
-                        ownerName: config.displayName,
-                        userSlug: slug,
+                        color: activity.line_color || config.color,
+                        ownerName: config.displayName || activity.user_slug,
+                        userSlug: activity.user_slug,
                         lineWeight: lineStyle.LINE_WEIGHT,
                         opacityWeight: lineStyle.OPACITY_WEIGHT
                     });
                 }).filter(Boolean);
-                state.users[slug] = { activities: activities, descriptors: descriptors };
-                renderedLayers.push.apply(renderedLayers, StravaApp.renderActivityDescriptors(state.map, descriptors));
+                state.layers = StravaApp.renderActivityDescriptors(state.map, state.descriptors);
+                attachComparisonInteractions(state.layers);
+                setupPanel.style.display = 'none';
+                filterPanel.classList.add('is-open');
+                leaderboard.classList.add('is-open');
+                const dates = state.activities.map(function (activity) {
+                    return String(activity.start_date || '').split('T')[0];
+                }).filter(Boolean).sort();
+                state.filters.dateFrom = dates[0] || '';
+                state.filters.dateTo = dates[dates.length - 1] || '';
+                dateFromInput.value = state.filters.dateFrom;
+                dateToInput.value = state.filters.dateTo;
+                refreshComparisonView({ fit: true });
+                setupMessage.textContent = '';
+            } catch (error) {
+                setupMessage.textContent = error && error.message ? error.message : 'Unable to load comparison data.';
+            } finally {
+                loadComparisonButton.disabled = state.selectedUsers.size < 2;
             }
-            return renderedLayers;
         }
 
-        controlsToggle.addEventListener('click', function () {
-            state.filtersCollapsed = !state.filtersCollapsed;
-            controlsBody.style.display = state.filtersCollapsed ? 'none' : 'grid';
-            controlsLabel.textContent = `${state.filtersCollapsed ? '►' : '▼'} Filters`;
-        });
-
-        dateFromInput.addEventListener('change', function () {
+        function applyFiltersFromInputs() {
+            state.filters.type = typeFilter.value;
             state.filters.dateFrom = dateFromInput.value;
-            refreshView();
-        });
-
-        dateToInput.addEventListener('change', function () {
             state.filters.dateTo = dateToInput.value;
-            refreshView();
-        });
+            state.filters.city = cityFilter.value;
+            state.filters.regionState = stateFilter.value;
+            state.filters.country = countryFilter.value;
+            refreshComparisonView({ fit: true });
+        }
 
-        metricSelect.addEventListener('change', function () {
-            state.filters.metric = metricSelect.value;
-            refreshView();
-        });
-
-        toggleButton.addEventListener('click', function () {
-            state.analyticsVisible = !state.analyticsVisible;
-            if (state.analyticsVisible) {
-                mapDiv.style.display = 'none';
-                analyticsDiv.style.display = 'block';
-                document.body.style.background = '#ffffff';
-                toggleButton.textContent = 'Show Map';
-                setOverlayVisibility(false);
-                drawAnalytics();
-                return;
-            }
-            mapDiv.style.display = 'block';
-            analyticsDiv.style.display = 'none';
-            document.body.style.background = '#000000';
-            toggleButton.textContent = 'Show Analytics';
-            setOverlayVisibility(true);
-            state.map.invalidateSize();
-        });
-
-        async function initializePage() {
-            buildUserChips();
-            const renderedLayers = await loadUsers();
-            const allActivities = getAllActivities();
-            const dates = allActivities.map(function (activity) {
+        function clearFilters() {
+            state.filters.type = '';
+            state.filters.city = '';
+            state.filters.regionState = '';
+            state.filters.country = '';
+            const dates = state.activities.map(function (activity) {
                 return String(activity.start_date || '').split('T')[0];
             }).filter(Boolean).sort();
             state.filters.dateFrom = dates[0] || '';
             state.filters.dateTo = dates[dates.length - 1] || '';
             dateFromInput.value = state.filters.dateFrom;
             dateToInput.value = state.filters.dateTo;
-            buildTypePills(StravaApp.getDetectedTypes(allActivities));
-            const competition = await loadCompetition(params.get('competition'));
-            if (competition) {
-                state.filters.metric = competition.metric || 'distance';
-                metricSelect.value = state.filters.metric;
-                state.filters.dateFrom = competition.date_start || competition.startDate || state.filters.dateFrom;
-                state.filters.dateTo = competition.date_end || competition.endDate || state.filters.dateTo;
-                dateFromInput.value = state.filters.dateFrom;
-                dateToInput.value = state.filters.dateTo;
-                if (competition.participants && competition.participants.length) {
-                    state.filters.users = new Set(competition.participants.map(function (slug) { return String(slug).toLowerCase(); }));
-                    Array.from(userChips.children).forEach(function (chip) {
-                        chip.classList.toggle('inactive', !state.filters.users.has(chip.dataset.slug));
-                    });
-                }
-                const activityTypes = competition.activity_types || competition.activityTypes;
-                if (activityTypes && activityTypes.length) {
-                    state.filters.types = new Set(activityTypes.map(function (type) { return String(type).toLowerCase(); }));
-                    Array.from(typePills.children).forEach(function (pill) {
-                        pill.classList.toggle('inactive', !state.filters.types.has(pill.dataset.type));
-                    });
-                }
-            }
-            StravaApp.fitMapToLayers(state.map, renderedLayers, { padding: [40, 40], maxZoom: 10 });
-            refreshView();
+            refreshComparisonView({ fit: true });
         }
 
-        initializePage().catch(function (error) {
-            console.error(error);
+        function toggleAnalytics() {
+            state.analyticsVisible = !state.analyticsVisible;
+            analyticsPanel.style.display = state.analyticsVisible ? 'block' : 'none';
+            toggleAnalyticsButton.textContent = state.analyticsVisible ? 'Show Map' : 'Show Analytics';
+            filterPanel.style.display = state.analyticsVisible ? 'none' : '';
+            leaderboard.style.display = state.analyticsVisible ? 'none' : '';
+            if (state.analyticsVisible) {
+                refreshAnalytics(state.activities.filter(activityMatchesFilters));
+            } else {
+                state.map.invalidateSize();
+            }
+        }
+
+        loadComparisonButton.addEventListener('click', loadComparison);
+        applyFiltersButton.addEventListener('click', applyFiltersFromInputs);
+        clearFiltersButton.addEventListener('click', clearFilters);
+        toggleAnalyticsButton.addEventListener('click', toggleAnalytics);
+        detailsClose.addEventListener('click', closeDetailsPanel);
+        detailsReplay.addEventListener('click', replaySelectedLayer);
+        detailsUserMap.addEventListener('click', function () {
+            if (!state.selectedLayer || !state.selectedLayer._stravaDescriptor) {
+                return;
+            }
+            const activity = state.selectedLayer._stravaDescriptor.activity;
+            window.location.href = 'strava_user.html?user=' + encodeURIComponent(activity.user_slug);
         });
+
+        renderSetupUsers();
     </script>
 </body>
 

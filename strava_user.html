@@ -1041,7 +1041,6 @@
         }
         .map-action-fab,
         .intro-animation-control{
-            position:fixed;
             z-index:1300;
             border:1px solid rgba(94,201,98,0.6);
             background:rgba(9,24,17,0.96);
@@ -1054,6 +1053,7 @@
             cursor:pointer;
         }
         .map-action-fab{
+            position:fixed;
             padding:11px 14px;
             display:none;
         }
@@ -1068,10 +1068,48 @@
         .map-action-fab.is-visible{
             display:block;
         }
-        .intro-animation-control{
+        .workout-stepper{
+            position:fixed;
             top:calc(var(--nav-height) + 14px);
             left:50%;
             transform:translateX(-50%);
+            z-index:1300;
+            display:flex;
+            align-items:center;
+            gap:8px;
+        }
+        .workout-stepper[hidden]{
+            display:none;
+        }
+        .workout-stepper.is-map-mode{
+            top:calc(var(--nav-height) + 14px);
+            left:18px;
+            transform:none;
+        }
+        .workout-stepper.is-map-mode .intro-animation-control{
+            display:none;
+        }
+        .workout-step-button{
+            width:44px;
+            height:44px;
+            border:1px solid rgba(148,163,184,0.32);
+            background:rgba(8,13,20,0.94);
+            color:#fff;
+            border-radius:12px;
+            box-shadow:0 14px 34px rgba(0,0,0,0.32);
+            font:inherit;
+            font-size:26px;
+            line-height:1;
+            font-weight:800;
+            cursor:pointer;
+        }
+        .workout-step-button:disabled{
+            opacity:0.36;
+            cursor:not-allowed;
+        }
+        .intro-animation-control{
+            position:static;
+            transform:none;
             padding:12px 16px;
             min-width:168px;
         }
@@ -1127,20 +1165,49 @@
             display:grid;
             justify-items:center;
             gap:6px;
-            overflow:hidden;
+            overflow:visible;
+        }
+        .intro-kpi-metric{
+            position:relative;
+            display:grid;
+            justify-items:center;
+            grid-template-rows:auto auto;
+            max-width:100%;
+            padding:0 0.35em 0;
+            overflow:visible;
         }
         .intro-kpi-value{
             color:rgba(248,247,236,0.92);
             font-size:clamp(34px, 4.85vw, 66px);
             font-weight:800;
-            line-height:1;
+            line-height:1.08;
             white-space:nowrap;
-            overflow:hidden;
+            overflow:visible;
             text-overflow:ellipsis;
             font-variant-numeric:tabular-nums lining-nums;
             font-feature-settings:"tnum" 1, "lnum" 1;
             max-width:100%;
             transition:color 260ms ease, text-shadow 260ms ease, transform 260ms ease;
+        }
+        .intro-kpi-delta{
+            position:static;
+            justify-self:end;
+            transform:translateX(0.55em);
+            margin-top:-0.18em;
+            color:rgba(69,232,127,0.96);
+            font-size:clamp(13px, 1.35vw, 20px);
+            font-weight:900;
+            line-height:1;
+            letter-spacing:0.02em;
+            white-space:nowrap;
+            font-variant-numeric:tabular-nums lining-nums;
+            font-feature-settings:"tnum" 1, "lnum" 1;
+            text-shadow:
+                -1px 0 rgba(5,18,10,0.88),
+                1px 0 rgba(5,18,10,0.88),
+                0 -1px rgba(5,18,10,0.88),
+                0 1px rgba(5,18,10,0.88),
+                0 2px 7px rgba(0,0,0,0.34);
         }
         .intro-kpi-label{
             color:rgba(248,247,236,0.86);
@@ -1174,8 +1241,13 @@
             align-items:center;
             justify-content:center;
             max-width:100%;
-            height:1em;
+            min-height:1.08em;
+            overflow:visible;
             white-space:nowrap;
+            transition:transform 160ms ease, opacity 160ms ease;
+        }
+        .intro-ticker-text.is-updating{
+            animation:introKpiSmoothTick 180ms ease-out both;
         }
         .intro-ticker-char{
             position:relative;
@@ -1236,6 +1308,10 @@
             0%{ transform:scale(1); }
             42%{ transform:scale(1.035); }
             100%{ transform:scale(1); }
+        }
+        @keyframes introKpiSmoothTick{
+            0%{ transform:translateY(0.035em); opacity:0.76; }
+            100%{ transform:translateY(0); opacity:1; }
         }
         .collection-playback{
             position:fixed;
@@ -1558,9 +1634,22 @@
                 font-size:13px;
                 padding:9px 8px;
             }
-            .intro-animation-control{
+            .workout-stepper{
                 top:calc(var(--nav-height) + 10px);
-                width:min(280px, calc(100vw - 32px));
+                width:auto;
+                max-width:calc(100vw - 26px);
+                gap:6px;
+            }
+            .workout-stepper.is-map-mode{
+                left:14px;
+            }
+            .workout-step-button{
+                width:38px;
+                height:38px;
+                font-size:23px;
+            }
+            .intro-animation-control{
+                width:min(230px, calc(100vw - 120px));
                 min-width:0;
                 padding:11px 14px;
             }
@@ -1582,6 +1671,11 @@
             .intro-kpi-label{
                 font-size:10px;
                 letter-spacing:0.06em;
+            }
+            .intro-kpi-delta{
+                font-size:clamp(10px, 3vw, 14px);
+                transform:translateX(0.35em);
+                margin-top:-0.12em;
             }
             .map-action-fab{
                 padding:10px 12px;
@@ -1675,7 +1769,11 @@
     </nav>
 
     <div id="map"></div>
-    <button id="intro-animation-control" class="intro-animation-control" type="button" hidden>Skip Animation</button>
+    <div id="workout-stepper" class="workout-stepper" hidden>
+        <button id="workout-step-prev" class="workout-step-button" type="button" aria-label="Previous workout">‹</button>
+        <button id="intro-animation-control" class="intro-animation-control" type="button" hidden>Skip Animation</button>
+        <button id="workout-step-next" class="workout-step-button" type="button" aria-label="Next workout">›</button>
+    </div>
     <div id="intro-kpi-panel" class="intro-kpi-panel" hidden></div>
     <div class="map-action-stack">
         <button id="collections-open-btn" class="map-action-fab" type="button">Open Collections</button>
@@ -1904,6 +2002,9 @@
         const filterCountChip = document.getElementById('filter-count-chip');
         const clearFiltersButton = document.getElementById('clear-filters-btn');
         const mapClearFiltersFab = document.getElementById('map-clear-filters-fab');
+        const workoutStepper = document.getElementById('workout-stepper');
+        const workoutStepPrev = document.getElementById('workout-step-prev');
+        const workoutStepNext = document.getElementById('workout-step-next');
         const introAnimationControl = document.getElementById('intro-animation-control');
         const navActionShell = document.getElementById('nav-action-shell');
         const navActionTrigger = document.getElementById('nav-action-trigger');
@@ -2028,8 +2129,14 @@
             introSkipRequested: false,
             introRemainingDescriptors: [],
             introAllWorkoutsRendered: false,
+            workoutNavigatorIndex: -1,
+            workoutNavigatorActive: false,
+            workoutNavigatorFocusKey: '',
             introKpiDisplayedValues: new Map(),
             introKpiTickerUpdatedAt: new Map(),
+            introKpiTickerElements: new Map(),
+            introKpiDeltaElements: new Map(),
+            introKpiLastRenderAt: 0,
             collections: [],
             collectionsById: new Map(),
             activityCollectionsById: new Map(),
@@ -2600,10 +2707,11 @@
             const token = safeMapboxId(activityKey);
             const sourceId = 'strava-route-source-' + token;
             const layerId = 'strava-route-layer-' + token;
+            const hitLayerId = 'strava-route-hit-layer-' + token;
             let visible = true;
             let tooltip = null;
             const handlers = {};
-            const initialLatLngs = latLngs || descriptor.coordinates;
+            const initialLatLngs = latLngs || descriptor.renderCoordinates || descriptor.coordinates;
 
             const layer = {
                 _isMapboxRouteLayer: true,
@@ -2615,6 +2723,7 @@
                 _speedHoverActive: false,
                 _sourceId: sourceId,
                 _layerId: layerId,
+                _hitLayerId: hitLayerId,
                 _latLngs: initialLatLngs.slice(),
                 _routeDisplayCache: createRouteDisplayCache(initialLatLngs, descriptor.style),
                 _lastLngLat: null,
@@ -2634,6 +2743,9 @@
                     if (glMap.getLayer(layerId)) {
                         glMap.setLayoutProperty(layerId, 'visibility', 'visible');
                     }
+                    if (glMap.getLayer(hitLayerId)) {
+                        glMap.setLayoutProperty(hitLayerId, 'visibility', 'visible');
+                    }
                     return layer;
                 },
                 removeFromMap: function () {
@@ -2641,6 +2753,9 @@
                     layer._visible = false;
                     if (glMap.getLayer(layerId)) {
                         glMap.setLayoutProperty(layerId, 'visibility', 'none');
+                    }
+                    if (glMap.getLayer(hitLayerId)) {
+                        glMap.setLayoutProperty(hitLayerId, 'visibility', 'none');
                     }
                     if (tooltip) {
                         tooltip.remove();
@@ -2726,6 +2841,9 @@
                     if (glMap.getLayer(layerId)) {
                         glMap.moveLayer(layerId);
                     }
+                    if (glMap.getLayer(hitLayerId)) {
+                        glMap.moveLayer(hitLayerId);
+                    }
                     return layer;
                 },
                 getBounds: function () {
@@ -2738,6 +2856,9 @@
                     }
                     if (glMap.getLayer(layerId)) {
                         glMap.removeLayer(layerId);
+                    }
+                    if (glMap.getLayer(hitLayerId)) {
+                        glMap.removeLayer(hitLayerId);
                     }
                     if (glMap.getSource(sourceId)) {
                         glMap.removeSource(sourceId);
@@ -2764,24 +2885,39 @@
                     'line-opacity': descriptor.style.opacity
                 }
             });
+            glMap.addLayer({
+                id: hitLayerId,
+                type: 'line',
+                source: sourceId,
+                layout: {
+                    'line-cap': 'round',
+                    'line-join': 'round',
+                    visibility: 'visible'
+                },
+                paint: {
+                    'line-color': '#000000',
+                    'line-width': Math.max(Number(descriptor.style.weight || 0) + 14, window.innerWidth <= 900 ? 24 : 18),
+                    'line-opacity': 0
+                }
+            });
             layer._routeDisplayCache.paint = {
                 color: descriptor.style.color,
                 weight: Number(descriptor.style.weight),
                 opacity: Number(descriptor.style.opacity)
             };
-            glMap.on('mouseenter', layerId, function (event) {
+            glMap.on('mouseenter', hitLayerId, function (event) {
                 glMap.getCanvas().style.cursor = 'pointer';
                 layer._lastLngLat = event.lngLat;
                 layer.emit('mouseover', { originalEvent: event.originalEvent, mapboxEvent: event });
             });
-            glMap.on('mousemove', layerId, function (event) {
+            glMap.on('mousemove', hitLayerId, function (event) {
                 layer._lastLngLat = event.lngLat;
             });
-            glMap.on('mouseleave', layerId, function (event) {
+            glMap.on('mouseleave', hitLayerId, function (event) {
                 glMap.getCanvas().style.cursor = '';
                 layer.emit('mouseout', { originalEvent: event.originalEvent, mapboxEvent: event });
             });
-            glMap.on('click', layerId, function (event) {
+            glMap.on('click', hitLayerId, function (event) {
                 layer._lastLngLat = event.lngLat;
                 layer.emit('click', { originalEvent: event.originalEvent, mapboxEvent: event });
             });
@@ -2902,16 +3038,16 @@
 
         function createRouteLayer(descriptor, latLngs) {
             if (isMapboxMap(state.map)) {
-                return createMapboxRouteLayer(state.map, descriptor, latLngs || descriptor.coordinates);
+                return createMapboxRouteLayer(state.map, descriptor, latLngs || descriptor.renderCoordinates || descriptor.coordinates);
             }
-            const coordinates = latLngs || descriptor.coordinates;
+            const coordinates = latLngs || descriptor.renderCoordinates || descriptor.coordinates;
             const layer = StravaApp.createPolylineLayer(state.map, descriptor, coordinates);
             return patchRouteLayerDisplayCache(layer, coordinates, descriptor.style);
         }
 
         function renderRouteDescriptors(descriptors) {
             return (descriptors || []).map(function (descriptor) {
-                return createRouteLayer(descriptor, descriptor.coordinates);
+                return createRouteLayer(descriptor, descriptor.renderCoordinates || descriptor.coordinates);
             });
         }
 
@@ -4244,7 +4380,7 @@
             if (!layer || !layer._stravaDescriptor) {
                 return;
             }
-            layer.setLatLngs(layer._stravaDescriptor.coordinates);
+            layer.setLatLngs(layer._stravaDescriptor.renderCoordinates || layer._stravaDescriptor.coordinates);
             layer.setStyle(getStandardDisplayStyles(layer));
         }
 
@@ -4254,7 +4390,7 @@
             }
             const descriptorStyle = layer._stravaDescriptor.style;
             const zoomBoost = getCloseZoomLineWeightBoost();
-            layer.setLatLngs(layer._stravaDescriptor.coordinates);
+            layer.setLatLngs(layer._stravaDescriptor.renderCoordinates || layer._stravaDescriptor.coordinates);
             layer.setStyle({
                 color: '#f5f7fb',
                 weight: descriptorStyle.weight + zoomBoost + (window.innerWidth <= 900 ? 1.2 : 0.8),
@@ -4319,10 +4455,12 @@
             }
         }
 
-        function buildSpeedSegments(speedSeries) {
+        function buildSpeedSegments(speedSeries, options) {
             if (!speedSeries || !speedSeries.stream || !Array.isArray(speedSeries.stream.latlng)) {
                 return [];
             }
+            const opts = options || {};
+            const subdivisions = Math.max(1, Math.round(Number(opts.subdivisions || SPEED_SEGMENT_SUBDIVISIONS)));
             const latlngs = speedSeries.stream.latlng;
             const values = speedSeries.smoothedValues || speedSeries.smoothedSpeeds || [];
             const times = speedSeries.times;
@@ -4346,9 +4484,9 @@
                 if (!Number.isFinite(startValue) || !Number.isFinite(endValue)) {
                     continue;
                 }
-                for (let subdivision = 0; subdivision < SPEED_SEGMENT_SUBDIVISIONS; subdivision += 1) {
-                    const startRatio = subdivision / SPEED_SEGMENT_SUBDIVISIONS;
-                    const endRatio = (subdivision + 1) / SPEED_SEGMENT_SUBDIVISIONS;
+                for (let subdivision = 0; subdivision < subdivisions; subdivision += 1) {
+                    const startRatio = subdivision / subdivisions;
+                    const endRatio = (subdivision + 1) / subdivisions;
                     const segmentStart = interpolateCoordinate(start, end, startRatio);
                     const segmentEnd = interpolateCoordinate(start, end, endRatio);
                     const segmentTimeStart = startTime + ((endTime - startTime) * startRatio);
@@ -4479,15 +4617,16 @@
             if (!metricSeries) {
                 return null;
             }
-            const segments = buildSpeedSegments(metricSeries);
+            const renderSeries = createRenderMetricSeries(metricSeries, getMapRenderMetricOptions());
+            const segments = buildSpeedSegments(renderSeries);
             if (!segments.length) {
                 return null;
             }
             const overlayStyle = getSpeedDisplayStyles(layer);
             if (isMapboxRouteLayer(layer)) {
-                const group = createMapboxSpeedOverlayGroup(layer, segments, metricSeries, overlayStyle);
-                group._pathLatLngs = Array.isArray(metricSeries.stream.latlng) ? metricSeries.stream.latlng.slice() : [];
-                group._speedSeries = metricSeries;
+                const group = createMapboxSpeedOverlayGroup(layer, segments, renderSeries, overlayStyle);
+                group._pathLatLngs = Array.isArray(renderSeries.stream.latlng) ? renderSeries.stream.latlng.slice() : [];
+                group._speedSeries = renderSeries;
                 group._speedSegments = segments;
                 return group;
             }
@@ -4502,8 +4641,8 @@
                     interactive: false
                 });
             }));
-            group._pathLatLngs = Array.isArray(metricSeries.stream.latlng) ? metricSeries.stream.latlng.slice() : [];
-            group._speedSeries = metricSeries;
+            group._pathLatLngs = Array.isArray(renderSeries.stream.latlng) ? renderSeries.stream.latlng.slice() : [];
+            group._speedSeries = renderSeries;
             group._speedSegments = segments;
             return group;
         }
@@ -4596,6 +4735,9 @@
                 : [];
             if (streamCoordinates.length > 1 && layer._stravaDescriptor && streamCoordinates.length > layer._stravaDescriptor.coordinates.length) {
                 layer._stravaDescriptor.coordinates = streamCoordinates;
+                layer._stravaDescriptor.renderCoordinates = typeof StravaApp.getMapRenderRouteCoordinates === 'function'
+                    ? StravaApp.getMapRenderRouteCoordinates(streamCoordinates)
+                    : streamCoordinates;
                 layer._stravaDescriptor.activity = StravaApp.normalizeActivityRecord(Object.assign({}, layer._stravaDescriptor.activity, {
                     stream_latlng: streamCoordinates
                 }));
@@ -4741,18 +4883,99 @@
             });
         }
 
-        function createMapboxSpeedAnimationScene(map, descriptor, speedSeries, styles) {
+        function pickSeriesValuesByIndices(values, indices) {
+            if (!Array.isArray(values) || !Array.isArray(indices) || !indices.length) {
+                return [];
+            }
+            return indices.map(function (index) {
+                return values[Math.max(0, Math.min(values.length - 1, Number(index) || 0))];
+            });
+        }
+
+        function getMapRenderMetricOptions() {
+            return {
+                optimizeLongRoute: true,
+                maxPoints: window.innerWidth <= 900 ? 650 : 900,
+                toleranceMeters: window.innerWidth <= 900 ? 7 : 4
+            };
+        }
+
+        function createRenderMetricSeries(metricSeries, options) {
+            const opts = options || {};
+            if (!metricSeries || !opts.optimizeLongRoute) {
+                return metricSeries;
+            }
+            const sourcePoints = metricSeries.stream && Array.isArray(metricSeries.stream.latlng)
+                ? metricSeries.stream.latlng
+                : [];
+            if (!sourcePoints.length || typeof StravaAnimated.simplifyTimelineForAnimation !== 'function') {
+                return metricSeries;
+            }
+            const timeline = StravaAnimated.simplifyTimelineForAnimation(sourcePoints, metricSeries.times || [], opts);
+            if (!timeline.optimized || !Array.isArray(timeline.sourceIndices) || timeline.sourceIndices.length < 2) {
+                return metricSeries;
+            }
+            const metric = metricSeries.metric || getStreamMetricConfig(metricSeries.metricId);
+            const rawValues = pickSeriesValuesByIndices(metricSeries.rawValues, timeline.sourceIndices);
+            const smoothedValues = pickSeriesValuesByIndices(metricSeries.smoothedValues, timeline.sourceIndices);
+            const chartValues = smoothedValues.map(function (value) {
+                return convertMetricValue(metric.id, value);
+            }).filter(function (value) {
+                return value !== null;
+            });
+            const streamValues = pickSeriesValuesByIndices(getMetricRawValues(metricSeries.stream, metric.id), timeline.sourceIndices);
+            const stream = Object.assign({}, metricSeries.stream || {}, {
+                latlng: timeline.points,
+                time: timeline.times,
+                streams: Object.assign({}, metricSeries.stream && metricSeries.stream.streams ? metricSeries.stream.streams : {}, {
+                    latlng: timeline.points,
+                    time: timeline.times
+                })
+            });
+            stream.streams[metric.streamKey] = streamValues;
+            if (metric.id === 'speed') {
+                stream.velocity_smooth = streamValues;
+            }
+            return Object.assign({}, metricSeries, {
+                stream: stream,
+                rawValues: rawValues,
+                smoothedValues: smoothedValues,
+                times: timeline.times,
+                chartValues: chartValues,
+                rawSpeeds: metric.id === 'speed' ? rawValues : [],
+                smoothedSpeeds: metric.id === 'speed' ? smoothedValues : [],
+                mphValues: metric.id === 'speed' ? chartValues : [],
+                renderOptimized: true
+            });
+        }
+
+        function createAnimationMetricSeries(metricSeries, options) {
+            const opts = options || {};
+            return createRenderMetricSeries(metricSeries, Object.assign({}, opts, {
+                optimizeLongRoute: Boolean(opts.performanceMode === 'intro' || opts.optimizeLongRoute),
+                maxPoints: opts.performanceMode === 'intro' ? (window.innerWidth <= 900 ? 420 : 650) : opts.maxPoints,
+                toleranceMeters: opts.performanceMode === 'intro' ? (window.innerWidth <= 900 ? 8 : 5) : opts.toleranceMeters,
+                animationOptimized: true
+            }));
+        }
+
+        function createMapboxSpeedAnimationScene(map, descriptor, speedSeries, styles, options) {
+            const opts = options || {};
+            const renderSeries = createAnimationMetricSeries(speedSeries, opts);
             const glMap = map.glMap;
             const token = safeMapboxId(descriptor.meta.activityKey + '-animation-' + Date.now());
             const baseSourceId = 'strava-animation-base-source-' + token;
             const speedSourceId = 'strava-animation-speed-source-' + token;
             const baseLayerId = 'strava-animation-base-layer-' + token;
             const speedLayerId = 'strava-animation-speed-layer-' + token;
-            const pathPoints = Array.isArray(speedSeries && speedSeries.stream && speedSeries.stream.latlng) && speedSeries.stream.latlng.length
-                ? speedSeries.stream.latlng
+            const pathPoints = Array.isArray(renderSeries && renderSeries.stream && renderSeries.stream.latlng) && renderSeries.stream.latlng.length
+                ? renderSeries.stream.latlng
                 : descriptor.coordinates;
-            const times = Array.isArray(speedSeries && speedSeries.times) ? speedSeries.times : [];
-            const segments = buildSpeedSegments(speedSeries);
+            const times = Array.isArray(renderSeries && renderSeries.times) ? renderSeries.times : [];
+            const segments = buildSpeedSegments(renderSeries, {
+                subdivisions: opts.performanceMode === 'intro' ? 1 : SPEED_SEGMENT_SUBDIVISIONS
+            });
+            let layersMovedToFront = false;
 
             function segmentFeaturesForTime(targetTime) {
                 const features = [];
@@ -4817,12 +5040,13 @@
                     if (speedSource) {
                         speedSource.setData(segmentFeaturesForTime(frame.targetTime));
                     }
-                    if (glMap.getLayer(baseLayerId)) {
+                    if (!layersMovedToFront && glMap.getLayer(baseLayerId)) {
                         glMap.moveLayer(baseLayerId);
                     }
-                    if (glMap.getLayer(speedLayerId)) {
+                    if (!layersMovedToFront && glMap.getLayer(speedLayerId)) {
                         glMap.moveLayer(speedLayerId);
                     }
+                    layersMovedToFront = true;
                 },
                 destroy: function () {
                     [speedLayerId, baseLayerId].forEach(function (layerId) {
@@ -4851,15 +5075,19 @@
             });
         }
 
-        function createSpeedAnimationScene(map, descriptor, speedSeries, styles) {
+        function createSpeedAnimationScene(map, descriptor, speedSeries, styles, options) {
+            const opts = options || {};
             if (isMapboxMap(map)) {
-                return createMapboxSpeedAnimationScene(map, descriptor, speedSeries, styles);
+                return createMapboxSpeedAnimationScene(map, descriptor, speedSeries, styles, opts);
             }
-            const pathPoints = Array.isArray(speedSeries && speedSeries.stream && speedSeries.stream.latlng) && speedSeries.stream.latlng.length
-                ? speedSeries.stream.latlng
+            const renderSeries = createAnimationMetricSeries(speedSeries, opts);
+            const pathPoints = Array.isArray(renderSeries && renderSeries.stream && renderSeries.stream.latlng) && renderSeries.stream.latlng.length
+                ? renderSeries.stream.latlng
                 : descriptor.coordinates;
-            const times = Array.isArray(speedSeries && speedSeries.times) ? speedSeries.times : [];
-            const segments = buildSpeedSegments(speedSeries);
+            const times = Array.isArray(renderSeries && renderSeries.times) ? renderSeries.times : [];
+            const segments = buildSpeedSegments(renderSeries, {
+                subdivisions: opts.performanceMode === 'intro' ? 1 : SPEED_SEGMENT_SUBDIVISIONS
+            });
             const baseLayer = window.L.polyline(pathPoints.length ? [pathPoints[0]] : [], {
                 color: styles.baseColor,
                 weight: styles.baseWeight,
@@ -4868,6 +5096,9 @@
                 lineJoin: 'round',
                 interactive: false
             }).addTo(map);
+            if (typeof baseLayer.bringToFront === 'function') {
+                baseLayer.bringToFront();
+            }
             const fullGroup = window.L.featureGroup().addTo(map);
             const segmentLayers = segments.map(function (segment) {
                 return createAnimationSegmentLayer(segment, styles);
@@ -4878,8 +5109,10 @@
             function showPartialSegment(segment, targetTime) {
                 const segmentDuration = Math.max(segment.endTime - segment.startTime, 0.0001);
                 const ratio = Math.max(0, Math.min(1, (targetTime - segment.startTime) / segmentDuration));
+                let createdPartial = false;
                 if (!partialLayer) {
                     partialLayer = createAnimationSegmentLayer(segment, styles).addTo(map);
+                    createdPartial = true;
                 }
                 partialLayer.setStyle({
                     color: segment.color,
@@ -4887,7 +5120,7 @@
                     opacity: styles.opacity
                 });
                 partialLayer.setLatLngs([segment.start, interpolateCoordinate(segment.start, segment.end, ratio)]);
-                if (typeof partialLayer.bringToFront === 'function') {
+                if (createdPartial && typeof partialLayer.bringToFront === 'function') {
                     partialLayer.bringToFront();
                 }
             }
@@ -4898,11 +5131,11 @@
                 segments: segments,
                 update: function (frame) {
                     baseLayer.setLatLngs(frame.visibleCoordinates);
-                    if (typeof baseLayer.bringToFront === 'function') {
-                        baseLayer.bringToFront();
-                    }
                     while (addedSegments < segments.length && segments[addedSegments].endTime <= frame.targetTime) {
                         segmentLayers[addedSegments].addTo(fullGroup);
+                        if (typeof segmentLayers[addedSegments].bringToFront === 'function') {
+                            segmentLayers[addedSegments].bringToFront();
+                        }
                         addedSegments += 1;
                     }
                     const currentSegment = segments[addedSegments];
@@ -4911,14 +5144,6 @@
                     } else if (partialLayer && map.hasLayer(partialLayer)) {
                         map.removeLayer(partialLayer);
                         partialLayer = null;
-                    }
-                    fullGroup.eachLayer(function (segmentLayer) {
-                        if (typeof segmentLayer.bringToFront === 'function') {
-                            segmentLayer.bringToFront();
-                        }
-                    });
-                    if (partialLayer && typeof partialLayer.bringToFront === 'function') {
-                        partialLayer.bringToFront();
                     }
                 },
                 destroy: function () {
@@ -4944,6 +5169,7 @@
         }
 
         async function animateLayerPlain(layer, options) {
+            const opts = options || {};
             if (!layer || !layer._stravaDescriptor) {
                 return layer;
             }
@@ -4954,7 +5180,7 @@
             }
 
             const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : '';
-            const animationColor = options && options.animationColor ? options.animationColor : descriptor.style.color;
+            const animationColor = opts.animationColor ? opts.animationColor : descriptor.style.color;
             const animationWeight = descriptor.style.weight + (window.innerWidth <= 900 ? 1.8 : 1.25);
             const animationOpacity = Number.isFinite(Number(descriptor.style.opacity)) ? Number(descriptor.style.opacity) : 0.98;
             state.replayAnimatingKey = activityKey;
@@ -4974,9 +5200,11 @@
                     points: coordinates,
                     times: layer._speedSeries && Array.isArray(layer._speedSeries.times) ? layer._speedSeries.times : [],
                     fallbackDurationSeconds: Number(descriptor.activity.elapsed_time || 0),
-                    durationMs: typeof options === 'object' && typeof options.durationMs === 'number' ? options.durationMs : durationMs,
-                    shouldCancel: options && typeof options.shouldCancel === 'function' ? options.shouldCancel : null,
-                    onStart: options && typeof options.onStart === 'function' ? options.onStart : null,
+                    durationMs: typeof opts.durationMs === 'number' ? opts.durationMs : durationMs,
+                    performanceMode: opts.performanceMode,
+                    optimizeLongRoute: opts.optimizeLongRoute,
+                    shouldCancel: typeof opts.shouldCancel === 'function' ? opts.shouldCancel : null,
+                    onStart: typeof opts.onStart === 'function' ? opts.onStart : null,
                     onFrame: function (frame) {
                         layer.setLatLngs(frame.visibleCoordinates);
                         layer.setStyle({
@@ -4987,13 +5215,14 @@
                         if (typeof layer.bringToFront === 'function') {
                             layer.bringToFront();
                         }
-                        if (options && typeof options.onFrame === 'function') {
-                            options.onFrame(frame);
+                        if (typeof opts.onFrame === 'function') {
+                            opts.onFrame(frame);
                         }
                     },
-                    onComplete: options && typeof options.onComplete === 'function' ? options.onComplete : null
+                    onComplete: typeof opts.onComplete === 'function' ? opts.onComplete : null
                 });
             } finally {
+                layer.setLatLngs(descriptor.renderCoordinates || descriptor.coordinates);
                 syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                 if (state.selectedLayer === layer && typeof layer.bringToFront === 'function') {
                     layer.bringToFront();
@@ -5015,7 +5244,7 @@
             const descriptor = layer._stravaDescriptor;
             const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : '';
             const styles = getSpeedDisplayStyles(layer, { animation: true });
-            const animationScene = createSpeedAnimationScene(state.map, descriptor, metricSeries, styles);
+            const animationScene = createSpeedAnimationScene(state.map, descriptor, metricSeries, styles, opts);
             if (!animationScene.points.length) {
                 animationScene.destroy();
                 return animateLayerPlain(layer, opts);
@@ -5038,6 +5267,8 @@
                     times: animationScene.times,
                     fallbackDurationSeconds: Number(descriptor.activity.elapsed_time || 0),
                     durationMs: typeof opts.durationMs === 'number' ? opts.durationMs : durationMs,
+                    performanceMode: opts.performanceMode,
+                    optimizeLongRoute: opts.optimizeLongRoute,
                     shouldCancel: typeof opts.shouldCancel === 'function' ? opts.shouldCancel : null,
                     onStart: typeof opts.onStart === 'function' ? opts.onStart : null,
                     onFrame: function (frame) {
@@ -5050,7 +5281,7 @@
                 });
             } finally {
                 animationScene.destroy();
-                layer.setLatLngs(descriptor.coordinates);
+                layer.setLatLngs(descriptor.renderCoordinates || descriptor.coordinates);
                 layer.setStyle({
                     color: descriptor.style.color,
                     weight: descriptor.style.weight,
@@ -5073,7 +5304,7 @@
                 return null;
             }
             if (shouldCancel()) {
-                return createRouteLayer(descriptor, descriptor.coordinates);
+                return createRouteLayer(descriptor, descriptor.renderCoordinates || descriptor.coordinates);
             }
             if (!isSpeedPaletteEnabled()) {
                 const temporaryLayer = createRouteLayer(descriptor, descriptor.coordinates.length ? [descriptor.coordinates[0]] : []);
@@ -5082,11 +5313,11 @@
             }
             await fetchActivityDetailForDescriptor(descriptor);
             if (shouldCancel()) {
-                return createRouteLayer(descriptor, descriptor.coordinates);
+                return createRouteLayer(descriptor, descriptor.renderCoordinates || descriptor.coordinates);
             }
             const streamData = await fetchSpeedStreamForDescriptor(descriptor, opts.metricId || getActiveStreamColorMetricId());
             if (shouldCancel()) {
-                return createRouteLayer(descriptor, descriptor.coordinates);
+                return createRouteLayer(descriptor, descriptor.renderCoordinates || descriptor.coordinates);
             }
             if (!streamData) {
                 const fallbackLayer = createRouteLayer(descriptor, descriptor.coordinates.length ? [descriptor.coordinates[0]] : []);
@@ -5138,6 +5369,7 @@
             if (previousLayer) {
                 syncSpeedOverlayVisibility(previousLayer, shouldShowSpeedOverlay(previousLayer));
             }
+            clearWorkoutNavigatorFocus({ refreshMap: true });
         }
 
         function getDetailsPanelWidth() {
@@ -5187,11 +5419,17 @@
         }
 
         function focusMapForLayer(layer) {
-            if (!state.map || !layer || !layer.getBounds || !layer.getBounds().isValid()) {
+            if (!state.map || !layer || !layer.getBounds) {
+                return;
+            }
+            const bounds = layer._stravaDescriptor && Array.isArray(layer._stravaDescriptor.coordinates)
+                ? window.L.latLngBounds(layer._stravaDescriptor.coordinates)
+                : layer.getBounds();
+            if (!bounds || !bounds.isValid || !bounds.isValid()) {
                 return;
             }
             suspendRouteCulling(1200);
-            state.map.fitBounds(layer.getBounds(), {
+            state.map.fitBounds(bounds, {
                 paddingTopLeft: [28, 28],
                 paddingBottomRight: [getDetailsPanelWidth() + 28, 28],
                 maxZoom: 15
@@ -5420,15 +5658,49 @@
                 + "</div>";
         }
 
-        function createLeafletPlaybackScene(points, notes, playbackStyle) {
+        function createPlaybackRenderTimeline(points, times) {
+            const sourcePoints = Array.isArray(points) ? points : [];
+            if (sourcePoints.length < 2 || typeof StravaAnimated.simplifyTimelineForAnimation !== 'function') {
+                return {
+                    points: sourcePoints,
+                    times: Array.isArray(times) ? times : []
+                };
+            }
+            const timeline = StravaAnimated.simplifyTimelineForAnimation(sourcePoints, Array.isArray(times) ? times : [], getMapRenderMetricOptions());
+            if (!timeline || !Array.isArray(timeline.points) || timeline.points.length < 2) {
+                return {
+                    points: sourcePoints,
+                    times: Array.isArray(times) ? times : []
+                };
+            }
+            return timeline;
+        }
+
+        function getPlaybackRenderFrame(renderTimeline, sourceFrame) {
+            const timeline = renderTimeline || {};
+            const points = Array.isArray(timeline.points) ? timeline.points : [];
+            const times = Array.isArray(timeline.times) ? timeline.times : [];
+            if (points.length < 2) {
+                return {
+                    visibleCoordinates: points.slice(),
+                    targetTime: sourceFrame && Number.isFinite(Number(sourceFrame.targetTime)) ? Number(sourceFrame.targetTime) : 0
+                };
+            }
+            const targetTime = sourceFrame && Number.isFinite(Number(sourceFrame.targetTime)) ? Number(sourceFrame.targetTime) : 0;
+            return StravaAnimated.getTimelineFrame(points, times, targetTime);
+        }
+
+        function createLeafletPlaybackScene(points, times, notes, playbackStyle) {
             const routeStyle = playbackStyle || {};
             const routeColor = routeStyle.color || '#fde725';
             const baseRouteWeight = Math.max(5, Number(routeStyle.weight || 4) + 1);
             const initialZoomBoost = getCloseZoomLineWeightBoost();
             const routeWeight = baseRouteWeight + initialZoomBoost;
             const routeOpacity = Math.max(0, Math.min(1, Number.isFinite(Number(routeStyle.opacity)) ? Number(routeStyle.opacity) : 0.95));
+            const renderTimeline = createPlaybackRenderTimeline(points, times);
+            const renderPoints = renderTimeline.points || [];
             const group = window.L.featureGroup().addTo(state.map);
-            const baseLayer = window.L.polyline(points, {
+            const baseLayer = window.L.polyline(renderPoints, {
                 color: '#f5f7fb',
                 weight: 7 + initialZoomBoost,
                 opacity: 0.11,
@@ -5436,7 +5708,7 @@
                 lineJoin: 'round',
                 interactive: false
             }).addTo(group);
-            const partialLayer = window.L.polyline(points.length ? [points[0]] : [], {
+            const partialLayer = window.L.polyline(renderPoints.length ? [renderPoints[0]] : [], {
                 color: routeColor,
                 weight: routeWeight,
                 opacity: routeOpacity,
@@ -5480,7 +5752,8 @@
             renderMarkers(notes);
             return {
                 update: function (frame, selectedNote) {
-                    partialLayer.setLatLngs(frame.visibleCoordinates || []);
+                    const renderFrame = getPlaybackRenderFrame(renderTimeline, frame);
+                    partialLayer.setLatLngs(renderFrame.visibleCoordinates || []);
                     if (typeof partialLayer.bringToFront === 'function') {
                         partialLayer.bringToFront();
                     }
@@ -5522,7 +5795,7 @@
             };
         }
 
-        function createMapboxPlaybackScene(points, notes, playbackStyle) {
+        function createMapboxPlaybackScene(points, times, notes, playbackStyle) {
             const glMap = state.map.glMap;
             const routeStyle = playbackStyle || {};
             const routeColor = routeStyle.color || '#fde725';
@@ -5530,6 +5803,8 @@
             const initialZoomBoost = getCloseZoomLineWeightBoost();
             const routeWeight = baseRouteWeight + initialZoomBoost;
             const routeOpacity = Math.max(0, Math.min(1, Number.isFinite(Number(routeStyle.opacity)) ? Number(routeStyle.opacity) : 0.96));
+            const renderTimeline = createPlaybackRenderTimeline(points, times);
+            const renderPoints = renderTimeline.points || [];
             const token = safeMapboxId('collection-playback-' + Date.now());
             const baseSourceId = 'collection-playback-base-source-' + token;
             const partialSourceId = 'collection-playback-partial-source-' + token;
@@ -5542,11 +5817,11 @@
 
             glMap.addSource(baseSourceId, {
                 type: 'geojson',
-                data: lineFeatureFromLatLngs(points)
+                data: lineFeatureFromLatLngs(renderPoints)
             });
             glMap.addSource(partialSourceId, {
                 type: 'geojson',
-                data: lineFeatureFromLatLngs(points.length ? [points[0]] : [])
+                data: lineFeatureFromLatLngs(renderPoints.length ? [renderPoints[0]] : [])
             });
             glMap.addSource(notesSourceId, {
                 type: 'geojson',
@@ -5638,7 +5913,8 @@
                 update: function (frame, selectedNote) {
                     const source = glMap.getSource(partialSourceId);
                     if (source) {
-                        source.setData(lineFeatureFromLatLngs(frame.visibleCoordinates || []));
+                        const renderFrame = getPlaybackRenderFrame(renderTimeline, frame);
+                        source.setData(lineFeatureFromLatLngs(renderFrame.visibleCoordinates || []));
                     }
                     [baseLayerId, partialLayerId, notesLayerId].forEach(function (layerId) {
                         if (glMap.getLayer(layerId)) {
@@ -5697,11 +5973,11 @@
             };
         }
 
-        function createCollectionPlaybackScene(points, notes, playbackStyle) {
+        function createCollectionPlaybackScene(points, times, notes, playbackStyle) {
             if (isMapboxMap(state.map)) {
-                return createMapboxPlaybackScene(points, notes, playbackStyle);
+                return createMapboxPlaybackScene(points, times, notes, playbackStyle);
             }
-            return createLeafletPlaybackScene(points, notes, playbackStyle);
+            return createLeafletPlaybackScene(points, times, notes, playbackStyle);
         }
 
         function clearCollectionPlaybackScene() {
@@ -5956,6 +6232,8 @@
             const previousLayer = state.selectedLayer && state.selectedLayer !== layer ? state.selectedLayer : null;
             state.selectedLayer = layer;
             state.activeDetailKey = layer._stravaMeta ? layer._stravaMeta.activityKey : '';
+            state.workoutNavigatorIndex = getNavigatorIndexForLayer(layer);
+            state.workoutNavigatorActive = state.workoutNavigatorIndex >= 0;
             if (previousLayer) {
                 syncSpeedOverlayVisibility(previousLayer, shouldShowSpeedOverlay(previousLayer));
             }
@@ -6006,7 +6284,7 @@
             state.playback.times = timeline.times;
             state.playback.totalTime = timeline.totalTime;
             state.playback.notes = notesForScene(await fetchActivityNotes(activityId), timeline.points, timeline.times);
-            state.playback.scene = createCollectionPlaybackScene(timeline.points, state.playback.notes, layer._stravaDescriptor.style);
+            state.playback.scene = createCollectionPlaybackScene(timeline.points, timeline.times, state.playback.notes, layer._stravaDescriptor.style);
             applyCollectionPlaybackLayerFocus(layer);
             syncCollectionPlaybackLayerDisplays();
             renderCollectionPlaybackPanel();
@@ -6606,7 +6884,7 @@
                 return note.id === state.playback.selectedNoteId;
             }) || null;
             clearCollectionPlaybackScene();
-            state.playback.scene = createCollectionPlaybackScene(state.playback.points, state.playback.notes, layer._stravaDescriptor.style);
+            state.playback.scene = createCollectionPlaybackScene(state.playback.points, state.playback.times, state.playback.notes, layer._stravaDescriptor.style);
             applyCollectionPlaybackLayerFocus(layer);
             updateCollectionSceneAtTime(currentTime, selectedNote);
         }
@@ -7305,6 +7583,7 @@
             }
             bringSpeedOverlayToFront(layer);
             focusMapForLayer(layer);
+            syncWorkoutStepperState();
             window.requestAnimationFrame(resizeDetailsChart);
         }
 
@@ -7339,7 +7618,6 @@
                     if (typeof layer.openTooltip === 'function') {
                         layer.openTooltip();
                     }
-                    fetchSpeedStreamForLayer(layer, getActiveStreamColorMetricId());
                     syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
                     bringSpeedOverlayToFront(layer);
                 });
@@ -7506,6 +7784,49 @@
             }
         }
 
+        function getRouteLayerActivityKey(layer) {
+            return layer && layer._stravaMeta ? String(layer._stravaMeta.activityKey || '') : '';
+        }
+
+        function applyWorkoutNavigatorFocus(layer) {
+            if (!state.map || !Array.isArray(state.map._stravaPolylines) || !layer) {
+                return [];
+            }
+            const focusKey = getRouteLayerActivityKey(layer);
+            if (!focusKey) {
+                return [];
+            }
+            state.workoutNavigatorFocusKey = focusKey;
+            const visibleLayers = [];
+            state.map._stravaPolylines.forEach(function (routeLayer) {
+                const isFocused = getRouteLayerActivityKey(routeLayer) === focusKey;
+                routeLayer._routeCulled = false;
+                if (isFocused) {
+                    setRouteLayerVisible(routeLayer, true);
+                    syncSpeedOverlayVisibility(routeLayer, shouldShowSpeedOverlay(routeLayer));
+                    if (typeof routeLayer.bringToFront === 'function') {
+                        routeLayer.bringToFront();
+                    }
+                    bringSpeedOverlayToFront(routeLayer);
+                    visibleLayers.push(routeLayer);
+                    return;
+                }
+                removeSpeedOverlayFromMap(routeLayer);
+                setRouteLayerVisible(routeLayer, false);
+            });
+            return visibleLayers;
+        }
+
+        function clearWorkoutNavigatorFocus(options) {
+            if (!state.workoutNavigatorFocusKey) {
+                return;
+            }
+            state.workoutNavigatorFocusKey = '';
+            if (options && options.refreshMap) {
+                refreshMapFilters();
+            }
+        }
+
         function getCurrentlyVisibleRouteLayers() {
             return (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).filter(function (layer) {
                 return state.map.hasLayer(layer);
@@ -7515,6 +7836,10 @@
         function refreshVisibleRouteCulling() {
             if (!state.map || !Array.isArray(state.map._stravaPolylines)) {
                 return [];
+            }
+            if (state.workoutNavigatorFocusKey) {
+                const focusedLayer = getLayerForActivityKey(state.workoutNavigatorFocusKey);
+                return focusedLayer ? applyWorkoutNavigatorFocus(focusedLayer) : [];
             }
             const cullingContext = getRouteCullingContext();
             const visibleLayers = [];
@@ -7544,6 +7869,13 @@
             });
         }
 
+        function getFilterMatchedRouteLayers() {
+            return (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).filter(function (layer) {
+                const meta = (layer._stravaMeta && layer._stravaMeta.filterMeta) || null;
+                return meta ? matchesActiveFilters(meta) : true;
+            });
+        }
+
         function drawAnalytics() {
             const accumulator = StravaApp.createDataAccumulator();
             getFilteredActivityItems().forEach(function (item) {
@@ -7553,7 +7885,14 @@
             StravaApp.drawMilesChart('workoutChart', accumulator.workoutData, 1);
         }
 
-        function refreshMapFilters() {
+        function refreshMapFilters(options) {
+            if (!(options && options.preserveNavigatorFocus) && state.workoutNavigatorFocusKey) {
+                state.workoutNavigatorFocusKey = '';
+            }
+            if (state.workoutNavigatorFocusKey) {
+                const focusedLayer = getLayerForActivityKey(state.workoutNavigatorFocusKey);
+                return focusedLayer ? applyWorkoutNavigatorFocus(focusedLayer) : [];
+            }
             const visibleLayers = [];
             const cullingContext = getRouteCullingContext();
             (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).forEach(function (layer) {
@@ -7584,25 +7923,20 @@
             return visibleLayers;
         }
 
-        function maybeFocusLocationSelection(visibleLayers) {
+        function fitMapToFilteredRoutes() {
             if (!state.map || state.analyticsVisible) {
                 return;
             }
-            const citySelections = Array.from(state.appliedFilters.city);
-            const stateSelections = Array.from(state.appliedFilters.regionState);
-            let matchingLayers = [];
-            if (citySelections.length === 1) {
-                matchingLayers = (visibleLayers || []).filter(function (layer) {
-                    return layer._stravaMeta && layer._stravaMeta.filterMeta && layer._stravaMeta.filterMeta.city === citySelections[0];
-                });
-            } else if (stateSelections.length === 1) {
-                matchingLayers = (visibleLayers || []).filter(function (layer) {
-                    return layer._stravaMeta && layer._stravaMeta.filterMeta && layer._stravaMeta.filterMeta.regionState === stateSelections[0];
-                });
+            const matchingLayers = getFilterMatchedRouteLayers();
+            if (!matchingLayers.length) {
+                return;
             }
-            if (matchingLayers.length) {
-                suspendRouteCulling(1200);
-                StravaApp.fitMapToLayers(state.map, matchingLayers, { padding: [30, 30], maxZoom: 13 });
+            suspendRouteCulling(1800);
+            StravaApp.fitMapToLayers(state.map, matchingLayers, { padding: [36, 36], maxZoom: 13 });
+            if (typeof state.map.once === 'function') {
+                state.map.once('moveend', function () {
+                    window.setTimeout(refreshVisibleRouteCulling, 120);
+                });
             }
         }
 
@@ -7687,7 +8021,7 @@
             clearButton.addEventListener('click', function () {
                 state.appliedFilters[key] = new Set();
                 closeAllMenus();
-                refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+                refreshFilterSummary({ fitFiltered: true });
             });
 
             const applyButton = document.createElement('button');
@@ -7697,7 +8031,7 @@
             applyButton.addEventListener('click', function () {
                 state.appliedFilters[key] = new Set(Array.from(state.draftFilters[key]));
                 closeAllMenus();
-                refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+                refreshFilterSummary({ fitFiltered: true });
             });
 
             actions.appendChild(clearButton);
@@ -7782,7 +8116,7 @@
                 clearButton.addEventListener('click', function () {
                     state.appliedFilters[key] = new Set();
                     closeAllMenus();
-                    refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+                    refreshFilterSummary({ fitFiltered: true });
                 });
 
                 const applyButton = document.createElement('button');
@@ -7792,7 +8126,7 @@
                 applyButton.addEventListener('click', function () {
                     state.appliedFilters[key] = new Set(Array.from(state.draftFilters[key]));
                     closeAllMenus();
-                    refreshFilterSummary({ focusLocation: key === 'city' || key === 'regionState' });
+                    refreshFilterSummary({ fitFiltered: true });
                 });
 
                 actions.appendChild(clearButton);
@@ -7825,8 +8159,8 @@
             if (state.selectedLayer && visibleLayers.indexOf(state.selectedLayer) === -1) {
                 closeDetailsPanel();
             }
-            if (options && options.focusLocation) {
-                maybeFocusLocationSelection(visibleLayers);
+            if (options && options.fitFiltered) {
+                fitMapToFilteredRoutes();
             }
             if (state.analyticsVisible) {
                 drawAnalytics();
@@ -7998,6 +8332,14 @@
             }
         });
 
+        workoutStepPrev.addEventListener('click', function () {
+            navigateWorkout('previous');
+        });
+
+        workoutStepNext.addEventListener('click', function () {
+            navigateWorkout('next');
+        });
+
         detailsClose.addEventListener('click', function () {
             closeDetailsPanel();
         });
@@ -8018,7 +8360,7 @@
             if (!state.selectedLayer._speedSeries) {
                 return;
             }
-            await animateLayerWithSpeed(state.selectedLayer, {});
+            await animateLayerWithSpeed(state.selectedLayer, { optimizeLongRoute: true });
             if (detailsPanelIsOpen()) {
                 renderDetailsPanel(state.selectedLayer);
             }
@@ -8106,17 +8448,131 @@
             introAnimationControl.disabled = false;
             introAnimationControl.dataset.mode = mode || '';
             if (mode === 'skip') {
+                workoutStepper.hidden = false;
+                workoutStepper.classList.remove('is-map-mode');
+                workoutStepPrev.hidden = true;
+                workoutStepNext.hidden = true;
                 introAnimationControl.hidden = false;
                 introAnimationControl.textContent = 'Skip Animation';
                 return;
             }
             if (mode === 'showAll') {
+                workoutStepper.hidden = false;
+                workoutStepper.classList.remove('is-map-mode');
+                workoutStepPrev.hidden = false;
+                workoutStepNext.hidden = false;
                 introAnimationControl.hidden = false;
                 introAnimationControl.textContent = 'Show All Workouts';
+                syncWorkoutStepperState();
                 return;
             }
+            if (state.introAllWorkoutsRendered && state.allDescriptors.length) {
+                workoutStepper.hidden = false;
+                workoutStepper.classList.add('is-map-mode');
+                workoutStepPrev.hidden = false;
+                workoutStepNext.hidden = false;
+                introAnimationControl.hidden = true;
+                syncWorkoutStepperState();
+                return;
+            }
+            workoutStepper.hidden = true;
+            workoutStepper.classList.remove('is-map-mode');
+            workoutStepPrev.hidden = true;
+            workoutStepNext.hidden = true;
             introAnimationControl.hidden = true;
             introAnimationControl.textContent = 'Skip Animation';
+        }
+
+        function getWorkoutNavigatorCount() {
+            return (state.allDescriptors || []).length;
+        }
+
+        function getLayerForActivityKey(activityKey) {
+            const key = String(activityKey || '');
+            return (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).find(function (layer) {
+                return layer && layer._stravaMeta && layer._stravaMeta.activityKey === key;
+            }) || null;
+        }
+
+        function getNavigatorIndexForLayer(layer) {
+            if (!layer || !layer._stravaMeta) {
+                return -1;
+            }
+            return state.allDescriptors.findIndex(function (descriptor) {
+                return descriptor && descriptor.meta && descriptor.meta.activityKey === layer._stravaMeta.activityKey;
+            });
+        }
+
+        function getCurrentNavigatorIndex() {
+            const selectedIndex = getNavigatorIndexForLayer(state.selectedLayer);
+            if (selectedIndex >= 0) {
+                return selectedIndex;
+            }
+            return Number.isInteger(state.workoutNavigatorIndex) ? state.workoutNavigatorIndex : -1;
+        }
+
+        function syncWorkoutStepperState() {
+            if (!workoutStepPrev || !workoutStepNext) {
+                return;
+            }
+            const total = getWorkoutNavigatorCount();
+            const index = getCurrentNavigatorIndex();
+            if (!total) {
+                workoutStepPrev.disabled = true;
+                workoutStepNext.disabled = true;
+                return;
+            }
+            workoutStepPrev.disabled = index >= total - 1;
+            workoutStepNext.disabled = index <= 0;
+            if (index < 0) {
+                workoutStepPrev.disabled = false;
+                workoutStepNext.disabled = true;
+            }
+        }
+
+        function ensureNavigatorWorkoutLayer(index) {
+            const descriptor = state.allDescriptors[index];
+            if (!descriptor || !descriptor.meta) {
+                return null;
+            }
+            let layer = getLayerForActivityKey(descriptor.meta.activityKey);
+            if (!layer) {
+                layer = createRouteLayer(descriptor, descriptor.renderCoordinates || descriptor.coordinates);
+                attachLayerInteractions([layer]);
+                state.renderedKeys.add(descriptor.meta.activityKey);
+            }
+            setRouteLayerVisible(layer, true);
+            layer._filterVisible = true;
+            layer._routeCulled = false;
+            return layer;
+        }
+
+        function navigateWorkout(direction) {
+            const total = getWorkoutNavigatorCount();
+            if (!total) {
+                return;
+            }
+            const currentIndex = getCurrentNavigatorIndex();
+            let nextIndex = currentIndex;
+            if (direction === 'previous') {
+                nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+            } else {
+                nextIndex = currentIndex < 0 ? -1 : currentIndex - 1;
+            }
+            if (nextIndex < 0 || nextIndex >= total) {
+                syncWorkoutStepperState();
+                return;
+            }
+            const layer = ensureNavigatorWorkoutLayer(nextIndex);
+            if (!layer) {
+                return;
+            }
+            state.workoutNavigatorIndex = nextIndex;
+            state.workoutNavigatorActive = true;
+            openDetailsPanel(layer);
+            applyWorkoutNavigatorFocus(layer);
+            focusMapForLayer(layer);
+            syncWorkoutStepperState();
         }
 
         function formatIntroKpiNumber(value, digits) {
@@ -8180,10 +8636,16 @@
             introKpiPanel.innerHTML = ""
                 + "<div class='intro-kpi-title'><span class='intro-ticker-text' data-intro-ticker='title'></span></div>"
                 + "<div class='intro-kpi-grid'>"
-                + "<div class='intro-kpi-item'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='miles'></span></div><div class='intro-kpi-label'>Miles</div></div>"
-                + "<div class='intro-kpi-item'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='elevation'></span></div><div class='intro-kpi-label'>Elevation</div></div>"
-                + "<div class='intro-kpi-item'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='minutes'></span></div><div class='intro-kpi-label'>Minutes</div></div>"
+                + "<div class='intro-kpi-item'><div class='intro-kpi-metric'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='miles'></span></div><div class='intro-kpi-delta' data-intro-delta='miles'></div></div><div class='intro-kpi-label'>Miles</div></div>"
+                + "<div class='intro-kpi-item'><div class='intro-kpi-metric'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='elevation'></span></div><div class='intro-kpi-delta' data-intro-delta='elevation'></div></div><div class='intro-kpi-label'>Elevation</div></div>"
+                + "<div class='intro-kpi-item'><div class='intro-kpi-metric'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='minutes'></span></div><div class='intro-kpi-delta' data-intro-delta='minutes'></div></div><div class='intro-kpi-label'>Minutes</div></div>"
                 + "</div>";
+            state.introKpiTickerElements = new Map(Array.from(introKpiPanel.querySelectorAll('[data-intro-ticker]')).map(function (element) {
+                return [element.dataset.introTicker, element];
+            }));
+            state.introKpiDeltaElements = new Map(Array.from(introKpiPanel.querySelectorAll('[data-intro-delta]')).map(function (element) {
+                return [element.dataset.introDelta, element];
+            }));
             introKpiPanel.dataset.ready = 'true';
         }
 
@@ -8192,7 +8654,7 @@
                 return;
             }
             ensureIntroKpiPanelStructure();
-            const element = introKpiPanel.querySelector("[data-intro-ticker='" + key + "']");
+            const element = state.introKpiTickerElements.get(key) || introKpiPanel.querySelector("[data-intro-ticker='" + key + "']");
             if (!element) {
                 return;
             }
@@ -8209,9 +8671,27 @@
                 return;
             }
             element.setAttribute('aria-label', nextValue);
-            element.innerHTML = buildIntroTickerHtml(previousValue, nextValue);
+            element.textContent = nextValue;
+            element.classList.remove('is-updating');
+            void element.offsetWidth;
+            element.classList.add('is-updating');
             state.introKpiDisplayedValues.set(key, nextValue);
             state.introKpiTickerUpdatedAt.set(key, now);
+        }
+
+        function updateIntroKpiDeltaElement(key, value) {
+            ensureIntroKpiPanelStructure();
+            const element = state.introKpiDeltaElements.get(key) || introKpiPanel.querySelector("[data-intro-delta='" + key + "']");
+            if (element) {
+                element.textContent = value;
+            }
+        }
+
+        function updateIntroKpiDeltas(activity) {
+            const values = getActivityKpiValues(activity);
+            updateIntroKpiDeltaElement('miles', '+' + formatIntroKpiNumber(StravaApp.getMiles(values.distance_meters), 1));
+            updateIntroKpiDeltaElement('elevation', '+' + formatIntroKpiNumber(values.elevation_gain_meters * 3.28084, 1));
+            updateIntroKpiDeltaElement('minutes', '+' + formatIntroKpiNumber((values.moving_time_seconds || values.elapsed_time_seconds) / 60, 1));
         }
 
         function getIntroUserFirstName() {
@@ -8275,15 +8755,22 @@
             if (!introKpiPanel || !activity) {
                 return;
             }
+            const numericProgress = Number(progress || 0);
+            const forceUpdate = numericProgress <= 0 || numericProgress >= 1;
+            const now = window.performance && typeof window.performance.now === 'function' ? window.performance.now() : Date.now();
+            if (!forceUpdate && now - Number(state.introKpiLastRenderAt || 0) < 120) {
+                return;
+            }
+            state.introKpiLastRenderAt = now;
             const snapshot = getIntroKpiProgressSnapshot(activity, progress);
             const title = getIntroKpiTitle(snapshot, activity).toUpperCase();
             const miles = formatIntroKpiNumber(StravaApp.getMiles(snapshot.distance_meters), 1);
             const elevation = formatIntroKpiNumber(snapshot.elevation_gain_meters * 3.28084, 1);
             const minutes = formatIntroKpiMinutes(snapshot.moving_time_seconds || snapshot.elapsed_time_seconds);
-            const forceUpdate = Number(progress || 0) >= 1;
             introKpiPanel.hidden = false;
             ensureIntroKpiPanelStructure();
-            introKpiPanel.classList.toggle('is-locked', forceUpdate);
+            updateIntroKpiDeltas(activity);
+            introKpiPanel.classList.toggle('is-locked', numericProgress >= 1);
             updateIntroTickerElement('title', title, { force: true });
             updateIntroTickerElement('miles', miles, { force: forceUpdate });
             updateIntroTickerElement('elevation', elevation, { force: forceUpdate });
@@ -8299,6 +8786,9 @@
             }
             state.introKpiDisplayedValues.clear();
             state.introKpiTickerUpdatedAt.clear();
+            state.introKpiTickerElements.clear();
+            state.introKpiDeltaElements.clear();
+            state.introKpiLastRenderAt = 0;
         }
 
         function renderDescriptorBatch(descriptors) {
@@ -8334,6 +8824,12 @@
             const layers = renderDescriptorBatch(remainingDescriptors);
             state.introRemainingDescriptors = [];
             state.introAllWorkoutsRendered = true;
+            clearWorkoutNavigatorFocus();
+            if (!detailsPanelIsOpen()) {
+                state.workoutNavigatorIndex = -1;
+                state.workoutNavigatorActive = false;
+            }
+            hideIntroKpiPanel();
             if (!options || options.hideControl !== false) {
                 setIntroAnimationControl('');
             }
@@ -8436,6 +8932,8 @@
                 const animatedLayers = await Promise.all(animatedSelection.animated.map(function (descriptor) {
                     return animateDescriptorWithSpeed(descriptor, {
                         metricId: getActiveStreamColorMetricId(),
+                        performanceMode: 'intro',
+                        optimizeLongRoute: true,
                         onStart: function () {
                             updateIntroKpiPanel(descriptor.activity, 0);
                         },
@@ -8462,15 +8960,16 @@
                 state.introRemainingDescriptors = state.allDescriptors.filter(function (descriptor) {
                     return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
                 });
+                state.workoutNavigatorIndex = 0;
+                state.workoutNavigatorActive = true;
                 if (!sharedCollection && state.introRemainingDescriptors.length) {
                     setIntroAnimationControl('showAll');
                 } else {
                     setIntroAnimationControl('');
                 }
-                if (!state.introSkipRequested) {
-                    await StravaAnimated.wait(StravaAnimated.POST_ANIMATION_DELAY_MS);
+                if (!state.introRemainingDescriptors.length || sharedCollection) {
+                    hideIntroKpiPanel();
                 }
-                hideIntroKpiPanel();
             } else {
                 dismissTitle();
                 hideIntroKpiPanel();

@@ -9,6 +9,12 @@
     const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MAPBOX_DARK_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MOBILE_REGEX = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+    const MAP_RENDER_ROUTE_CONFIG = {
+        maxPointsDesktop: 900,
+        maxPointsMobile: 650,
+        toleranceMetersDesktop: 4,
+        toleranceMetersMobile: 7
+    };
     const TOOLTIP_OPTIONS = {
         permanent: false,
         sticky: true,
@@ -532,6 +538,142 @@
         }).filter(Boolean);
     }
 
+    function isMobileViewport() {
+        return window.innerWidth <= 900 || MOBILE_REGEX.test(navigator.userAgent || '');
+    }
+
+    function getMapRenderMaxPoints() {
+        const config = MAP_RENDER_ROUTE_CONFIG;
+        const value = isMobileViewport() ? config.maxPointsMobile : config.maxPointsDesktop;
+        return Math.max(2, Math.round(Number(value) || 900));
+    }
+
+    function getMapRenderToleranceMeters() {
+        const config = MAP_RENDER_ROUTE_CONFIG;
+        const value = isMobileViewport() ? config.toleranceMetersMobile : config.toleranceMetersDesktop;
+        return Math.max(0.5, Number(value) || 4);
+    }
+
+    function projectRoutePoint(point, originLatitudeRadians) {
+        const earthRadiusMeters = 6371008.8;
+        const latitude = Number(point && point[0]);
+        const longitude = Number(point && point[1]);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return null;
+        }
+        return {
+            x: longitude * (Math.PI / 180) * earthRadiusMeters * Math.cos(originLatitudeRadians),
+            y: latitude * (Math.PI / 180) * earthRadiusMeters
+        };
+    }
+
+    function getRoutePointLineDistanceMeters(point, start, end) {
+        const originLatitudeRadians = ((Number(point[0]) + Number(start[0]) + Number(end[0])) / 3) * (Math.PI / 180);
+        const projectedPoint = projectRoutePoint(point, originLatitudeRadians);
+        const projectedStart = projectRoutePoint(start, originLatitudeRadians);
+        const projectedEnd = projectRoutePoint(end, originLatitudeRadians);
+        if (!projectedPoint || !projectedStart || !projectedEnd) {
+            return 0;
+        }
+        const deltaX = projectedEnd.x - projectedStart.x;
+        const deltaY = projectedEnd.y - projectedStart.y;
+        if (deltaX === 0 && deltaY === 0) {
+            const pointDeltaX = projectedPoint.x - projectedStart.x;
+            const pointDeltaY = projectedPoint.y - projectedStart.y;
+            return Math.sqrt((pointDeltaX * pointDeltaX) + (pointDeltaY * pointDeltaY));
+        }
+        const ratio = Math.max(0, Math.min(1, (
+            ((projectedPoint.x - projectedStart.x) * deltaX)
+            + ((projectedPoint.y - projectedStart.y) * deltaY)
+        ) / ((deltaX * deltaX) + (deltaY * deltaY))));
+        const closestX = projectedStart.x + (deltaX * ratio);
+        const closestY = projectedStart.y + (deltaY * ratio);
+        const distanceX = projectedPoint.x - closestX;
+        const distanceY = projectedPoint.y - closestY;
+        return Math.sqrt((distanceX * distanceX) + (distanceY * distanceY));
+    }
+
+    function simplifyRouteIndices(points, toleranceMeters) {
+        const totalPoints = points.length;
+        if (totalPoints <= 2) {
+            return points.map(function (_, index) { return index; });
+        }
+        const keep = new Uint8Array(totalPoints);
+        const stack = [[0, totalPoints - 1]];
+        keep[0] = 1;
+        keep[totalPoints - 1] = 1;
+        while (stack.length) {
+            const range = stack.pop();
+            const startIndex = range[0];
+            const endIndex = range[1];
+            let maxDistance = -1;
+            let maxIndex = -1;
+            for (let index = startIndex + 1; index < endIndex; index += 1) {
+                const distance = getRoutePointLineDistanceMeters(points[index], points[startIndex], points[endIndex]);
+                if (distance > maxDistance) {
+                    maxDistance = distance;
+                    maxIndex = index;
+                }
+            }
+            if (maxIndex > startIndex && maxDistance > toleranceMeters) {
+                keep[maxIndex] = 1;
+                stack.push([startIndex, maxIndex]);
+                stack.push([maxIndex, endIndex]);
+            }
+        }
+        const indices = [];
+        for (let index = 0; index < totalPoints; index += 1) {
+            if (keep[index]) {
+                indices.push(index);
+            }
+        }
+        return indices;
+    }
+
+    function capRouteIndicesEvenly(indices, maxPoints) {
+        if (indices.length <= maxPoints) {
+            return indices;
+        }
+        const capped = [indices[0]];
+        const seen = new Set(capped);
+        for (let slot = 1; slot < maxPoints - 1; slot += 1) {
+            const sourceIndex = Math.round((slot * (indices.length - 1)) / Math.max(maxPoints - 1, 1));
+            const value = indices[Math.max(0, Math.min(indices.length - 1, sourceIndex))];
+            if (!seen.has(value)) {
+                capped.push(value);
+                seen.add(value);
+            }
+        }
+        const last = indices[indices.length - 1];
+        if (!seen.has(last)) {
+            capped.push(last);
+        }
+        return capped.sort(function (left, right) { return left - right; });
+    }
+
+    function getMapRenderRouteCoordinates(points, options) {
+        const coordinates = normalizeRouteCoordinates(points);
+        const opts = options || {};
+        const maxPoints = Number.isFinite(Number(opts.maxPoints)) && Number(opts.maxPoints) >= 2
+            ? Math.round(Number(opts.maxPoints))
+            : getMapRenderMaxPoints();
+        if (coordinates.length <= maxPoints) {
+            return coordinates;
+        }
+        let tolerance = Number.isFinite(Number(opts.toleranceMeters)) && Number(opts.toleranceMeters) > 0
+            ? Number(opts.toleranceMeters)
+            : getMapRenderToleranceMeters();
+        let indices = simplifyRouteIndices(coordinates, tolerance);
+        for (let attempt = 0; attempt < 8 && indices.length > maxPoints; attempt += 1) {
+            tolerance *= 1.45;
+            indices = simplifyRouteIndices(coordinates, tolerance);
+        }
+        indices = capRouteIndicesEvenly(indices, maxPoints);
+        return indices.map(function (index) {
+            return coordinates[index];
+        });
+    }
+
     function getActivityRouteCoordinates(activity) {
         const normalized = normalizeActivityRecord(activity);
         const streamCoordinates = normalizeRouteCoordinates(normalized.stream_latlng);
@@ -876,6 +1018,7 @@
         return {
             activity: normalized,
             coordinates: coordinates,
+            renderCoordinates: getMapRenderRouteCoordinates(coordinates),
             style: style,
             tooltipHtml: buildTooltip(normalized, { ownerName: opts.ownerName || '' }),
             meta: {
@@ -887,6 +1030,13 @@
                 color: style.color
             }
         };
+    }
+
+    function getLayerFullBounds(layer) {
+        if (layer && layer._stravaDescriptor && Array.isArray(layer._stravaDescriptor.coordinates) && layer._stravaDescriptor.coordinates.length) {
+            return window.L.latLngBounds(layer._stravaDescriptor.coordinates);
+        }
+        return layer && typeof layer.getBounds === 'function' ? layer.getBounds() : null;
     }
 
     function registerPolyline(map, layer, descriptor) {
@@ -961,7 +1111,7 @@
         if (map && map._stravaRouteRenderer) {
             routeStyle.renderer = map._stravaRouteRenderer;
         }
-        const layer = window.L.polyline(latLngs || descriptor.coordinates, routeStyle).addTo(map);
+        const layer = window.L.polyline(latLngs || descriptor.renderCoordinates || descriptor.coordinates, routeStyle).addTo(map);
         layer.bindTooltip(descriptor.tooltipHtml, Object.assign({}, TOOLTIP_OPTIONS, descriptor.tooltipOptions || {}));
         applyHoverHandlers(layer, descriptor.style);
         registerPolyline(map, layer, descriptor);
@@ -969,7 +1119,7 @@
     }
 
     function renderActivityDescriptor(map, descriptor) {
-        return createPolylineLayer(map, descriptor, descriptor.coordinates);
+        return createPolylineLayer(map, descriptor, descriptor.renderCoordinates || descriptor.coordinates);
     }
 
     function renderActivityDescriptors(map, descriptors) {
@@ -1481,7 +1631,10 @@
         map._stravaBaseTileLayer.addTo(map);
         map._stravaPolylines = [];
         if (window.L.canvas) {
-            map._stravaRouteRenderer = window.L.canvas({ padding: 0.5 });
+            map._stravaRouteRenderer = window.L.canvas({
+                padding: 0.5,
+                tolerance: window.innerWidth <= 900 ? 18 : 12
+            });
         }
         return map;
     }
@@ -1622,7 +1775,10 @@
         }
         const bounds = window.L.latLngBounds([]);
         (layers || []).forEach(function (layer) {
-            bounds.extend(layer.getBounds());
+            const layerBounds = getLayerFullBounds(layer);
+            if (layerBounds && layerBounds.isValid && layerBounds.isValid()) {
+                bounds.extend(layerBounds);
+            }
         });
         return bounds;
     }
@@ -1694,6 +1850,7 @@
         getLineStyle: getLineStyle,
         decodePolyline: decodePolyline,
         normalizeRouteCoordinates: normalizeRouteCoordinates,
+        getMapRenderRouteCoordinates: getMapRenderRouteCoordinates,
         smoothRouteCoordinates: smoothRouteCoordinates,
         getActivityRouteCoordinates: getActivityRouteCoordinates,
         createDataAccumulator: createDataAccumulator,

@@ -27,7 +27,14 @@
         // Toggle the speed-based color palette overlay on or off globally.
         ENABLE_SPEED_COLOR_PALETTE: true,
         SPEED_COLOR_SCALE: DEFAULT_SPEED_COLOR_SCALE.slice(),
-        SPEED_COLOR_WEIGHTS: DEFAULT_SPEED_COLOR_WEIGHTS.slice()
+        SPEED_COLOR_WEIGHTS: DEFAULT_SPEED_COLOR_WEIGHTS.slice(),
+
+        // Render-only caps for the page-load animation. Stored route/stream data stays full density.
+        INTRO_MAX_POINTS_DESKTOP: 650,
+        INTRO_MAX_POINTS_MOBILE: 420,
+        INTRO_SIMPLIFICATION_TOLERANCE_METERS_DESKTOP: 5,
+        INTRO_SIMPLIFICATION_TOLERANCE_METERS_MOBILE: 8,
+        INTRO_MIN_FRAME_INTERVAL_MS: 33
     };
 
     function wait(ms) {
@@ -130,6 +137,189 @@
             cumulative.push(totalDistance);
         }
         return { cumulative: cumulative, totalDistance: totalDistance };
+    }
+
+    function isMobileViewport() {
+        return window.innerWidth <= 900;
+    }
+
+    function getIntroMaxPoints() {
+        const configured = isMobileViewport()
+            ? Number(StravaAnimated.INTRO_MAX_POINTS_MOBILE)
+            : Number(StravaAnimated.INTRO_MAX_POINTS_DESKTOP);
+        return Number.isFinite(configured) && configured >= 2 ? Math.round(configured) : 650;
+    }
+
+    function getIntroSimplificationToleranceMeters() {
+        const configured = isMobileViewport()
+            ? Number(StravaAnimated.INTRO_SIMPLIFICATION_TOLERANCE_METERS_MOBILE)
+            : Number(StravaAnimated.INTRO_SIMPLIFICATION_TOLERANCE_METERS_DESKTOP);
+        return Number.isFinite(configured) && configured > 0 ? configured : 5;
+    }
+
+    function getIntroFrameIntervalMs() {
+        const configured = Number(StravaAnimated.INTRO_MIN_FRAME_INTERVAL_MS);
+        return Number.isFinite(configured) && configured > 0 ? configured : 33;
+    }
+
+    function shouldOptimizeAnimationTimeline(options, pointCount) {
+        const opts = options || {};
+        return Boolean(
+            pointCount > 2
+            && (opts.performanceMode === 'intro' || opts.optimizeLongRoute)
+        );
+    }
+
+    function latLngToMeters(point, originLatitudeRadians) {
+        const earthRadiusMeters = 6371008.8;
+        const latitude = Number(point && point[0]);
+        const longitude = Number(point && point[1]);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return null;
+        }
+        return {
+            x: longitude * (Math.PI / 180) * earthRadiusMeters * Math.cos(originLatitudeRadians),
+            y: latitude * (Math.PI / 180) * earthRadiusMeters
+        };
+    }
+
+    function pointLineDistanceMeters(point, start, end) {
+        const originLatitudeRadians = ((Number(point[0]) + Number(start[0]) + Number(end[0])) / 3) * (Math.PI / 180);
+        const projectedPoint = latLngToMeters(point, originLatitudeRadians);
+        const projectedStart = latLngToMeters(start, originLatitudeRadians);
+        const projectedEnd = latLngToMeters(end, originLatitudeRadians);
+        if (!projectedPoint || !projectedStart || !projectedEnd) {
+            return 0;
+        }
+        const deltaX = projectedEnd.x - projectedStart.x;
+        const deltaY = projectedEnd.y - projectedStart.y;
+        if (deltaX === 0 && deltaY === 0) {
+            const pointDeltaX = projectedPoint.x - projectedStart.x;
+            const pointDeltaY = projectedPoint.y - projectedStart.y;
+            return Math.sqrt((pointDeltaX * pointDeltaX) + (pointDeltaY * pointDeltaY));
+        }
+        const ratio = Math.max(0, Math.min(1, (
+            ((projectedPoint.x - projectedStart.x) * deltaX)
+            + ((projectedPoint.y - projectedStart.y) * deltaY)
+        ) / ((deltaX * deltaX) + (deltaY * deltaY))));
+        const closestX = projectedStart.x + (deltaX * ratio);
+        const closestY = projectedStart.y + (deltaY * ratio);
+        const distanceX = projectedPoint.x - closestX;
+        const distanceY = projectedPoint.y - closestY;
+        return Math.sqrt((distanceX * distanceX) + (distanceY * distanceY));
+    }
+
+    function simplifyDouglasPeuckerIndices(points, toleranceMeters) {
+        const totalPoints = points.length;
+        if (totalPoints <= 2) {
+            return points.map(function (_, index) { return index; });
+        }
+        const keep = new Uint8Array(totalPoints);
+        const stack = [[0, totalPoints - 1]];
+        keep[0] = 1;
+        keep[totalPoints - 1] = 1;
+
+        while (stack.length) {
+            const range = stack.pop();
+            const startIndex = range[0];
+            const endIndex = range[1];
+            let maxDistance = -1;
+            let maxIndex = -1;
+
+            for (let index = startIndex + 1; index < endIndex; index += 1) {
+                const distance = pointLineDistanceMeters(points[index], points[startIndex], points[endIndex]);
+                if (distance > maxDistance) {
+                    maxDistance = distance;
+                    maxIndex = index;
+                }
+            }
+
+            if (maxIndex > startIndex && maxDistance > toleranceMeters) {
+                keep[maxIndex] = 1;
+                stack.push([startIndex, maxIndex]);
+                stack.push([maxIndex, endIndex]);
+            }
+        }
+
+        const indices = [];
+        for (let index = 0; index < totalPoints; index += 1) {
+            if (keep[index]) {
+                indices.push(index);
+            }
+        }
+        return indices;
+    }
+
+    function capIndicesEvenly(indices, maxPoints) {
+        if (indices.length <= maxPoints) {
+            return indices;
+        }
+        const capped = [indices[0]];
+        const seen = new Set(capped);
+        for (let slot = 1; slot < maxPoints - 1; slot += 1) {
+            const sourceIndex = Math.round((slot * (indices.length - 1)) / Math.max(maxPoints - 1, 1));
+            const value = indices[Math.max(0, Math.min(indices.length - 1, sourceIndex))];
+            if (!seen.has(value)) {
+                capped.push(value);
+                seen.add(value);
+            }
+        }
+        const last = indices[indices.length - 1];
+        if (!seen.has(last)) {
+            capped.push(last);
+        }
+        return capped.sort(function (left, right) { return left - right; });
+    }
+
+    function buildOptimizedTimeline(points, times, options) {
+        const opts = options || {};
+        const sourcePoints = Array.isArray(points) ? points : [];
+        const sourceTimes = normalizeTimelineTimes(sourcePoints, times, opts.fallbackDurationSeconds);
+        const maxPoints = Number.isFinite(Number(opts.maxPoints)) && Number(opts.maxPoints) >= 2
+            ? Math.round(Number(opts.maxPoints))
+            : getIntroMaxPoints();
+        const baseTolerance = Number.isFinite(Number(opts.toleranceMeters)) && Number(opts.toleranceMeters) > 0
+            ? Number(opts.toleranceMeters)
+            : getIntroSimplificationToleranceMeters();
+
+        if (!shouldOptimizeAnimationTimeline(opts, sourcePoints.length) || sourcePoints.length <= maxPoints) {
+            return {
+                points: sourcePoints,
+                times: sourceTimes,
+                sourcePoints: sourcePoints,
+                sourceTimes: sourceTimes,
+                sourceIndices: sourcePoints.map(function (_, index) { return index; }),
+                optimized: false
+            };
+        }
+
+        let tolerance = baseTolerance;
+        let indices = simplifyDouglasPeuckerIndices(sourcePoints, tolerance);
+        for (let attempt = 0; attempt < 10 && indices.length > maxPoints; attempt += 1) {
+            tolerance *= 1.45;
+            indices = simplifyDouglasPeuckerIndices(sourcePoints, tolerance);
+        }
+        indices = capIndicesEvenly(indices, maxPoints);
+        if (indices.length < 2) {
+            indices = [0, sourcePoints.length - 1];
+        }
+
+        return {
+            points: indices.map(function (index) { return sourcePoints[index]; }),
+            times: indices.map(function (index) { return sourceTimes[index]; }),
+            sourcePoints: sourcePoints,
+            sourceTimes: sourceTimes,
+            sourceIndices: indices,
+            optimized: true,
+            toleranceMeters: tolerance,
+            maxPoints: maxPoints
+        };
+    }
+
+    function simplifyTimelineForAnimation(points, times, options) {
+        return buildOptimizedTimeline(points, times, Object.assign({}, options || {}, {
+            optimizeLongRoute: true
+        }));
     }
 
     function getAnimationDurationMultiplier() {
@@ -285,15 +475,82 @@
         };
     }
 
+    function getTimelineFrameWithCursor(points, times, targetTime, cursorState) {
+        const normalizedPoints = Array.isArray(points) ? points : [];
+        const normalizedTimes = Array.isArray(times) ? times : normalizeTimelineTimes(normalizedPoints, [], 0);
+        const cursor = cursorState || {};
+        if (normalizedPoints.length < 2) {
+            return {
+                targetTime: 0,
+                totalTime: 0,
+                visibleCoordinates: normalizedPoints.slice(),
+                segmentIndex: 0,
+                nextIndex: 0,
+                segmentProgress: 1
+            };
+        }
+
+        const totalTime = normalizedTimes[normalizedTimes.length - 1] || 1;
+        const clampedTargetTime = Math.max(0, Math.min(totalTime, Number(targetTime || 0)));
+        let segmentIndex = Math.max(0, Math.min(normalizedPoints.length - 2, Number(cursor.segmentIndex || 0)));
+        if (normalizedTimes[segmentIndex] > clampedTargetTime) {
+            segmentIndex = 0;
+        }
+
+        while (segmentIndex < normalizedTimes.length - 1 && normalizedTimes[segmentIndex + 1] < clampedTargetTime) {
+            segmentIndex += 1;
+        }
+        cursor.segmentIndex = segmentIndex;
+
+        const nextIndex = Math.min(segmentIndex + 1, normalizedPoints.length - 1);
+        const startTime = normalizedTimes[segmentIndex];
+        const endTime = normalizedTimes[nextIndex];
+        const segmentDuration = endTime - startTime;
+        const segmentProgress = segmentDuration <= 0 ? 1 : (clampedTargetTime - startTime) / segmentDuration;
+        const visibleCoordinates = normalizedPoints.slice(0, nextIndex);
+        visibleCoordinates.push(interpolatePoint(
+            normalizedPoints[segmentIndex],
+            normalizedPoints[nextIndex],
+            Math.max(0, Math.min(1, segmentProgress))
+        ));
+
+        return {
+            targetTime: clampedTargetTime,
+            totalTime: totalTime,
+            visibleCoordinates: visibleCoordinates,
+            segmentIndex: segmentIndex,
+            nextIndex: nextIndex,
+            segmentProgress: Math.max(0, Math.min(1, segmentProgress))
+        };
+    }
+
     function animateTimedRoute(options) {
         const opts = options || {};
-        const points = Array.isArray(opts.points) ? opts.points : [];
-        const times = normalizeTimelineTimes(points, opts.times, opts.fallbackDurationSeconds);
+        const sourcePoints = Array.isArray(opts.points) ? opts.points : [];
+        const sourceTimes = normalizeTimelineTimes(sourcePoints, opts.times, opts.fallbackDurationSeconds);
+        const renderTimeline = buildOptimizedTimeline(sourcePoints, sourceTimes, opts);
+        const points = renderTimeline.points;
+        const times = renderTimeline.times;
         const totalTime = times[times.length - 1] || 1;
         const durationMs = typeof opts.durationMs === 'number' ? opts.durationMs : 1000;
+        const minFrameIntervalMs = shouldOptimizeAnimationTimeline(opts, sourcePoints.length) ? getIntroFrameIntervalMs() : 0;
 
         return new Promise(function (resolve) {
             let startTime = null;
+            let lastRenderedAt = 0;
+            let lastFrameKey = '';
+            const cursorState = { segmentIndex: 0 };
+
+            function decorateFrame(frame, progress) {
+                frame.progress = progress;
+                frame.points = points;
+                frame.times = times;
+                frame.sourcePoints = sourcePoints;
+                frame.sourceTimes = sourceTimes;
+                frame.sourceIndices = renderTimeline.sourceIndices;
+                frame.optimized = renderTimeline.optimized;
+                return frame;
+            }
 
             function step(timestamp) {
                 if (startTime === null) {
@@ -304,10 +561,7 @@
                 }
 
                 if (typeof opts.shouldCancel === 'function' && opts.shouldCancel()) {
-                    const frame = getTimelineFrame(points, times, totalTime);
-                    frame.progress = 1;
-                    frame.points = points;
-                    frame.times = times;
+                    const frame = decorateFrame(getTimelineFrameWithCursor(points, times, totalTime, cursorState), 1);
                     if (typeof opts.onFrame === 'function') {
                         opts.onFrame(frame);
                     }
@@ -320,13 +574,21 @@
 
                 const progress = Math.min(1, (timestamp - startTime) / Math.max(durationMs, 1));
                 const targetTime = totalTime * progress;
-                const frame = getTimelineFrame(points, times, targetTime);
-                frame.progress = progress;
-                frame.points = points;
-                frame.times = times;
+                const shouldRender = progress >= 1
+                    || lastRenderedAt === 0
+                    || !minFrameIntervalMs
+                    || timestamp - lastRenderedAt >= minFrameIntervalMs;
 
-                if (typeof opts.onFrame === 'function') {
-                    opts.onFrame(frame);
+                if (shouldRender) {
+                    const frame = decorateFrame(getTimelineFrameWithCursor(points, times, targetTime, cursorState), progress);
+                    const frameKey = frame.nextIndex + ':' + Math.round(frame.segmentProgress * 30);
+                    if (progress >= 1 || frameKey !== lastFrameKey) {
+                        lastFrameKey = frameKey;
+                        lastRenderedAt = timestamp;
+                        if (typeof opts.onFrame === 'function') {
+                            opts.onFrame(frame);
+                        }
+                    }
                 }
 
                 if (progress < 1) {
@@ -334,13 +596,14 @@
                     return;
                 }
 
+                const frame = decorateFrame(getTimelineFrameWithCursor(points, times, totalTime, cursorState), 1);
                 if (typeof opts.onComplete === 'function') {
                     opts.onComplete(frame);
                 }
                 resolve(frame);
             }
 
-            if (!points.length) {
+            if (!sourcePoints.length) {
                 resolve({ targetTime: 0, totalTime: 0, visibleCoordinates: [], progress: 1, points: [], times: [] });
                 return;
             }
@@ -412,6 +675,7 @@
     StravaAnimated.animateRecentDescriptors = animateRecentDescriptors;
     StravaAnimated.animateTimedRoute = animateTimedRoute;
     StravaAnimated.getTimelineFrame = getTimelineFrame;
+    StravaAnimated.simplifyTimelineForAnimation = simplifyTimelineForAnimation;
     StravaAnimated.getDurationMs = getDurationMs;
     StravaAnimated.getBaseLineWeightMultiplier = getBaseLineWeightMultiplier;
     StravaAnimated.getSpeedPalette = getSpeedPalette;

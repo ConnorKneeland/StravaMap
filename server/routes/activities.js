@@ -16,13 +16,38 @@ const {
 
 const router = express.Router();
 
+function parseCsvList(value) {
+    if (Array.isArray(value)) {
+        return value.flatMap(parseCsvList);
+    }
+    return String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
 function buildActivityFilter(query) {
     const filter = {};
-    if (query.user) {
-        filter.user_slug = query.user;
+    const users = parseCsvList(query.users || query.user).map((slug) => slug.toLowerCase());
+    if (users.length === 1) {
+        filter.user_slug = users[0];
+    } else if (users.length > 1) {
+        filter.user_slug = { $in: users };
     }
-    if (query.type) {
-        filter.type = query.type;
+    const types = parseCsvList(query.types || query.type);
+    if (types.length === 1) {
+        filter.type = types[0];
+    } else if (types.length > 1) {
+        filter.type = { $in: types };
+    }
+    if (query.city) {
+        filter.location_city = query.city;
+    }
+    if (query.state || query.regionState) {
+        filter.location_state = query.state || query.regionState;
+    }
+    if (query.country) {
+        filter.location_country = query.country;
     }
     if (query.from || query.to) {
         filter.start_date = {};
