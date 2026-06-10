@@ -62,7 +62,8 @@
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app'
+                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
+                requestTimeoutMs: isLocalHost ? 600000 : 30000
             }, existingConfig);
         }());
     </script>
@@ -74,7 +75,7 @@
         const participantList = document.getElementById('participant-list');
         const activityTypeList = document.getElementById('activity-type-list');
         const competitionList = document.getElementById('competition-list');
-        const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
+        const runtimeDataSource = StravaApp.createRuntimeDataSource(window.STRAVA_CONFIG);
 
         window.addEventListener('strava:backend-fallback', function (event) {
             console.warn('Falling back to local competition storage', event.detail);

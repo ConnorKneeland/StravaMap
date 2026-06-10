@@ -1863,7 +1863,8 @@
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app'
+                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
+                requestTimeoutMs: isLocalHost ? 600000 : 30000
             }, existingConfig);
         }());
     </script>
@@ -2048,7 +2049,7 @@
         const collectionPlaybackMembership = document.getElementById('collection-playback-membership');
         const introKpiPanel = document.getElementById('intro-kpi-panel');
         const splashText = document.getElementById('splash-text');
-        const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
+        const runtimeDataSource = StravaApp.createRuntimeDataSource(window.STRAVA_CONFIG);
 
         function getBackendSourceLabel() {
             return runtimeDataSource.apiBase && runtimeDataSource.apiBase.indexOf('localhost') !== -1

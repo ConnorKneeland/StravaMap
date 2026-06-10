@@ -1284,7 +1284,9 @@
         const apiBase = opts.apiBase || '';
         const cooldownMs = Number(opts.cooldownMs) || 300000;
         const isLocalApiBase = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(apiBase);
-        const requestTimeoutMs = Number(opts.requestTimeoutMs) || (isLocalApiBase ? 600000 : 4500);
+        const allowDirectFallback = opts.allowDirectFallback !== false;
+        const rememberBackendFailures = opts.rememberBackendFailures === true;
+        const requestTimeoutMs = Number(opts.requestTimeoutMs) || (isLocalApiBase ? 600000 : 30000);
         const disabledUntilKey = opts.disabledUntilKey || 'strava_backend_disabled_until';
         const disabledReasonKey = opts.disabledReasonKey || 'strava_backend_disabled_reason';
         const storage = window.sessionStorage;
@@ -1309,7 +1311,7 @@
         }
 
         function persistDisabledState(reason) {
-            if (!storage || !apiBase || isLocalApiBase) {
+            if (!rememberBackendFailures || !storage || !apiBase || isLocalApiBase) {
                 return;
             }
             storage.setItem(disabledUntilKey, String(Date.now() + cooldownMs));
@@ -1329,7 +1331,11 @@
             }));
         }
 
-        if (apiBase && !isLocalApiBase) {
+        if (apiBase && !isLocalApiBase && !rememberBackendFailures) {
+            clearDisabledState();
+        }
+
+        if (apiBase && !isLocalApiBase && allowDirectFallback && rememberBackendFailures) {
             const disabledUntil = readDisabledUntil();
             if (disabledUntil > Date.now()) {
                 mode = 'direct';
@@ -1356,6 +1362,10 @@
                 return;
             }
             fallbackReason = reason || 'Backend unavailable';
+            if (!allowDirectFallback) {
+                dispatchFallbackEvent(fallbackReason, 'manual');
+                return;
+            }
             mode = 'direct';
             persistDisabledState(fallbackReason);
             dispatchFallbackEvent(fallbackReason, 'manual');
@@ -1363,6 +1373,9 @@
 
         function runWithFallback(label, backendFn, fallbackFn) {
             if (!isBackendEnabled()) {
+                if (!allowDirectFallback && apiBase) {
+                    return Promise.reject(new Error(getFallbackReason() || 'Backend API is unavailable.'));
+                }
                 return Promise.resolve().then(function () {
                     return fallbackFn();
                 });
@@ -1370,7 +1383,7 @@
             return Promise.resolve().then(function () {
                 return backendFn({ timeoutMs: requestTimeoutMs });
             }).catch(function (error) {
-                if (!fallbackFn || !shouldFallbackForBackendError(error)) {
+                if (!fallbackFn || !allowDirectFallback || !shouldFallbackForBackendError(error)) {
                     throw error;
                 }
                 fallbackReason = formatBackendFallbackReason(label, error);

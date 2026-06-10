@@ -249,7 +249,8 @@
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app'
+                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
+                requestTimeoutMs: isLocalHost ? 600000 : 30000
             }, existingConfig);
         }());
     </script>
@@ -259,7 +260,7 @@
         const userCountValue = document.getElementById('summary-user-count');
         const modeValue = document.getElementById('summary-mode');
         const accountGrid = document.getElementById('account-grid');
-        const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
+        const runtimeDataSource = StravaApp.createRuntimeDataSource(window.STRAVA_CONFIG);
 
         function renderAccountCards(backendUsers) {
             const backendUsersBySlug = new Map((backendUsers || []).map(function (user) {

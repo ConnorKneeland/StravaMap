@@ -356,14 +356,15 @@
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app'
+                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
+                requestTimeoutMs: isLocalHost ? 600000 : 30000
             }, existingConfig);
         }());
     </script>
     <script src="js/strava_shared.js"></script>
     <script src="js/strava_animated.js"></script>
     <script>
-        const runtimeDataSource = StravaApp.createRuntimeDataSource({ apiBase: window.STRAVA_CONFIG.apiBase });
+        const runtimeDataSource = StravaApp.createRuntimeDataSource(window.STRAVA_CONFIG);
         const allUserSlugs = Object.keys(StravaApp.USER_CONFIGS || {}).sort(function (left, right) {
             return StravaApp.USER_CONFIGS[left].displayName.localeCompare(StravaApp.USER_CONFIGS[right].displayName);
         });
