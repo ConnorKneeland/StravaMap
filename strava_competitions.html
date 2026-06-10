@@ -69,7 +69,9 @@
     </script>
     <script src="js/strava_shared.js"></script>
     <script>
-        const userOrder = ['connor', 'tim', 'quinn'];
+        const userOrder = Object.keys(StravaApp.USER_CONFIGS || {}).sort(function (left, right) {
+            return StravaApp.USER_CONFIGS[left].displayName.localeCompare(StravaApp.USER_CONFIGS[right].displayName);
+        });
         const commonTypes = ['run', 'ride', 'swim', 'walk', 'alpineski', 'backcountryski', 'nordicski', 'snowboard', 'golf'];
         const form = document.getElementById('competition-form');
         const participantList = document.getElementById('participant-list');

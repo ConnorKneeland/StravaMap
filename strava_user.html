@@ -1605,7 +1605,54 @@
             .trigger-label{ font-size:10px; }
             .trigger-value{ font-size:15px; max-width:118px; }
             .nav-button{ font-size:15px; padding:9px 12px; }
-            #details-panel{ width:75vw; min-width:0; }
+            #details-panel{
+                top:auto;
+                left:0;
+                right:0;
+                bottom:0;
+                width:100vw;
+                min-width:0;
+                height:min(58vh, 560px);
+                max-height:calc(100vh - var(--nav-height) - 12px);
+                border-left:none;
+                border-top:1px solid var(--border);
+                border-radius:18px 18px 0 0;
+                box-shadow:0 -18px 42px rgba(0,0,0,0.38);
+                transform:translateY(100%);
+            }
+            #details-panel.is-open{
+                transform:translateY(0);
+            }
+            .details-header{
+                padding:12px 14px 10px;
+            }
+            .details-header-left{
+                gap:10px;
+            }
+            #details-close{
+                width:40px;
+                height:40px;
+                flex:0 0 auto;
+            }
+            #details-title{
+                font-size:20px;
+            }
+            #details-subtitle{
+                font-size:14px;
+            }
+            #details-body{
+                padding:12px 14px max(18px, env(safe-area-inset-bottom));
+                gap:10px;
+            }
+            .details-card{
+                border-radius:12px;
+                padding:12px;
+            }
+            .details-action,
+            #details-playback,
+            #details-replay{
+                min-height:42px;
+            }
         }
         @media(max-width:680px){
             #title-slot{ max-width:180px; }
@@ -1682,8 +1729,34 @@
             }
             .map-action-stack{
                 left:14px;
-                bottom:14px;
+                bottom:max(14px, env(safe-area-inset-bottom));
                 gap:7px;
+            }
+            .collection-playback{
+                left:10px;
+                right:10px;
+                bottom:max(10px, env(safe-area-inset-bottom));
+                width:auto;
+                max-height:min(54vh, 430px);
+                overflow:auto;
+                padding:12px;
+                gap:10px;
+            }
+            .collection-playback-actions{
+                display:grid;
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+            }
+            .collection-playback-actions button,
+            .collection-details-toggle{
+                min-height:42px;
+            }
+            .collections-panel{
+                left:10px;
+                right:10px;
+                bottom:max(10px, env(safe-area-inset-bottom));
+                width:auto;
+                max-height:min(62vh, 520px);
+                padding:12px;
             }
             .nav-palette-control{
                 gap:7px;
@@ -5374,10 +5447,33 @@
         }
 
         function getDetailsPanelWidth() {
-            if (window.innerWidth <= 900) {
-                return Math.round(window.innerWidth * 0.75);
+            if (isMobileLayout()) {
+                return 0;
             }
             return Math.min(Math.round(window.innerWidth * 0.25), 420);
+        }
+
+        function getDetailsPanelHeight() {
+            if (!isMobileLayout() || !detailsPanelIsOpen()) {
+                return 0;
+            }
+            return Math.ceil(detailsPanel.getBoundingClientRect().height || 0);
+        }
+
+        function isMobileLayout() {
+            return window.innerWidth <= 900;
+        }
+
+        function getWorkoutFitMaxZoom() {
+            return isMobileLayout() ? 17 : 15;
+        }
+
+        function getIntroFitMaxZoom(lineStyle) {
+            return lineStyle && lineStyle.isMobile ? 16 : 15;
+        }
+
+        function getFilteredFitMaxZoom() {
+            return isMobileLayout() ? 15 : 13;
         }
 
         function getPlaybackPanelWidth() {
@@ -5393,14 +5489,15 @@
         }
 
         function getCollectionPlaybackFitOptions() {
-            const sidePadding = window.innerWidth <= 900 ? 24 : 42;
+            const isMobile = isMobileLayout();
+            const sidePadding = isMobile ? 14 : 42;
             return {
-                paddingTopLeft: [sidePadding, 28],
+                paddingTopLeft: [sidePadding, isMobile ? 14 : 28],
                 paddingBottomRight: [
                     (detailsPanelIsOpen() ? getDetailsPanelWidth() : 0) + sidePadding,
-                    getPlaybackPanelHeight() + 28
+                    getPlaybackPanelHeight() + (isMobile ? 14 : 28)
                 ],
-                maxZoom: 15
+                maxZoom: getWorkoutFitMaxZoom()
             };
         }
 
@@ -5430,10 +5527,18 @@
                 return;
             }
             suspendRouteCulling(1200);
+            if (isMobileLayout()) {
+                state.map.fitBounds(bounds, {
+                    paddingTopLeft: [14, 14],
+                    paddingBottomRight: [14, getDetailsPanelHeight() + 14],
+                    maxZoom: getWorkoutFitMaxZoom()
+                });
+                return;
+            }
             state.map.fitBounds(bounds, {
                 paddingTopLeft: [28, 28],
                 paddingBottomRight: [getDetailsPanelWidth() + 28, 28],
-                maxZoom: 15
+                maxZoom: getWorkoutFitMaxZoom()
             });
         }
 
@@ -7933,7 +8038,10 @@
                 return;
             }
             suspendRouteCulling(1800);
-            StravaApp.fitMapToLayers(state.map, matchingLayers, { padding: [36, 36], maxZoom: 13 });
+            StravaApp.fitMapToLayers(state.map, matchingLayers, {
+                padding: isMobileLayout() ? [22, 22] : [36, 36],
+                maxZoom: getFilteredFitMaxZoom()
+            });
             if (typeof state.map.once === 'function') {
                 state.map.once('moveend', function () {
                     window.setTimeout(refreshVisibleRouteCulling, 120);
@@ -8416,8 +8524,8 @@
                 return Promise.resolve();
             }
             state.map.fitBounds(selection.bounds, {
-                padding: lineStyle.isMobile ? [16, 16] : [24, 24],
-                maxZoom: lineStyle.isMobile ? 14 : 15
+                padding: lineStyle.isMobile ? [12, 12] : [24, 24],
+                maxZoom: getIntroFitMaxZoom(lineStyle)
             });
             return StravaApp.wait(400);
         }
