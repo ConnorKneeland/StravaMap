@@ -9,6 +9,7 @@ const {
     STRAVA_STREAM_REGISTRY,
     normalizeStreamRequest
 } = require('../stream_config');
+const ActivityTypes = require('../../js/strava_activity_types');
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API_BASE_URL = 'https://www.strava.com/api/v3';
 const SYNC_OVERLAP_MS = 24 * 60 * 60 * 1000;
@@ -201,6 +202,7 @@ function transformSummaryActivity(user, activity) {
         name: normalizeString(activity.name),
         type: normalizeString(activity.type),
         sport_type: normalizeString(activity.sport_type),
+        activity_type_key: ActivityTypes.normalizeActivityTypeKey(activity),
         start_date: normalizeString(activity.start_date),
         start_date_local: normalizeString(activity.start_date_local),
         timezone: normalizeString(activity.timezone),

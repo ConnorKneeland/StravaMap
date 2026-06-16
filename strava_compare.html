@@ -150,6 +150,7 @@
             font:inherit;
         }
         .field option{ color:#000; }
+        .field option.empty-count{ color:#64748b; }
         .leaderboard-list{
             display:grid;
             gap:8px;
@@ -361,6 +362,7 @@
             }, existingConfig);
         }());
     </script>
+    <script src="js/strava_activity_types.js"></script>
     <script src="js/strava_shared.js"></script>
     <script src="js/strava_animated.js"></script>
     <script>
@@ -469,9 +471,13 @@
             blank.textContent = placeholder;
             select.appendChild(blank);
             values.forEach(function (value) {
+                const entry = value && typeof value === 'object' ? value : { value: value, label: value };
                 const option = document.createElement('option');
-                option.value = value;
-                option.textContent = value;
+                option.value = entry.value;
+                option.textContent = entry.label;
+                if (entry.zeroCount) {
+                    option.className = 'empty-count';
+                }
                 select.appendChild(option);
             });
         }
@@ -560,7 +566,13 @@
             const filteredByUsers = state.activities.filter(function (activity) {
                 return state.filters.users.has(String(activity.user_slug || '').toLowerCase());
             });
-            addSelectOptions(typeFilter, StravaApp.getDetectedTypes(filteredByUsers), 'All types');
+            addSelectOptions(typeFilter, StravaApp.getActivityTypeOptions(filteredByUsers).map(function (entry) {
+                return {
+                    value: entry.key,
+                    label: entry.label + ' (' + entry.count + ')',
+                    zeroCount: !entry.count
+                };
+            }), 'All types');
             addSelectOptions(cityFilter, Array.from(new Set(filteredByUsers.map(function (activity) {
                 return locationValue(activity, 'city');
             }).filter(Boolean))).sort(), 'All cities');
@@ -671,7 +683,7 @@
             detailsBody.innerHTML = ''
                 + "<div class='details-card'><div class='details-card-title'>Overview</div><div class='details-grid'>"
                 + detailRow('User', config.displayName || activity.user_slug || 'Unknown')
-                + detailRow('Workout', activity.type || StravaApp.getActivityLabel(StravaApp.normalizeActivityType(activity)))
+                + detailRow('Workout', StravaApp.getActivityLabel(StravaApp.normalizeActivityType(activity)))
                 + detailRow('Started', formatStart(activity))
                 + detailRow('Distance', formatDistance(activity))
                 + detailRow('Time', StravaApp.formatTime(Number(activity.elapsed_time || 0)))

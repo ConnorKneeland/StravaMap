@@ -10,13 +10,14 @@
     const StravaAnimated = {
         ANIMATE_COUNT: 1,
         CLUSTER_DISTANCE_MILES: 18,
-        POST_ANIMATION_DELAY_MS: 3000,
-        MIN_DURATION_MS: 4000,
+        POST_ANIMATION_DELAY_MS: 1000,
+        MIN_DURATION_MS: 10000,
         MAX_DURATION_MS: 30000,
         DURATION_PER_SECOND: 1.1,
+        MOBILE_INTRO_DURATION_MULTIPLIER: 1.10,
         
         // Higher values make the route animation take longer.
-        ANIMATION_DURATION_MULTIPLIER: 5,
+        ANIMATION_DURATION_MULTIPLIER: 30,
 
         // Higher values make the standard non-selected routes thicker.
         BASE_LINE_WEIGHT_MULTIPLIER: 1,
@@ -30,11 +31,11 @@
         SPEED_COLOR_WEIGHTS: DEFAULT_SPEED_COLOR_WEIGHTS.slice(),
 
         // Render-only caps for the page-load animation. Stored route/stream data stays full density.
-        INTRO_MAX_POINTS_DESKTOP: 650,
-        INTRO_MAX_POINTS_MOBILE: 420,
+        INTRO_MAX_POINTS_DESKTOP: 1200,
+        INTRO_MAX_POINTS_MOBILE: 550,
         INTRO_SIMPLIFICATION_TOLERANCE_METERS_DESKTOP: 5,
         INTRO_SIMPLIFICATION_TOLERANCE_METERS_MOBILE: 8,
-        INTRO_MIN_FRAME_INTERVAL_MS: 33
+        INTRO_MIN_FRAME_INTERVAL_MS: 30
     };
 
     function wait(ms) {
@@ -250,14 +251,44 @@
         return indices;
     }
 
-    function capIndicesEvenly(indices, maxPoints) {
+    function normalizeRequiredIndices(indices, totalPoints) {
+        const seen = new Set();
+        return (Array.isArray(indices) ? indices : []).map(function (value) {
+            const index = Math.round(Number(value));
+            return Number.isFinite(index) ? Math.max(0, Math.min(totalPoints - 1, index)) : null;
+        }).filter(function (index) {
+            if (index === null || seen.has(index)) {
+                return false;
+            }
+            seen.add(index);
+            return true;
+        }).sort(function (left, right) { return left - right; });
+    }
+
+    function mergeSortedIndices(left, right) {
+        const seen = new Set();
+        return (left || []).concat(right || []).filter(function (index) {
+            if (seen.has(index)) {
+                return false;
+            }
+            seen.add(index);
+            return true;
+        }).sort(function (first, second) { return first - second; });
+    }
+
+    function capIndicesEvenly(indices, maxPoints, requiredIndices) {
         if (indices.length <= maxPoints) {
             return indices;
         }
-        const capped = [indices[0]];
+        const required = normalizeRequiredIndices(requiredIndices, indices[indices.length - 1] + 1);
+        if (required.length >= maxPoints) {
+            return capIndicesEvenly(required, maxPoints, []);
+        }
+        const capped = required.length ? required.slice() : [indices[0]];
         const seen = new Set(capped);
-        for (let slot = 1; slot < maxPoints - 1; slot += 1) {
-            const sourceIndex = Math.round((slot * (indices.length - 1)) / Math.max(maxPoints - 1, 1));
+        const slotsToFill = Math.max(0, maxPoints - capped.length);
+        for (let slot = 1; slot <= slotsToFill; slot += 1) {
+            const sourceIndex = Math.round((slot * (indices.length - 1)) / Math.max(slotsToFill + 1, 1));
             const value = indices[Math.max(0, Math.min(indices.length - 1, sourceIndex))];
             if (!seen.has(value)) {
                 capped.push(value);
@@ -265,7 +296,7 @@
             }
         }
         const last = indices[indices.length - 1];
-        if (!seen.has(last)) {
+        if (capped.length < maxPoints && !seen.has(last)) {
             capped.push(last);
         }
         return capped.sort(function (left, right) { return left - right; });
@@ -293,13 +324,18 @@
             };
         }
 
+        const requiredIndices = mergeSortedIndices(
+            [0, sourcePoints.length - 1],
+            normalizeRequiredIndices(opts.requiredIndices, sourcePoints.length)
+        );
         let tolerance = baseTolerance;
         let indices = simplifyDouglasPeuckerIndices(sourcePoints, tolerance);
         for (let attempt = 0; attempt < 10 && indices.length > maxPoints; attempt += 1) {
             tolerance *= 1.45;
             indices = simplifyDouglasPeuckerIndices(sourcePoints, tolerance);
         }
-        indices = capIndicesEvenly(indices, maxPoints);
+        indices = mergeSortedIndices(indices, requiredIndices);
+        indices = capIndicesEvenly(indices, maxPoints, requiredIndices);
         if (indices.length < 2) {
             indices = [0, sourcePoints.length - 1];
         }
@@ -397,6 +433,16 @@
             * getAnimationDurationMultiplier()
             / getActivityAnimationSpeedMultiplier(activity);
         return Math.max(StravaAnimated.MIN_DURATION_MS, Math.min(StravaAnimated.MAX_DURATION_MS, rawDuration));
+    }
+
+    function getMobileIntroDurationMultiplier() {
+        const multiplier = Number(StravaAnimated.MOBILE_INTRO_DURATION_MULTIPLIER);
+        return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+    }
+
+    function getIntroDurationMs(activity) {
+        const baseDuration = getDurationMs(activity || {});
+        return isMobileViewport() ? Math.round(baseDuration * getMobileIntroDurationMultiplier()) : baseDuration;
     }
 
     function normalizeTimelineTimes(points, times, fallbackDurationSeconds) {
@@ -621,6 +667,8 @@
             }
 
             const layer = window.StravaApp.createPolylineLayer(map, descriptor, [coordinates[0]]);
+            layer._routeAnimationActive = true;
+            layer._suppressRouteInteractions = true;
             const lookup = buildDistanceLookup(coordinates);
             const durationMs = getDurationMs(descriptor.activity);
             let startTime = null;
@@ -657,6 +705,8 @@
                 }
 
                 layer.setLatLngs(coordinates);
+                layer._routeAnimationActive = false;
+                layer._suppressRouteInteractions = false;
                 resolve(layer);
             }
 
@@ -677,6 +727,8 @@
     StravaAnimated.getTimelineFrame = getTimelineFrame;
     StravaAnimated.simplifyTimelineForAnimation = simplifyTimelineForAnimation;
     StravaAnimated.getDurationMs = getDurationMs;
+    StravaAnimated.getIntroDurationMs = getIntroDurationMs;
+    StravaAnimated.getMobileIntroDurationMultiplier = getMobileIntroDurationMultiplier;
     StravaAnimated.getBaseLineWeightMultiplier = getBaseLineWeightMultiplier;
     StravaAnimated.getSpeedPalette = getSpeedPalette;
     StravaAnimated.getSpeedPaletteWeights = getSpeedPaletteWeights;

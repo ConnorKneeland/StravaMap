@@ -12,6 +12,7 @@ const activitySchema = new mongoose.Schema({
     name: { type: String, required: true },
     type: { type: String, index: true },
     sport_type: { type: String },
+    activity_type_key: { type: String, index: true },
     start_date: { type: Date, index: true },
     start_date_local: { type: String },
     timezone: { type: String },

@@ -2,6 +2,7 @@ const express = require('express');
 const { isMongoConnected, memoryStore, wrapModel } = require('../db');
 const getCompetitionModel = require('../models/competition');
 const { getActivityStore } = require('../services/sync');
+const ActivityTypes = require('../../js/strava_activity_types');
 
 const router = express.Router();
 
@@ -13,9 +14,6 @@ async function buildLeaderboard(competition) {
     const filter = {
         user_slug: { $in: competition.participants || [] }
     };
-    if (competition.activity_types && competition.activity_types.length) {
-        filter.type = { $in: competition.activity_types };
-    }
     if (competition.date_start || competition.date_end) {
         filter.start_date = {};
         if (competition.date_start) {
@@ -25,7 +23,12 @@ async function buildLeaderboard(competition) {
             filter.start_date.$lte = competition.date_end;
         }
     }
-    const activities = await getActivityStore().find(filter, { sort: { start_date: -1 } });
+    const requestedTypeKeys = Array.from(new Set((competition.activity_types || [])
+        .map((type) => ActivityTypes.normalizeActivityTypeKey(type))
+        .filter(Boolean)));
+    const activities = (await getActivityStore().find(filter, { sort: { start_date: -1 } })).filter((activity) => {
+        return !requestedTypeKeys.length || requestedTypeKeys.includes(ActivityTypes.normalizeActivityTypeKey(activity));
+    });
     const totals = {};
     activities.forEach((activity) => {
         const slug = activity.user_slug;

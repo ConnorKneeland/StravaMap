@@ -1,60 +1,7 @@
-const CYCLING_TYPES = new Set([
-    'ride',
-    'gravelride',
-    'mountainbikeride',
-    'virtualride',
-    'ebikeride',
-    'emountainbikeride',
-    'velomobile',
-    'handcycle'
-]);
-
-const RUNNING_TYPES = new Set([
-    'run',
-    'trailrun',
-    'virtualrun'
-]);
-
-const CATEGORY_LABELS = {
-    cycling: 'Cycling',
-    running: 'Running',
-    swim: 'Swimming',
-    walk: 'Walking',
-    hike: 'Hiking',
-    workout: 'Workout',
-    weighttraining: 'Weight Training',
-    yoga: 'Yoga',
-    golf: 'Golf',
-    other: 'Other'
-};
-
-function normalizeActivityType(value) {
-    return String(value || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-}
-
-function titleCaseType(value) {
-    const text = String(value || 'Other').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ');
-    return text.split(/\s+/).filter(Boolean).map((part) => {
-        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-    }).join(' ') || 'Other';
-}
+const ActivityTypes = require('../js/strava_activity_types');
 
 function getActivityKpiCategory(activity) {
-    const rawType = activity && (activity.sport_type || activity.type);
-    const type = normalizeActivityType(rawType);
-    if (CYCLING_TYPES.has(type)) {
-        return { key: 'cycling', label: CATEGORY_LABELS.cycling };
-    }
-    if (RUNNING_TYPES.has(type)) {
-        return { key: 'running', label: CATEGORY_LABELS.running };
-    }
-    if (CATEGORY_LABELS[type]) {
-        return { key: type, label: CATEGORY_LABELS[type] };
-    }
-    return {
-        key: type || 'other',
-        label: titleCaseType(rawType || type || 'Other')
-    };
+    return ActivityTypes.getActivityTypeCategory(activity || {});
 }
 
 function getActivityKpiValues(activity) {

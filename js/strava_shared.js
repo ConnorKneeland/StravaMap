@@ -10,7 +10,7 @@
     const MAPBOX_DARK_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MOBILE_REGEX = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
     const MAP_RENDER_ROUTE_CONFIG = {
-        maxPointsDesktop: 900,
+        maxPointsDesktop: 1200,
         maxPointsMobile: 650,
         toleranceMetersDesktop: 4,
         toleranceMetersMobile: 7
@@ -40,182 +40,19 @@
         speed: ['latlng', 'velocity_smooth', 'time'],
         full: Object.keys(STRAVA_STREAM_REGISTRY)
     });
-    const SUMMARY_LABEL_MAP = {
-        run: 'Run',
-        trailrun: 'Trail Run',
-        virtualrun: 'Virtual Run',
-        walk: 'Walk',
-        ride: 'Cycling',
-        mountainbikeride: 'Mountain Biking',
-        gravelride: 'Gravel Ride',
-        ebikeride: 'Cycling',
-        emountainbikeride: 'Mountain Biking',
-        velomobile: 'Velomobile',
-        virtualride: 'Virtual Ride',
-        swim: 'Swimming',
-        canoe: 'Canoe',
-        kayak: 'Kayak',
-        kayaking: 'Kayaking',
-        kitesurf: 'Kitesurf',
-        rowing: 'Rowing',
-        standuppaddling: 'Paddleboarding',
-        surf: 'Surfing',
-        windsurf: 'Windsurf',
-        sail: 'Sailing',
-        alpineski: 'Skiing',
-        backcountryski: 'Skiing',
-        nordicski: 'Skiing',
-        snowboard: 'Snowboard',
-        snowshoe: 'Snowshoe',
-        iceskate: 'Ice Skate',
-        inlineskate: 'Inline Skate',
-        skateboard: 'Skateboard',
-        rockclimb: 'Rock Climb',
-        rollerski: 'Roller Ski',
-        handcycle: 'Handcycle',
-        soccer: 'Soccer',
-        golf: 'Golf',
-        wheelchair: 'Wheelchair',
-        badminton: 'Badminton',
-        tennis: 'Tennis',
-        pickleball: 'Pickleball',
-        tabletennis: 'Table Tennis',
-        squash: 'Squash',
-        hiit: 'HIIT',
-        pilates: 'Pilates',
-        yoga: 'Yoga',
-        weighttraining: 'Indoor Training',
-        crossfit: 'Indoor Training',
-        elliptical: 'Indoor Training',
-        stairstepper: 'Indoor Training',
-        workout: 'Indoor Training'
-    };
-    const SUMMARY_COLOR_MAP = {
-        run: '#ff412e',
-        trailrun: '#393b79',
-        virtualrun: '#2ca02c',
-        walk: '#000000',
-        ride: '#F28E2B',
-        mountainbikeride: '#9467bd',
-        gravelride: '#8c564b',
-        ebikeride: '#e377c2',
-        emountainbikeride: '#7f7f7f',
-        velomobile: '#bcbd22',
-        virtualride: '#17becf',
-        swim: '#1f77b4',
-        canoe: '#5254a3',
-        kayak: '#6b6ecf',
-        kayaking: '#6b6ecf',
-        kitesurf: '#9c9ede',
-        rowing: '#637939',
-        standuppaddling: '#8ca252',
-        surf: '#b5cf6b',
-        windsurf: '#cedb9c',
-        sail: '#8c6d31',
-        alpineski: '#5f99cf',
-        backcountryski: '#5f99cf',
-        nordicski: '#5f99cf',
-        snowboard: '#843c39',
-        snowshoe: '#a55194',
-        iceskate: '#ce6dbd',
-        inlineskate: '#de9ed6',
-        skateboard: '#1f77b4',
-        rockclimb: '#ff7f0e',
-        rollerski: '#2ca02c',
-        handcycle: '#d62728',
-        soccer: '#9467bd',
-        golf: '#8c564b',
-        wheelchair: '#e377c2',
-        badminton: '#7f7f7f',
-        tennis: '#bcbd22',
-        pickleball: '#17becf',
-        tabletennis: '#393b79',
-        squash: '#5254a3',
-        hiit: '#6b6ecf',
-        pilates: '#9c9ede',
-        yoga: '#637939',
-        weighttraining: '#8ca252',
-        crossfit: '#b5cf6b',
-        elliptical: '#cedb9c',
-        stairstepper: '#8c6d31',
-        workout: '#bd9e39',
-        default: '#17becf'
-    };
-    const TYPE_LABEL_MAP = {
-        run: 'Run',
-        trailrun: 'Trail Run',
-        virtualrun: 'Virtual Run',
-        walk: 'Walk',
-        ride: 'Ride',
-        mountainbikeride: 'Mountain Bike Ride',
-        gravelride: 'Gravel Ride',
-        ebikeride: 'E-Bike Ride',
-        emountainbikeride: 'E-Mountain Bike Ride',
-        velomobile: 'Velomobile',
-        virtualride: 'Virtual Ride',
-        swim: 'Swim',
-        canoe: 'Canoe',
-        kayak: 'Kayak',
-        kayaking: 'Kayaking',
-        kitesurf: 'Kitesurf',
-        rowing: 'Rowing',
-        standuppaddling: 'Stand Up Paddling',
-        surf: 'Surf',
-        windsurf: 'Windsurf',
-        sail: 'Sail',
-        alpineski: 'Alpine Ski',
-        backcountryski: 'Backcountry Ski',
-        nordicski: 'Nordic Ski',
-        snowboard: 'Snowboard',
-        snowshoe: 'Snowshoe',
-        iceskate: 'Ice Skate',
-        inlineskate: 'Inline Skate',
-        skateboard: 'Skateboard',
-        rockclimb: 'Rock Climb',
-        rollerski: 'Roller Ski',
-        handcycle: 'Handcycle',
-        soccer: 'Soccer',
-        golf: 'Golf',
-        wheelchair: 'Wheelchair',
-        badminton: 'Badminton',
-        tennis: 'Tennis',
-        pickleball: 'Pickleball',
-        tabletennis: 'Table Tennis',
-        squash: 'Squash',
-        hiit: 'HIIT',
-        pilates: 'Pilates',
-        yoga: 'Yoga',
-        weighttraining: 'Weight Training',
-        crossfit: 'Crossfit',
-        elliptical: 'Elliptical',
-        stairstepper: 'Stair Stepper',
-        workout: 'Workout'
-    };
-    const ACTIVITY_COLOR_MAP = {
-        run: '#ff0000',
-        trailrun: '#ff0000',
-        virtualrun: '#ff0000',
-        ride: '#ff8000',
-        mountainbikeride: '#ff8000',
-        gravelride: '#ff8000',
-        ebikeride: '#ff8000',
-        emountainbikeride: '#ff8000',
-        velomobile: '#ff8000',
-        virtualride: '#ff8000',
-        swim: '#1648ebff',
-        walk: '#000000',
-        alpineski: '#5f99cf',
-        backcountryski: '#5f99cf',
-        nordicski: '#5f99cf',
-        snowboard: '#5f99cf',
-        golf: '#0a7b0a',
-        default: '#800080'
-    };
+    const ActivityTypes = window.StravaActivityTypes;
+    if (!ActivityTypes) {
+        throw new Error('StravaActivityTypes must be loaded before strava_shared.js');
+    }
+    const SUMMARY_LABEL_MAP = ActivityTypes.getSummaryLabelMap();
+    const SUMMARY_COLOR_MAP = ActivityTypes.getColorMap();
+    const TYPE_LABEL_MAP = ActivityTypes.getTypeLabelMap();
+    const ACTIVITY_COLOR_MAP = ActivityTypes.getColorMap();
     const ROUTE_SMOOTHING_CONFIG = {
         enabled: true,
         iterations: 1,
         tension: 0.18,
-        maxSourcePoints: 500
+        maxSourcePoints: 1200
     };
     const USER_CONFIGS = {
         connor: { slug: 'connor', displayName: 'Connor', title: "Connor's Map", clientId: 162238, clientSecret: '526b6989b62616ce1416f27e0414866958666013', refreshToken: '23227cb9c49a632130451aa2206241479b6dd842', lat: 43.0722, lng: -89.4008, pages: 10, color: '#ff412e' },
@@ -387,23 +224,16 @@
         if (normalized.animation_speed_multiplier === undefined && activity.custom_animation_speed_multiplier !== undefined) {
             normalized.animation_speed_multiplier = activity.custom_animation_speed_multiplier;
         }
+        normalized.activity_type_key = ActivityTypes.normalizeActivityTypeKey(normalized);
         return normalized;
     }
 
     function normalizeActivityType(activity) {
-        const normalized = normalizeActivityRecord(activity);
-        let type = String(normalized.type || '').toLowerCase();
-        if (type === 'workout' && normalized.sport_type) {
-            type = String(normalized.sport_type).toLowerCase();
-        }
-        return type;
+        return ActivityTypes.normalizeActivityTypeKey(activity);
     }
 
     function getActivityLabel(type) {
-        const key = String(type || '').toLowerCase();
-        return TYPE_LABEL_MAP[key] || SUMMARY_LABEL_MAP[key] || key.replace(/(^\w)|(\s+\w)/g, function (match) {
-            return match.toUpperCase();
-        });
+        return ActivityTypes.getActivityTypeLabel(type);
     }
 
     function normalizeHexColor(value) {
@@ -434,8 +264,7 @@
     }
 
     function getDefaultActivityColor(activity) {
-        const type = normalizeActivityType(activity);
-        return ACTIVITY_COLOR_MAP[type] || ACTIVITY_COLOR_MAP.default;
+        return ActivityTypes.getActivityTypeColor(activity);
     }
 
     function getActivityColor(activity) {
@@ -722,26 +551,14 @@
             const date = String(normalized.start_date || '').split('T')[0];
             const type = normalizeActivityType(normalized);
             const roundedMiles = Number(getMiles(Number(normalized.distance || 0)).toFixed(2));
+            const dailyGroup = ActivityTypes.getActivityTypeDailyGroup(type);
             activityCounts[type] = (activityCounts[type] || 0) + 1;
             if (!workoutData[date]) {
                 workoutData[date] = { running: 0, cycling: 0, swimming: 0, walk: 0, snow_sport: 0, other: 0 };
             }
-            if (type === 'run') {
-                workoutData[date].running += roundedMiles;
-            }
-            if (type === 'ride') {
-                workoutData[date].cycling += roundedMiles;
-            }
-            if (type === 'swim') {
-                workoutData[date].swimming += roundedMiles;
-            }
-            if (type === 'walk') {
-                workoutData[date].walk += roundedMiles;
-            }
-            if (type === 'alpineski' || type === 'backcountryski' || type === 'nordicski' || type === 'snowboard') {
-                workoutData[date].snow_sport += roundedMiles;
-            }
-            if (type === 'kayaking' || type === 'golf' || type === 'standuppaddling') {
+            if (Object.prototype.hasOwnProperty.call(workoutData[date], dailyGroup)) {
+                workoutData[date][dailyGroup] += roundedMiles;
+            } else {
                 workoutData[date].other += roundedMiles;
             }
         }
@@ -820,7 +637,7 @@
     function drawSummaryChart(elementId, activityCounts) {
         const counts = activityCounts || {};
         const categoryTotals = Object.entries(counts).reduce(function (accumulator, entry) {
-            const label = SUMMARY_LABEL_MAP[entry[0]];
+            const label = ActivityTypes.getActivityTypeSummaryLabel(entry[0]);
             if (label && entry[1] > 0) {
                 accumulator[label] = (accumulator[label] || 0) + entry[1];
             }
@@ -836,7 +653,7 @@
                 return entry[1] > 0;
             })
             .map(function (entry) {
-                const label = SUMMARY_LABEL_MAP[entry[0]];
+                const label = ActivityTypes.getActivityTypeSummaryLabel(entry[0]);
                 const x = categoryOrder.map(function (category) {
                     return category === label ? entry[1] : 0;
                 });
@@ -929,28 +746,30 @@
         const averageSpeedMph = Number(normalized.average_speed || 0) * 2.2369362920544;
         const maxSpeedMph = Number(normalized.max_speed || 0) * 2.2369362920544;
         const elevationGainFeet = ((Number(normalized.elev_high || 0) - Number(normalized.elev_low || 0)) * 3.28084).toFixed(2);
+        const activityType = normalizeActivityType(normalized);
+        const workoutLabel = getActivityLabel(activityType);
 
-        if (normalized.type === 'Run') {
+        if (activityType === 'run' || activityType === 'trailrun' || activityType === 'virtualrun') {
             return title + date + ownerMarkup
-                + `<h3 style='margin-top: -5px;'><b> Workout: </b>${normalized.type}</h3>`
+                + `<h3 style='margin-top: -5px;'><b> Workout: </b>${workoutLabel}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Distance: </b>${distance}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Time: </b>${formatTime(elapsedTime)}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Avg. Pace: </b>${convertMphToPace(averageSpeedMph)}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Max Pace: </b>${convertMphToPace(maxSpeedMph)}</h3></div>`;
         }
 
-        if (normalized.type === 'Ride') {
+        if (ActivityTypes.getActivityTypeCategory(activityType).key === 'cycling') {
             return title + date + ownerMarkup
-                + `<h3><b> Workout: </b>${normalized.type}</h3>`
+                + `<h3><b> Workout: </b>${workoutLabel}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Distance: </b>${distance}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Time: </b>${(elapsedTime / 3600).toFixed(2)} hours</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Avg. Speed: </b>${averageSpeedMph.toFixed(2)} mph</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Max Speed: </b>${maxSpeedMph.toFixed(2)} mph</h3></div>`;
         }
 
-        if (normalized.type === 'Swim') {
+        if (activityType === 'swim') {
             return title + date + ownerMarkup
-                + `<h3><b> Workout: </b>${normalized.type}</h3>`
+                + `<h3><b> Workout: </b>${workoutLabel}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Distance: </b>${distance}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Time: </b>${(elapsedTime / 3600).toFixed(2)} hours</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Avg. Strokes Per Min: </b>${normalized.average_cadence}</h3>`
@@ -960,27 +779,27 @@
                 + `<h3 style='margin-top: -5px;'><b> Max Laps Per Minute: </b>${((Number(normalized.max_speed || 0) * 60) / 25).toFixed(1)}</h3></div>`;
         }
 
-        if (normalized.type === 'AlpineSki' || normalized.type === 'BackcountrySki' || normalized.type === 'NordicSki' || normalized.type === 'Snowboard') {
+        if (ActivityTypes.getActivityTypeDailyGroup(activityType) === 'snow_sport') {
             return title + date + ownerMarkup
-                + `<h3><b> Workout: </b>${normalized.type}</h3>`
+                + `<h3><b> Workout: </b>${workoutLabel}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Distance: </b>${distance}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Time: </b>${(elapsedTime / 3600).toFixed(2)} hours</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Avg. Speed: </b>${averageSpeedMph.toFixed(2)} mph</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Max Speed: </b>${maxSpeedMph.toFixed(2)} mph</h3></div>`;
         }
 
-        if (normalized.type === 'Golf') {
+        if (activityType === 'golf') {
             return title + date + ownerMarkup
-                + `<h3><b> Workout: </b>${normalized.type}</h3>`
+                + `<h3><b> Workout: </b>${workoutLabel}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Distance: </b>${distance}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Time: </b>${(elapsedTime / 3600).toFixed(2)} hours</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Avg. Speed: </b>${averageSpeedMph.toFixed(2)} mph</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Max Speed: </b>${maxSpeedMph.toFixed(2)} mph</h3></div>`;
         }
 
-        if (normalized.type === 'Walk') {
+        if (activityType === 'walk' || activityType === 'hike') {
             return title + date + ownerMarkup
-                + `<h3 style='margin-top: -5px;'><b> Workout: </b>${normalized.type}</h3>`
+                + `<h3 style='margin-top: -5px;'><b> Workout: </b>${workoutLabel}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Distance: </b>${distance}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Time: </b>${formatTime(elapsedTime)}</h3>`
                 + `<h3 style='margin-top: -5px;'><b> Avg. Pace: </b>${convertMphToPace(averageSpeedMph)}</h3>`
@@ -989,11 +808,11 @@
         }
 
         return title + date + ownerMarkup
-            + `<h3 style='margin-top: -5px;'><b> Workout: </b>${normalized.type}</h3>`
+            + `<h3 style='margin-top: -5px;'><b> Workout: </b>${workoutLabel}</h3>`
             + `<h3 style='margin-top: -5px;'><b> Distance: </b>${distance}</h3>`
             + `<h3 style='margin-top: -5px;'><b> Time: </b>${formatTime(elapsedTime)}</h3>`
-            + `<h3 style='margin-top: -5px;'><b> Avg. Pace: </b>${convertMphToPace(averageSpeedMph)}</h3>`
-            + `<h3 style='margin-top: -5px;'><b> Max Pace: </b>${convertMphToPace(maxSpeedMph)}</h3></div>`;
+            + `<h3 style='margin-top: -5px;'><b> Avg. Speed: </b>${averageSpeedMph.toFixed(2)} mph</h3>`
+            + `<h3 style='margin-top: -5px;'><b> Max Speed: </b>${maxSpeedMph.toFixed(2)} mph</h3></div>`;
     }
 
     function getActivityKey(activity) {
@@ -1062,7 +881,7 @@
     }
 
     function setSpeedOverlayHoverState(layer, hovered) {
-        if (!layer || !layer._speedOverlayGroup || !layer._speedOverlayStyle) {
+        if (!layer || layer._routeAnimationActive || layer._suppressRouteInteractions || !layer._speedOverlayGroup || !layer._speedOverlayStyle) {
             return false;
         }
         const overlayStyle = layer._speedOverlayStyle;
@@ -1083,8 +902,18 @@
         return true;
     }
 
+    function isRouteAnimationSuppressed(layer) {
+        return Boolean(layer && (layer._routeAnimationActive || layer._suppressRouteInteractions));
+    }
+
     function applyHoverHandlers(layer, baseStyle) {
         layer.on('mouseover', function () {
+            if (isRouteAnimationSuppressed(layer)) {
+                if (typeof layer.closeTooltip === 'function') {
+                    layer.closeTooltip();
+                }
+                return;
+            }
             if (typeof layer.openTooltip === 'function') {
                 layer.openTooltip();
             }
@@ -1097,6 +926,12 @@
             layer.setStyle({ weight: 15, opacity: 0.5 });
         });
         layer.on('mouseout', function () {
+            if (isRouteAnimationSuppressed(layer)) {
+                if (typeof layer.closeTooltip === 'function') {
+                    layer.closeTooltip();
+                }
+                return;
+            }
             if (typeof layer.closeTooltip === 'function') {
                 layer.closeTooltip();
             }
@@ -1716,18 +1551,24 @@
     }
 
     function getDetectedTypes(activities) {
-        return Array.from(new Set((activities || []).map(function (activity) {
-            return normalizeActivityType(activity);
-        }).filter(Boolean))).sort(function (left, right) {
-            return getActivityLabel(left).localeCompare(getActivityLabel(right));
+        return ActivityTypes.sortActivityTypesByCount(ActivityTypes.countActivityTypes(activities)).map(function (entry) {
+            return entry.key;
         });
+    }
+
+    function getActivityTypeOptions(activities) {
+        return ActivityTypes.sortActivityTypesByCount(ActivityTypes.countActivityTypes(activities));
+    }
+
+    function getActivityTypeOptionsFromCounts(counts) {
+        return ActivityTypes.sortActivityTypesByCount(counts);
     }
 
     function matchesFilters(activity, filters) {
         const normalized = normalizeActivityRecord(activity);
         const type = normalizeActivityType(normalized);
         const date = String(normalized.start_date || '').split('T')[0];
-        const activeTypes = filters && filters.types ? new Set(Array.from(filters.types).map(function (value) { return String(value).toLowerCase(); })) : null;
+        const activeTypes = filters && filters.types ? new Set(Array.from(filters.types).map(function (value) { return normalizeActivityType(value); })) : null;
         const activeUsers = filters && filters.users ? new Set(Array.from(filters.users).map(function (value) { return String(value).toLowerCase(); })) : null;
         const userSlug = String((filters && filters.userSlugOverride) || normalized.user_slug || '').toLowerCase();
 
@@ -1756,7 +1597,7 @@
         const visibleLayers = [];
         (map._stravaPolylines || []).forEach(function (layer) {
             const meta = layer._stravaMeta || {};
-            const activeTypes = filters && filters.types ? new Set(Array.from(filters.types).map(function (value) { return String(value).toLowerCase(); })) : null;
+            const activeTypes = filters && filters.types ? new Set(Array.from(filters.types).map(function (value) { return normalizeActivityType(value); })) : null;
             const activeUsers = filters && filters.users ? new Set(Array.from(filters.users).map(function (value) { return String(value).toLowerCase(); })) : null;
             let visible = true;
             if (activeTypes && activeTypes.size && !activeTypes.has(String(meta.type || '').toLowerCase())) {
@@ -1837,6 +1678,8 @@
         SUMMARY_LABEL_MAP: SUMMARY_LABEL_MAP,
         SUMMARY_COLOR_MAP: SUMMARY_COLOR_MAP,
         ACTIVITY_COLOR_MAP: ACTIVITY_COLOR_MAP,
+        ActivityTypes: ActivityTypes,
+        ACTIVITY_TYPE_CATALOG: ActivityTypes.ACTIVITY_TYPE_CATALOG,
         STRAVA_STREAM_REGISTRY: STRAVA_STREAM_REGISTRY,
         STRAVA_STREAM_PROFILES: STRAVA_STREAM_PROFILES,
         ROUTE_SMOOTHING_CONFIG: ROUTE_SMOOTHING_CONFIG,
@@ -1850,6 +1693,12 @@
         formatDate: formatDate,
         formatClockTime: formatClockTime,
         normalizeActivityType: normalizeActivityType,
+        getActivityTypeOptions: getActivityTypeOptions,
+        getActivityTypeOptionsFromCounts: getActivityTypeOptionsFromCounts,
+        getActivityTypeCategory: ActivityTypes.getActivityTypeCategory,
+        getActivityTypeDailyGroup: ActivityTypes.getActivityTypeDailyGroup,
+        getAllActivityTypes: ActivityTypes.getAllActivityTypes,
+        sortActivityTypesByCount: ActivityTypes.sortActivityTypesByCount,
         normalizeActivityRecord: normalizeActivityRecord,
         getActivityLabel: getActivityLabel,
         normalizeHexColor: normalizeHexColor,

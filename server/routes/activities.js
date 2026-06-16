@@ -13,6 +13,7 @@ const {
     normalizeStreamKeys,
     normalizeStreamRequest
 } = require('../stream_config');
+const ActivityTypes = require('../../js/strava_activity_types');
 
 const router = express.Router();
 
@@ -34,12 +35,6 @@ function buildActivityFilter(query) {
     } else if (users.length > 1) {
         filter.user_slug = { $in: users };
     }
-    const types = parseCsvList(query.types || query.type);
-    if (types.length === 1) {
-        filter.type = types[0];
-    } else if (types.length > 1) {
-        filter.type = { $in: types };
-    }
     if (query.city) {
         filter.location_city = query.city;
     }
@@ -59,6 +54,34 @@ function buildActivityFilter(query) {
         }
     }
     return filter;
+}
+
+function getRequestedActivityTypeKeys(query) {
+    return Array.from(new Set(parseCsvList(query.types || query.type)
+        .map((type) => ActivityTypes.normalizeActivityTypeKey(type))
+        .filter(Boolean)));
+}
+
+function matchesRequestedActivityTypes(activity, requestedTypeKeys) {
+    if (!requestedTypeKeys.length) {
+        return true;
+    }
+    const activityKey = ActivityTypes.normalizeActivityTypeKey(activity);
+    return requestedTypeKeys.includes(activityKey);
+}
+
+async function findActivitiesForQuery(query, options) {
+    const requestedTypeKeys = getRequestedActivityTypeKeys(query || {});
+    const findOptions = Object.assign({}, options || {});
+    const requestedLimit = typeof findOptions.limit === 'number' ? findOptions.limit : null;
+    if (requestedTypeKeys.length && requestedLimit !== null) {
+        delete findOptions.limit;
+    }
+    let activities = await getActivityStore().find(buildActivityFilter(query || {}), findOptions);
+    activities = requestedTypeKeys.length
+        ? activities.filter((activity) => matchesRequestedActivityTypes(activity, requestedTypeKeys))
+        : activities;
+    return requestedLimit !== null ? activities.slice(0, requestedLimit) : activities;
 }
 
 function isTruthy(value) {
@@ -217,28 +240,29 @@ router.get('/users/:slug/activity-kpis', async (req, res) => {
 });
 
 router.get('/activities', async (req, res) => {
-    res.json(await getActivityStore().find(buildActivityFilter(req.query), {
+    res.json(await findActivitiesForQuery(req.query, {
         sort: { start_date: -1 },
         limit: req.query.limit ? Number(req.query.limit) : void 0
     }));
 });
 
 router.get('/activities/stats', async (req, res) => {
-    const activities = await getActivityStore().find(buildActivityFilter(req.query), { sort: { start_date: -1 } });
+    const activities = await findActivitiesForQuery(req.query, { sort: { start_date: -1 } });
     const stats = activities.reduce((accumulator, activity) => {
         accumulator.distance += Number(activity.distance || 0);
         accumulator.time += Number(activity.elapsed_time || 0);
         accumulator.count += 1;
         accumulator.elevation += Number(activity.total_elevation_gain || 0);
-        accumulator.activityCounts[activity.type] = (accumulator.activityCounts[activity.type] || 0) + 1;
+        const typeKey = ActivityTypes.normalizeActivityTypeKey(activity);
+        accumulator.activityCounts[typeKey] = (accumulator.activityCounts[typeKey] || 0) + 1;
         return accumulator;
     }, { distance: 0, time: 0, count: 0, elevation: 0, activityCounts: {} });
     res.json(stats);
 });
 
 router.get('/activities/types', async (req, res) => {
-    const activities = await getActivityStore().find(buildActivityFilter(req.query), { sort: { type: 1 } });
-    res.json(Array.from(new Set(activities.map((activity) => activity.type).filter(Boolean))).sort());
+    const activities = await findActivitiesForQuery(req.query, { sort: { type: 1 } });
+    res.json(ActivityTypes.sortActivityTypesByCount(ActivityTypes.countActivityTypes(activities)).map((entry) => entry.key));
 });
 
 router.get('/activities/:id', async (req, res) => {
