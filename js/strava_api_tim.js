@@ -32,7 +32,7 @@ function drawSummary() {
     ride: '#F28E2B', mountainbikeride: '#9467bd', gravelride: '#8c564b',
     ebikeride: '#e377c2', emountainbikeride: '#7f7f7f', velomobile: '#bcbd22',
     virtualride: '#17becf', swim: '#1f77b4', canoe: '#5254a3',
-    kayak: '#6b6ecf', kitesurf: '#9c9ede', rowing: '#637939',
+    kayak: '#6b6ecf', kitesurf: '#6b6ecf', rowing: '#6b6ecf',
     standuppaddling: '#8ca252', surf: '#b5cf6b', windsurf: '#cedb9c',
     sail: '#8c6d31', alpineski: '#5f99cf', backcountryski: '#5f99cf',
     nordicski: '#5f99cf', snowboard: '#843c39', snowshoe: '#a55194',
@@ -43,7 +43,7 @@ function drawSummary() {
     tabletennis: '#393b79', squash: '#5254a3', hiit: '#6b6ecf',
     pilates: '#9c9ede', yoga: '#637939', weighttraining: '#8ca252',
     crossfit: '#b5cf6b', elliptical: '#cedb9c', stairstepper: '#8c6d31',
-    workout: '#bd9e39',
+    workout: '#6b6ecf',
     default: '#17becf'
   };
 

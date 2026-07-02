@@ -26,6 +26,13 @@ async function start() {
     const app = express();
     app.use(cors());
     app.use(express.json());
+    app.get('/api/health', (req, res) => {
+        res.json({
+            status: 'ok',
+            storage: isMongoConnected() ? 'MongoDB' : 'memory',
+            mongoConnected: isMongoConnected()
+        });
+    });
     app.use('/api', authRoutes);
     app.use('/api', activityRoutes);
     app.use('/api', competitionRoutes);
@@ -34,7 +41,11 @@ async function start() {
 
     const port = Number(process.env.PORT || 3000);
     app.listen(port, () => {
-        console.log(`Server listening on port ${port}`);
+        const storage = isMongoConnected() ? 'MongoDB' : 'memory';
+        console.log(`Server listening on port ${port} using ${storage}`);
+        if (!isMongoConnected()) {
+            console.warn('MONGO_URI is missing or MongoDB is unavailable; persistent activity data cannot be loaded.');
+        }
     });
 }
 

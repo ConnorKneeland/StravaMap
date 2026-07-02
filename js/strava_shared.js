@@ -159,7 +159,7 @@
             : 1;
         return {
             isMobile: isMobile,
-            LINE_WEIGHT: (isMobile ? 5 : 3.25) * baseWeightMultiplier,
+            LINE_WEIGHT: (isMobile ? 5 : 4.25) * baseWeightMultiplier,
             OPACITY_WEIGHT: isMobile ? 0.5 : 0.8
         };
     }
@@ -225,6 +225,7 @@
             normalized.animation_speed_multiplier = activity.custom_animation_speed_multiplier;
         }
         normalized.activity_type_key = ActivityTypes.normalizeActivityTypeKey(normalized);
+        //console.log('Date: ' + new Date(normalized.start_date_local || normalized.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '') + ', Type: ' + String(normalized.type || '') + ', Sport_Type: ' + String(normalized.sport_type || '') + ', ID: ' + String(normalized.id || normalized.strava_id || ''));
         return normalized;
     }
 
@@ -747,7 +748,7 @@
         const maxSpeedMph = Number(normalized.max_speed || 0) * 2.2369362920544;
         const elevationGainFeet = ((Number(normalized.elev_high || 0) - Number(normalized.elev_low || 0)) * 3.28084).toFixed(2);
         const activityType = normalizeActivityType(normalized);
-        const workoutLabel = getActivityLabel(activityType);
+        const workoutLabel = getActivityLabel(normalized);
 
         if (activityType === 'run' || activityType === 'trailrun' || activityType === 'virtualrun') {
             return title + date + ownerMarkup

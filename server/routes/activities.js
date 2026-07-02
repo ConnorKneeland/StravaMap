@@ -13,9 +13,11 @@ const {
     normalizeStreamKeys,
     normalizeStreamRequest
 } = require('../stream_config');
+const { isMongoConnected } = require('../db');
 const ActivityTypes = require('../../js/strava_activity_types');
 
 const router = express.Router();
+const ACTIVITY_TYPE_KEYS = new Set(ActivityTypes.getAllActivityTypes().map((entry) => entry.key));
 
 function parseCsvList(value) {
     if (Array.isArray(value)) {
@@ -150,6 +152,22 @@ function parseAnimationSpeedMultiplier(value) {
     return { valid: true, value: numeric };
 }
 
+function parseActivityTypeOverride(value) {
+    if (value === undefined || value === null || value === '') {
+        return { valid: true, value: '', label: '' };
+    }
+    const label = String(value || '').trim().replace(/\s+/g, ' ');
+    const key = ActivityTypes.normalizeActivityTypeKey(label);
+    if (!key || label.length > 80) {
+        return { valid: false, value: '', label: '' };
+    }
+    return {
+        valid: true,
+        value: key,
+        label: ACTIVITY_TYPE_KEYS.has(key) ? '' : label
+    };
+}
+
 function getActivityStreamData(activity) {
     const streamData = activity && activity.stream_data && typeof activity.stream_data === 'object'
         ? Object.assign({}, activity.stream_data)
@@ -220,13 +238,61 @@ function buildActivityStreamResponse(activity, cached) {
     };
 }
 
+function getStorageLabel() {
+    return isMongoConnected() ? 'MongoDB' : 'memory';
+}
+
+function getExternalErrorMessage(error) {
+    return error && error.message ? error.message : 'Strava sync unavailable';
+}
+
+function hasAnyStreamData(activity) {
+    return Object.values(getActivityStreamData(activity)).some((values) => Array.isArray(values) && values.length > 0);
+}
+
 router.post('/sync/:slug', async (req, res) => {
-    const user = await ensureUserForSync(req.params.slug);
-    if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+    const userSlug = String(req.params.slug || '').toLowerCase();
+    try {
+        const user = await ensureUserForSync(userSlug);
+        if (!user) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        res.json(await syncUserActivities(user));
+    } catch (error) {
+        let storedActivityCount = 0;
+        try {
+            storedActivityCount = await getActivityStore().count({ user_slug: userSlug });
+        } catch (cacheError) {
+            console.error('[Activity Cache Unavailable]', {
+                user: userSlug,
+                storage: getStorageLabel(),
+                error: cacheError && cacheError.message ? cacheError.message : 'Unknown database error'
+            });
+            res.status(500).json({ error: 'Activity database is unavailable' });
+            return;
+        }
+        console.warn('[Strava Sync Unavailable]', {
+            user: userSlug,
+            storage: getStorageLabel(),
+            storedActivityCount: storedActivityCount,
+            error: getExternalErrorMessage(error)
+        });
+        const payload = {
+            source: `${getStorageLabel()} cache`,
+            storage: getStorageLabel(),
+            syncAvailable: false,
+            syncError: getExternalErrorMessage(error),
+            recordsInserted: 0,
+            recordsUpdated: 0,
+            stravaSummaryFetchedCount: 0,
+            stravaDetailFetchedCount: 0,
+            stravaRecordsPulled: 0,
+            storedActivityCount: storedActivityCount,
+            activitiesSynced: 0
+        };
+        res.status(storedActivityCount > 0 ? 200 : 503).json(payload);
     }
-    res.json(await syncUserActivities(user));
 });
 
 router.get('/users/:slug/activity-kpis', async (req, res) => {
@@ -291,15 +357,32 @@ router.get('/activities/:id', async (req, res) => {
             res.status(404).json({ error: 'User not found' });
             return;
         }
-        activity = await fetchActivityDetail(user, activityId);
-        res.json(activity);
+        try {
+            activity = await fetchActivityDetail(user, activityId);
+            res.json(activity);
+        } catch (error) {
+            console.warn('[Strava Activity Detail Unavailable]', {
+                activityId: activityId,
+                user: req.query.user,
+                error: getExternalErrorMessage(error)
+            });
+            res.status(503).json({ error: 'Activity is not cached and Strava is unavailable' });
+        }
         return;
     }
 
     if (shouldRefresh || (shouldHydrate && !activity.detail_fetched_at)) {
         const user = await getUserStore().findOne({ slug: activity.user_slug });
         if (user) {
-            activity = await fetchActivityDetail(user, activityId);
+            try {
+                activity = await fetchActivityDetail(user, activityId);
+            } catch (error) {
+                console.warn('[Strava Activity Hydration Skipped]', {
+                    activityId: activityId,
+                    user: activity.user_slug,
+                    error: getExternalErrorMessage(error)
+                });
+            }
         }
     }
 
@@ -318,8 +401,9 @@ router.patch('/activities/:id', async (req, res) => {
     const hasLineThickness = Object.prototype.hasOwnProperty.call(body, 'line_thickness');
     const hasLineOpacity = Object.prototype.hasOwnProperty.call(body, 'line_opacity');
     const hasAnimationSpeed = Object.prototype.hasOwnProperty.call(body, 'animation_speed_multiplier');
-    if (!hasLineColor && !hasLineThickness && !hasLineOpacity && !hasAnimationSpeed) {
-        res.status(400).json({ error: 'At least one line setting is required' });
+    const hasActivityTypeOverride = Object.prototype.hasOwnProperty.call(body, 'activity_type_override');
+    if (!hasLineColor && !hasLineThickness && !hasLineOpacity && !hasAnimationSpeed && !hasActivityTypeOverride) {
+        res.status(400).json({ error: 'At least one line setting or workout type is required' });
         return;
     }
 
@@ -356,6 +440,14 @@ router.patch('/activities/:id', async (req, res) => {
         }
         updates.animation_speed_multiplier = speed.value;
     }
+    let activityTypeOverride = null;
+    if (hasActivityTypeOverride) {
+        activityTypeOverride = parseActivityTypeOverride(body.activity_type_override);
+        if (!activityTypeOverride.valid) {
+            res.status(400).json({ error: 'activity_type_override must be a supported type or a custom label up to 80 characters' });
+            return;
+        }
+    }
 
     const filter = { strava_id: activityId };
     if (req.query.user) {
@@ -366,6 +458,18 @@ router.patch('/activities/:id', async (req, res) => {
     if (!existing) {
         res.status(404).json({ error: 'Activity not found' });
         return;
+    }
+
+    if (hasActivityTypeOverride) {
+        updates.activity_type_override = activityTypeOverride.value;
+        updates.activity_type_override_label = activityTypeOverride.label;
+        updates.activity_type_key = activityTypeOverride.value || ActivityTypes.normalizeActivityTypeKey({
+            sport_type: existing.sport_type,
+            type: existing.type
+        });
+        if (!hasLineColor) {
+            updates.line_color = '';
+        }
     }
 
     const updated = await getActivityStore().updateOne(filter, updates);
@@ -407,8 +511,25 @@ router.get('/activities/:id/streams', async (req, res) => {
         return;
     }
 
-    const streamActivity = await fetchActivityStreams(user, activityId, streamRequest);
-    res.json(buildActivityStreamResponse(streamActivity, false));
+    try {
+        const streamActivity = await fetchActivityStreams(user, activityId, streamRequest);
+        res.json(buildActivityStreamResponse(streamActivity, false));
+    } catch (error) {
+        console.warn('[Strava Activity Streams Unavailable]', {
+            activityId: activityId,
+            user: activity.user_slug,
+            cached: hasAnyStreamData(activity),
+            error: getExternalErrorMessage(error)
+        });
+        if (hasAnyStreamData(activity)) {
+            res.json(Object.assign(buildActivityStreamResponse(activity, true), {
+                partial: true,
+                refreshError: getExternalErrorMessage(error)
+            }));
+            return;
+        }
+        res.status(503).json({ error: 'Activity streams are not cached and Strava is unavailable' });
+    }
 });
 
 module.exports = router;

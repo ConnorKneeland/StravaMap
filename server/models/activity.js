@@ -13,6 +13,8 @@ const activitySchema = new mongoose.Schema({
     type: { type: String, index: true },
     sport_type: { type: String },
     activity_type_key: { type: String, index: true },
+    activity_type_override: { type: String, index: true },
+    activity_type_override_label: { type: String },
     start_date: { type: Date, index: true },
     start_date_local: { type: String },
     timezone: { type: String },

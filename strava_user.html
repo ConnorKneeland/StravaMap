@@ -242,7 +242,8 @@
             font-size:14px;
         }
         .nav-stream-select option{
-            color:#000;
+            color:#fff;
+            background:#111a27;
         }
         .nav-palette-title{
             color:#fff;
@@ -668,7 +669,8 @@
             font-size:14px;
         }
         .details-metric-select option{
-            color:#000;
+            color:#fff;
+            background:#111a27;
         }
         .details-grid{
             display:grid;
@@ -717,7 +719,8 @@
             font-size:14px;
         }
         .details-select option{
-            color:#000;
+            color:#fff;
+            background:#111a27;
         }
         .details-action-row{
             display:flex;
@@ -1940,7 +1943,8 @@
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
                 apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
-                requestTimeoutMs: isLocalHost ? 600000 : 30000
+                requestTimeoutMs: isLocalHost ? 600000 : 30000,
+                syncOnLoad: false
             }, existingConfig);
         }());
     </script>
@@ -2011,7 +2015,7 @@
         const SPEED_SMOOTHING_RADIUS = 3;
         const SPEED_SEGMENT_SUBDIVISIONS = 3;
         const CLOSE_ZOOM_LINE_WEIGHT_BOOST = {
-            startZoom: 18,
+            startZoom: 16,
             fullBoostZoom: 21,
             desktopExtraWeight: 15,
             mobileExtraWeight: 15
@@ -3858,7 +3862,7 @@
             return {
                 key: StravaApp.getActivityKey(normalized),
                 activityType: activityType,
-                activityTypeLabel: StravaApp.getActivityLabel(activityType),
+                activityTypeLabel: StravaApp.getActivityLabel(normalized),
                 color: StravaApp.getActivityColor(normalized),
                 collection: getCollectionIdsForActivityId(activityId),
                 collectionIds: getCollectionIdsForActivityId(activityId),
@@ -3976,11 +3980,12 @@
                     counts[option.value] = option.count;
                     return counts;
                 }, {})).map(function (entry) {
+                    const detectedOption = collections.activityType.get(entry.key);
                     return {
                         value: entry.key,
-                        label: entry.label,
+                        label: detectedOption ? detectedOption.label : entry.label,
                         count: entry.count,
-                        color: entry.color,
+                        color: detectedOption ? detectedOption.color : entry.color,
                         sortValue: entry.count
                     };
                 }),
@@ -4648,6 +4653,7 @@
             descriptor.style.weight = StravaApp.getActivityLineWeight(merged, defaultLineStyle.LINE_WEIGHT);
             descriptor.style.opacity = StravaApp.getActivityLineOpacity(merged, defaultLineStyle.OPACITY_WEIGHT);
             descriptor.meta.color = descriptor.style.color;
+            descriptor.meta.type = StravaApp.normalizeActivityType(merged);
             descriptor.meta.filterMeta = buildActivityFilterMeta(merged);
             descriptor.tooltipHtml = StravaApp.buildTooltip(merged, { ownerName: descriptor.meta.ownerName || '' });
             if (typeof layer.setTooltipContent === 'function') {
@@ -7032,8 +7038,30 @@
             return Math.round((Number(value) || 0) * 100);
         }
 
+        function getWorkoutTypeOverrideOptionsMarkup(activity, selectedKey) {
+            const stravaTypeKey = StravaApp.ActivityTypes.normalizeActivityTypeKey({
+                sport_type: activity && activity.sport_type,
+                type: activity && activity.type
+            });
+            const stravaTypeLabel = StravaApp.getActivityLabel(stravaTypeKey);
+            const options = StravaApp.getAllActivityTypes().slice().sort(function (left, right) {
+                return left.label.localeCompare(right.label);
+            });
+            const customSelected = Boolean(selectedKey && !options.some(function (entry) { return entry.key === selectedKey; }));
+            return "<option value=''" + (!selectedKey ? " selected" : "") + ">Use Strava type - " + escapeHtml(stravaTypeLabel) + "</option>"
+                + options.map(function (entry) {
+                    return "<option value='" + escapeHtml(entry.key) + "'" + (entry.key === selectedKey ? " selected" : "") + ">" + escapeHtml(entry.label) + "</option>";
+                }).join('')
+                + "<option value='__custom__'" + (customSelected ? " selected" : "") + ">Enter custom workout type...</option>";
+        }
+
         function renderDetailsLineColorCard(activity) {
             const normalized = StravaApp.normalizeActivityRecord(activity || {});
+            const activityTypeOverride = String(normalized.activity_type_override || '');
+            const catalogTypeKeys = new Set(StravaApp.getAllActivityTypes().map(function (entry) { return entry.key; }));
+            const hasCustomActivityType = Boolean(activityTypeOverride && !catalogTypeKeys.has(activityTypeOverride));
+            const customActivityTypeLabel = String(normalized.activity_type_override_label || (hasCustomActivityType ? activityTypeOverride : ''));
+            const activityTypeLabel = StravaApp.getActivityLabel(normalized);
             const currentColor = StravaApp.getActivityColor(normalized);
             const defaultColor = getDefaultActivityLineColor(normalized);
             const defaultColorHex = getDefaultActivityLineColorHex(normalized);
@@ -7048,13 +7076,21 @@
             const defaultAnimationSpeed = getDefaultActivityAnimationSpeed();
             const customAnimationSpeed = StravaApp.normalizeAnimationSpeedMultiplier(normalized.animation_speed_multiplier);
             const currentAnimationSpeed = StravaApp.getActivityAnimationSpeedMultiplier(normalized, defaultAnimationSpeed);
-            const hasCustomSettings = Boolean(customColor || customThickness !== null || customOpacity !== null || customAnimationSpeed !== null);
+            const hasCustomSettings = Boolean(activityTypeOverride || customColor || customThickness !== null || customOpacity !== null || customAnimationSpeed !== null);
             const readOnly = state.shareMode;
             return ""
                 + "<div class='details-card'>"
                 + "<div class='details-card-title'>Line Settings</div>"
                 + "<div class='details-control-grid'>"
                 + (readOnly ? "<div class='details-note'>Shared collection view is read-only.</div>" : "")
+                + "<div class='details-setting-block'>"
+                + "<div class='details-setting-label'>Workout Type</div>"
+                + "<select id='details-workout-type-input' class='details-select'" + (readOnly ? " disabled" : "") + ">"
+                + getWorkoutTypeOverrideOptionsMarkup(normalized, activityTypeOverride)
+                + "</select>"
+                + "<input id='details-workout-type-custom-input' class='details-input' type='text' maxlength='80' autocomplete='off' placeholder='Enter workout type' value='" + escapeHtml(customActivityTypeLabel) + "'" + (!hasCustomActivityType ? " hidden" : "") + (readOnly ? " disabled" : "") + ">"
+                + "<span id='details-workout-type-value' class='details-setting-copy'>" + escapeHtml(activityTypeOverride ? activityTypeLabel + ' manual' : activityTypeLabel + ' from Strava') + "</span>"
+                + "</div>"
                 + "<div class='details-setting-block'>"
                 + "<div class='details-setting-label'>Line Color</div>"
                 + "<div class='details-color-row'>"
@@ -7219,6 +7255,9 @@
 
         function bindDetailsLineColorControls(layer) {
             const activity = layer && layer._stravaDescriptor ? layer._stravaDescriptor.activity : null;
+            const workoutTypeInput = document.getElementById('details-workout-type-input');
+            const customWorkoutTypeInput = document.getElementById('details-workout-type-custom-input');
+            const workoutTypeValue = document.getElementById('details-workout-type-value');
             const input = document.getElementById('details-line-color-input');
             const pickerButton = document.getElementById('details-line-color-picker-button');
             const colorPopover = document.getElementById('details-color-popover');
@@ -7236,11 +7275,15 @@
             const animationSpeedValue = document.getElementById('details-animation-speed-value');
             const saveButton = document.getElementById('details-save-line-color');
             const resetButton = document.getElementById('details-reset-line-color');
-            if (!activity || !input || !pickerButton || !colorPopover || !saturationValueArea || !saturationValueHandle || !hueInput || !pickerHexInput || !thicknessInput || !opacityInput || !animationSpeedInput || !saveButton || !resetButton) {
+            if (!activity || !workoutTypeInput || !customWorkoutTypeInput || !input || !pickerButton || !colorPopover || !saturationValueArea || !saturationValueHandle || !hueInput || !pickerHexInput || !thicknessInput || !opacityInput || !animationSpeedInput || !saveButton || !resetButton) {
                 return;
             }
             const activityForSettings = StravaApp.normalizeActivityRecord(activity || {});
-            const defaultColorHex = getDefaultActivityLineColorHex(activityForSettings);
+            const stravaTypeKey = StravaApp.ActivityTypes.normalizeActivityTypeKey({
+                sport_type: activityForSettings.sport_type,
+                type: activityForSettings.type
+            });
+            let defaultColorHex = getDefaultActivityLineColorHex(activityForSettings);
             let pickerHsv = rgbToHsvColor(
                 hexToRgbColor(input.value).r,
                 hexToRgbColor(input.value).g,
@@ -7257,6 +7300,38 @@
             function parseAnimationSpeedInput() {
                 const animationSpeed = Number(animationSpeedInput.value);
                 return Number.isFinite(animationSpeed) && animationSpeed >= 0.25 && animationSpeed <= 4 ? animationSpeed : null;
+            }
+            function getSelectedActivityTypeOverride() {
+                return workoutTypeInput.value === '__custom__'
+                    ? String(customWorkoutTypeInput.value || '').trim()
+                    : String(workoutTypeInput.value || '');
+            }
+            function getSelectedTypeDefaultColorHex() {
+                if (workoutTypeInput.value === '__custom__' && !getSelectedActivityTypeOverride()) {
+                    return '#800080';
+                }
+                return getDefaultActivityLineColorHex(Object.assign({}, activityForSettings, {
+                    activity_type_override: getSelectedActivityTypeOverride(),
+                    activity_type_override_label: getSelectedActivityTypeOverride()
+                }));
+            }
+            function updateWorkoutTypePreview(options) {
+                const selectedKey = String(workoutTypeInput.value || '');
+                const customSelected = selectedKey === '__custom__';
+                const selectedOverride = getSelectedActivityTypeOverride();
+                customWorkoutTypeInput.hidden = !customSelected;
+                defaultColorHex = getSelectedTypeDefaultColorHex();
+                if (!options || options.updateColor !== false) {
+                    setColorFromHex(defaultColorHex);
+                }
+                if (workoutTypeValue) {
+                    workoutTypeValue.textContent = selectedOverride
+                        ? StravaApp.getActivityLabel({
+                            activity_type_override: selectedOverride,
+                            activity_type_override_label: selectedOverride
+                        }) + ' manual'
+                        : StravaApp.getActivityLabel(stravaTypeKey) + ' from Strava';
+                }
             }
             function updatePickerUi(hexColor) {
                 const normalized = StravaApp.normalizeHexColor(hexColor) || defaultColorHex;
@@ -7376,6 +7451,19 @@
                 setColorFromHex(input.value);
                 setDetailsLineColorMessage('');
             });
+            workoutTypeInput.addEventListener('change', function () {
+                updateWorkoutTypePreview();
+                if (workoutTypeInput.value === '__custom__') {
+                    customWorkoutTypeInput.focus();
+                    setDetailsLineColorMessage('Enter a custom workout type and choose its line color.');
+                } else {
+                    setDetailsLineColorMessage('Workout type color selected. Save to apply it to the route.');
+                }
+            });
+            customWorkoutTypeInput.addEventListener('input', function () {
+                updateWorkoutTypePreview({ updateColor: false });
+                setDetailsLineColorMessage('Save to apply the custom workout type.');
+            });
             thicknessInput.addEventListener('input', function () {
                 updateThicknessPreview();
                 setDetailsLineColorMessage('');
@@ -7412,8 +7500,15 @@
                 saveButton.disabled = true;
                 setDetailsLineColorMessage('Saving line settings...');
                 try {
+                    const nextActivityTypeOverride = getSelectedActivityTypeOverride();
+                    if (workoutTypeInput.value === '__custom__' && !nextActivityTypeOverride) {
+                        setDetailsLineColorMessage('Enter a custom workout type.');
+                        return;
+                    }
+                    const nextDefaultColorHex = getSelectedTypeDefaultColorHex();
                     const updatedActivity = await updateActivityLineColorData(getActivityId(activity), {
-                        line_color: nextColor === defaultColorHex ? '' : nextColor,
+                        activity_type_override: nextActivityTypeOverride,
+                        line_color: nextColor === nextDefaultColorHex ? '' : nextColor,
                         line_thickness: nextThickness,
                         line_opacity: nextOpacity,
                         animation_speed_multiplier: nextAnimationSpeed
@@ -7433,6 +7528,7 @@
                 setDetailsLineColorMessage('Restoring default line settings...');
                 try {
                     const updatedActivity = await updateActivityLineColorData(getActivityId(activity), {
+                        activity_type_override: '',
                         line_color: '',
                         line_thickness: '',
                         line_opacity: '',
@@ -7755,7 +7851,7 @@
             const activityKey = layer._stravaMeta ? layer._stravaMeta.activityKey : '';
             const filterMeta = (layer._stravaMeta && layer._stravaMeta.filterMeta) || buildActivityFilterMeta(activity);
             const rows = [
-                createDetailRow('Workout', StravaApp.getActivityLabel(StravaApp.normalizeActivityType(activity))),
+                createDetailRow('Workout', StravaApp.getActivityLabel(activity)),
                 createDetailRow('Started', formatStartDateTime(activity)),
                 createDetailRow('Distance', formatDistanceLabel(activity)),
                 createDetailRow('Time', StravaApp.formatTime(Number(activity.elapsed_time || 0))),
@@ -8992,7 +9088,7 @@
                 return 'Cycling Workout';
             }
             const activityType = StravaApp.normalizeActivityType(activity || {});
-            const activityLabel = StravaApp.getActivityLabel(activityType);
+            const activityLabel = StravaApp.getActivityLabel(activity || activityType);
             if (activityLabel) {
                 return activityLabel;
             }
@@ -9129,17 +9225,31 @@
             state.map = await initializeActiveMap(fallbackCenter, 8);
 
             const loadResult = await runtimeDataSource.runWithFallback('user activity load', async function (requestOptions) {
-                const syncSummary = await StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${userConfig.slug}`, {}, requestOptions);
+                let syncSummary = {
+                    source: getBackendSourceLabel(),
+                    storage: 'MongoDB',
+                    syncAvailable: false
+                };
+                if (window.STRAVA_CONFIG.syncOnLoad === true) {
+                    try {
+                        syncSummary = await StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${userConfig.slug}`, {}, requestOptions);
+                    } catch (error) {
+                        console.warn('Strava sync unavailable; loading cached backend activities.', error);
+                    }
+                }
                 const backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
                     user: userConfig.slug
                 }, requestOptions);
                 const normalizedActivities = StravaApp.sortActivitiesNewestFirst(backendActivities.map(StravaApp.normalizeActivityRecord));
+                if (!normalizedActivities.length) {
+                    throw new Error('No cached backend activities are available for ' + userConfig.slug + '.');
+                }
                 StravaApp.logDataLoadSummary({
                     page: 'user',
                     user: userConfig.slug,
-                    source: getBackendSourceLabel(),
+                    source: syncSummary.source || getBackendSourceLabel(),
                     storage: syncSummary.storage || 'MongoDB',
-                    recordsPulled: syncSummary.storedActivityCount || normalizedActivities.length,
+                    recordsPulled: normalizedActivities.length,
                     stravaRecordsPulled: syncSummary.stravaRecordsPulled,
                     recordsInserted: syncSummary.recordsInserted,
                     recordsUpdated: syncSummary.recordsUpdated,

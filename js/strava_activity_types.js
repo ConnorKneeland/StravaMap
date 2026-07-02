@@ -68,7 +68,7 @@
         { key: 'weighttraining', label: 'Weight Training', summaryLabel: 'Indoor Training', color: '#8ca252', categoryKey: 'weighttraining', categoryLabel: 'Weight Training', dailyGroup: 'other', aliases: ['WeightTraining', 'Weight Training'] },
         { key: 'wheelchair', label: 'Wheelchair', color: '#e377c2', categoryKey: 'wheelchair', categoryLabel: 'Wheelchair', dailyGroup: 'other', aliases: ['Wheelchair'] },
         { key: 'windsurf', label: 'Windsurf', color: '#cedb9c', categoryKey: 'windsurf', categoryLabel: 'Windsurf', dailyGroup: 'other', aliases: ['Windsurf'] },
-        { key: 'workout', label: 'Workout', summaryLabel: 'Indoor Training', color: '#bd9e39', categoryKey: 'workout', categoryLabel: 'Workout', dailyGroup: 'other', aliases: ['Workout'] },
+        { key: 'workout', label: 'Workout', summaryLabel: 'Indoor Training', color: '#6b6ecf', categoryKey: 'workout', categoryLabel: 'Workout', dailyGroup: 'other', aliases: ['Workout'] },
         { key: 'yoga', label: 'Yoga', color: '#637939', categoryKey: 'yoga', categoryLabel: 'Yoga', dailyGroup: 'other', aliases: ['Yoga'] }
     ];
 
@@ -94,20 +94,29 @@
 
     function normalizeActivityTypeKey(activityOrValue) {
         if (activityOrValue && typeof activityOrValue === 'object' && !Array.isArray(activityOrValue)) {
-            return resolveKey(activityOrValue.sport_type || activityOrValue.sportType || activityOrValue.activity_type_key || activityOrValue.type);
+            return resolveKey(activityOrValue.activity_type_override || activityOrValue.sport_type || activityOrValue.sportType || activityOrValue.activity_type_key || activityOrValue.type);
         }
         return resolveKey(activityOrValue);
     }
 
     function getActivityTypeEntry(activityOrValue) {
         const key = normalizeActivityTypeKey(activityOrValue);
-        return CATALOG_BY_KEY[key] || {
+        if (CATALOG_BY_KEY[key]) {
+            return CATALOG_BY_KEY[key];
+        }
+        const customLabel = activityOrValue && typeof activityOrValue === 'object'
+            ? activityOrValue.activity_type_override_label || activityOrValue.activity_type_override || key
+            : key;
+        const displayLabel = activityOrValue && typeof activityOrValue === 'object' && activityOrValue.activity_type_override_label
+            ? String(activityOrValue.activity_type_override_label).trim()
+            : titleCaseType(customLabel || 'Other');
+        return {
             key: key || 'other',
-            label: titleCaseType(key || 'Other'),
-            summaryLabel: titleCaseType(key || 'Other'),
+            label: displayLabel,
+            summaryLabel: displayLabel,
             color: '#800080',
             categoryKey: key || 'other',
-            categoryLabel: titleCaseType(key || 'Other'),
+            categoryLabel: displayLabel,
             dailyGroup: 'other',
             aliases: []
         };
@@ -178,11 +187,19 @@
 
     function sortActivityTypesByCount(counts) {
         const normalizedCounts = normalizeCountMap(counts);
-        return getAllActivityTypes().map(function (entry) {
+        const entries = getAllActivityTypes().map(function (entry) {
             return Object.assign({}, entry, {
                 count: Number(normalizedCounts[entry.key] || 0)
             });
-        }).sort(function (left, right) {
+        });
+        Object.keys(normalizedCounts).forEach(function (key) {
+            if (!CATALOG_BY_KEY[key]) {
+                entries.push(Object.assign({}, getActivityTypeEntry(key), {
+                    count: Number(normalizedCounts[key] || 0)
+                }));
+            }
+        });
+        return entries.sort(function (left, right) {
             if (right.count !== left.count) {
                 return right.count - left.count;
             }

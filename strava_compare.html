@@ -149,8 +149,8 @@
             padding:9px 10px;
             font:inherit;
         }
-        .field option{ color:#000; }
-        .field option.empty-count{ color:#64748b; }
+        .field option{ color:#fff; background:#111a27; }
+        .field option.empty-count{ color:#94a3b8; }
         .leaderboard-list{
             display:grid;
             gap:8px;
@@ -675,6 +675,25 @@
             return "<div class='details-row'><div class='details-label'>" + escapeHtml(label) + "</div><div class='details-value'>" + escapeHtml(value) + "</div></div>";
         }
 
+        function workoutTypeOptions(activity) {
+            const selectedKey = String(activity.activity_type_override || '');
+            const stravaTypeKey = StravaApp.ActivityTypes.normalizeActivityTypeKey({
+                sport_type: activity.sport_type,
+                type: activity.type
+            });
+            const options = StravaApp.getAllActivityTypes().slice().sort(function (left, right) {
+                return left.label.localeCompare(right.label);
+            });
+            const customSelected = Boolean(selectedKey && !options.some(function (entry) {
+                return entry.key === selectedKey;
+            }));
+            return "<option value=''" + (!selectedKey ? " selected" : "") + ">Use Strava type - " + escapeHtml(StravaApp.getActivityLabel(stravaTypeKey)) + "</option>"
+                + options.map(function (entry) {
+                    return "<option value='" + escapeHtml(entry.key) + "'" + (entry.key === selectedKey ? " selected" : "") + ">" + escapeHtml(entry.label) + "</option>";
+                }).join('')
+                + "<option value='__custom__'" + (customSelected ? " selected" : "") + ">Enter custom workout type...</option>";
+        }
+
         function renderDetailsPanel(layer) {
             const activity = layer._stravaDescriptor.activity;
             const config = userConfig(activity.user_slug);
@@ -683,7 +702,7 @@
             detailsBody.innerHTML = ''
                 + "<div class='details-card'><div class='details-card-title'>Overview</div><div class='details-grid'>"
                 + detailRow('User', config.displayName || activity.user_slug || 'Unknown')
-                + detailRow('Workout', StravaApp.getActivityLabel(StravaApp.normalizeActivityType(activity)))
+                + detailRow('Workout', StravaApp.getActivityLabel(activity))
                 + detailRow('Started', formatStart(activity))
                 + detailRow('Distance', formatDistance(activity))
                 + detailRow('Time', StravaApp.formatTime(Number(activity.elapsed_time || 0)))
@@ -692,6 +711,8 @@
                 + detailRow('Location', [locationValue(activity, 'city'), locationValue(activity, 'regionState'), locationValue(activity, 'country')].filter(Boolean).join(', ') || 'Unavailable')
                 + "</div></div>"
                 + "<div class='details-card'><div class='details-card-title'>Line Settings</div><div class='line-settings'>"
+                + "<label class='field'><span>Workout Type</span><select id='workout-type-input'>" + workoutTypeOptions(activity) + "</select></label>"
+                + "<label id='custom-workout-type-field' class='field'" + (activity.activity_type_override && !StravaApp.getAllActivityTypes().some(function (entry) { return entry.key === activity.activity_type_override; }) ? "" : " hidden") + "><span>Custom Workout Type</span><input id='custom-workout-type-input' type='text' maxlength='80' autocomplete='off' placeholder='Enter workout type' value='" + escapeHtml(activity.activity_type_override_label || activity.activity_type_override || '') + "'></label>"
                 + "<label class='field'><span>Line Color</span><input id='line-color-input' type='color' value='" + escapeHtml(StravaApp.normalizeHexColor(activity.line_color || layer._stravaDescriptor.style.color) || '#38bdf8') + "'></label>"
                 + "<div class='settings-row'>"
                 + "<label class='field'><span>Thickness</span><input id='line-thickness-input' type='number' min='1' max='32' step='0.5' value='" + escapeHtml(activity.line_thickness || layer._stravaDescriptor.style.weight || 4) + "'></label>"
@@ -708,18 +729,63 @@
             const activity = layer._stravaDescriptor.activity;
             const saveButton = document.getElementById('save-line-settings');
             const message = document.getElementById('line-settings-message');
+            const workoutTypeInput = document.getElementById('workout-type-input');
+            const customWorkoutTypeField = document.getElementById('custom-workout-type-field');
+            const customWorkoutTypeInput = document.getElementById('custom-workout-type-input');
+            const colorInput = document.getElementById('line-color-input');
             if (!saveButton) {
                 return;
             }
+            function selectedWorkoutTypeOverride() {
+                return workoutTypeInput.value === '__custom__'
+                    ? String(customWorkoutTypeInput.value || '').trim()
+                    : String(workoutTypeInput.value || '');
+            }
+            function updateWorkoutTypeSelection(options) {
+                const isCustom = workoutTypeInput.value === '__custom__';
+                customWorkoutTypeField.hidden = !isCustom;
+                const selectedOverride = selectedWorkoutTypeOverride();
+                if (!options || options.updateColor !== false) {
+                    colorInput.value = isCustom && !selectedOverride
+                        ? '#800080'
+                        : StravaApp.normalizeHexColor(StravaApp.getDefaultActivityColor(Object.assign({}, activity, {
+                            activity_type_override: selectedOverride,
+                            activity_type_override_label: selectedOverride
+                        }))) || '#800080';
+                }
+                message.textContent = isCustom
+                    ? 'Enter a workout type, choose its line color, then save.'
+                    : 'Workout type color selected. Save to apply.';
+            }
+            workoutTypeInput.addEventListener('change', function () {
+                updateWorkoutTypeSelection();
+                if (workoutTypeInput.value === '__custom__') {
+                    customWorkoutTypeInput.focus();
+                }
+            });
+            customWorkoutTypeInput.addEventListener('input', function () {
+                updateWorkoutTypeSelection({ updateColor: false });
+            });
             saveButton.addEventListener('click', async function () {
-                const color = document.getElementById('line-color-input').value;
+                const color = colorInput.value;
+                const activityTypeOverride = selectedWorkoutTypeOverride();
+                if (workoutTypeInput.value === '__custom__' && !activityTypeOverride) {
+                    message.textContent = 'Enter a custom workout type before saving.';
+                    customWorkoutTypeInput.focus();
+                    return;
+                }
+                const defaultColor = StravaApp.normalizeHexColor(StravaApp.getDefaultActivityColor(Object.assign({}, activity, {
+                    activity_type_override: activityTypeOverride,
+                    activity_type_override_label: activityTypeOverride
+                }))) || '#38bdf8';
                 const thickness = Number(document.getElementById('line-thickness-input').value);
                 const opacity = Number(document.getElementById('line-opacity-input').value) / 100;
                 const animationSpeed = Number(document.getElementById('animation-speed-input').value);
                 message.textContent = 'Saving...';
                 try {
                     const updated = await StravaApp.apiPatch(runtimeDataSource.apiBase, '/api/activities/' + activityId(activity) + '?user=' + encodeURIComponent(activity.user_slug), {
-                        line_color: color,
+                        activity_type_override: activityTypeOverride,
+                        line_color: color === defaultColor ? '' : color,
                         line_thickness: thickness,
                         line_opacity: opacity,
                         animation_speed_multiplier: animationSpeed
@@ -728,8 +794,14 @@
                     layer._stravaDescriptor.style.color = StravaApp.getActivityColor(activity);
                     layer._stravaDescriptor.style.weight = StravaApp.getActivityLineWeight(activity, layer._stravaDescriptor.style.weight);
                     layer._stravaDescriptor.style.opacity = StravaApp.getActivityLineOpacity(activity, layer._stravaDescriptor.style.opacity);
+                    layer._stravaDescriptor.meta.type = StravaApp.normalizeActivityType(activity);
+                    layer._stravaDescriptor.tooltipHtml = StravaApp.buildTooltip(activity, { ownerName: userConfig(activity.user_slug).displayName || '' });
+                    if (typeof layer.setTooltipContent === 'function') {
+                        layer.setTooltipContent(layer._stravaDescriptor.tooltipHtml);
+                    }
                     layer.setStyle(layer._stravaDescriptor.style);
-                    message.textContent = 'Saved.';
+                    renderDetailsPanel(layer);
+                    document.getElementById('line-settings-message').textContent = 'Saved.';
                 } catch (error) {
                     message.textContent = error && error.message ? error.message : 'Unable to save.';
                 }

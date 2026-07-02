@@ -89,7 +89,7 @@ function drawSummary() {
     tabletennis: '#393b79', squash: '#5254a3', hiit: '#6b6ecf',
     pilates: '#9c9ede', yoga: '#637939', weighttraining: '#8ca252',
     crossfit: '#b5cf6b', elliptical: '#cedb9c', stairstepper: '#8c6d31',
-    workout: '#bd9e39',
+    workout: '#6b6ecf',
     default: '#17becf'
   };
 
