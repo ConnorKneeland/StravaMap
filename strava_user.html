@@ -1944,7 +1944,7 @@
             window.STRAVA_CONFIG = Object.assign({
                 apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
                 requestTimeoutMs: isLocalHost ? 600000 : 30000,
-                syncOnLoad: false
+                syncOnLoad: true
             }, existingConfig);
         }());
     </script>
