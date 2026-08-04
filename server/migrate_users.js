@@ -13,6 +13,14 @@ async function migrate() {
     const store = wrapModel(getUserModel());
     for (const user of getAllFrontendUsers()) {
         const existing = await store.findOne({ slug: user.slug });
+        const publicConfig = {
+            display_name: user.display_name,
+            slug: user.slug,
+            color: user.color,
+            default_lat: user.default_lat,
+            default_lng: user.default_lng,
+            num_pages: user.num_pages
+        };
         const migrationFields = existing ? {
             connection_status: existing.connection_status || (existing.refresh_token ? 'connected' : 'not_connected'),
             needs_reconnect: existing.needs_reconnect === true,
@@ -28,7 +36,11 @@ async function migrate() {
             sync_status: 'idle',
             backfill_complete: false
         };
-        await store.upsertOne({ slug: user.slug }, Object.assign({}, user, migrationFields));
+        if (existing) {
+            await store.updateOne({ slug: user.slug }, Object.assign({}, publicConfig, migrationFields));
+        } else {
+            await store.insertOne(Object.assign({}, user, migrationFields));
+        }
     }
     console.log('Users migrated.');
     process.exit(0);
