@@ -58,9 +58,6 @@ function mapFrontendConfigToBackendUser(config) {
     return {
         display_name: config.displayName,
         slug: config.slug,
-        client_id: Number(config.clientId),
-        client_secret: config.clientSecret,
-        refresh_token: config.refreshToken,
         color: config.color,
         default_lat: Number(config.lat),
         default_lng: Number(config.lng),

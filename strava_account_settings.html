@@ -220,7 +220,7 @@
     <main>
         <section class="section-card">
             <h1 class="section-title">Backend Status</h1>
-            <p class="section-copy">This page is read-only for now. It shows the Strava accounts defined in the frontend config and whether the backend already has those users stored.</p>
+            <p class="section-copy">This page is read-only for now. It shows every Strava map account stored in the backend.</p>
             <div id="backend-summary">
                 <div class="summary-row">
                     <div class="summary-label">API Base</div>
@@ -238,8 +238,8 @@
         </section>
 
         <section class="section-card">
-            <h2 class="section-title">Configured Accounts</h2>
-            <p class="section-copy">Any account added to <code>js/strava_shared.js</code> can be auto-provisioned into the backend on first sync.</p>
+            <h2 class="section-title">Map Accounts</h2>
+            <p class="section-copy">New accounts appear here automatically after they are created.</p>
             <div id="account-grid"></div>
         </section>
     </main>
@@ -249,7 +249,7 @@
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
+                apiBase: isLocalHost ? window.location.origin : 'https://stravamap-production-7f28.up.railway.app',
                 requestTimeoutMs: isLocalHost ? 600000 : 30000
             }, existingConfig);
         }());
@@ -264,32 +264,45 @@
         const runtimeDataSource = StravaApp.createRuntimeDataSource(window.STRAVA_CONFIG);
 
         function renderAccountCards(backendUsers) {
-            const backendUsersBySlug = new Map((backendUsers || []).map(function (user) {
-                return [String(user.slug || '').toLowerCase(), user];
-            }));
             accountGrid.innerHTML = '';
 
-            Object.keys(StravaApp.USER_CONFIGS).sort().forEach(function (slug) {
-                const config = StravaApp.USER_CONFIGS[slug];
-                const backendUser = backendUsersBySlug.get(slug);
+            (backendUsers || []).slice().sort(function (left, right) {
+                return String(left.display_name || left.slug || '').localeCompare(String(right.display_name || right.slug || ''));
+            }).forEach(function (backendUser) {
+                const slug = String(backendUser.slug || '').toLowerCase();
+                const config = StravaApp.USER_CONFIGS[slug] || {};
+                const displayName = String(backendUser.display_name || config.displayName || slug);
+                const color = backendUser.color || config.color || '#fc4c02';
+                const pages = Math.max(1, Number(backendUser.num_pages || config.pages || 1));
+                const latitude = Number(backendUser.default_lat != null ? backendUser.default_lat : config.lat);
+                const longitude = Number(backendUser.default_lng != null ? backendUser.default_lng : config.lng);
                 const card = document.createElement('article');
                 card.className = 'account-card';
 
                 const heading = document.createElement('div');
                 heading.className = 'account-heading';
-                heading.innerHTML = "<div class='account-title'>" + config.displayName + "</div><span class='account-dot' style='background:" + config.color + ";'></span>";
+                const title = document.createElement('div');
+                title.className = 'account-title';
+                title.textContent = displayName;
+                const dot = document.createElement('span');
+                dot.className = 'account-dot';
+                dot.style.background = color;
+                heading.appendChild(title);
+                heading.appendChild(dot);
 
                 const status = document.createElement('div');
-                status.className = 'account-status ' + (backendUser ? 'status-live' : 'status-missing');
-                status.textContent = backendUser ? 'Available in backend' : 'Frontend only';
+                status.className = 'account-status ' + (backendUser.connected ? 'status-live' : 'status-missing');
+                status.textContent = backendUser.connected
+                    ? 'Strava connected'
+                    : (backendUser.needsReconnect ? 'Reconnect required' : 'Waiting for Strava');
 
                 const meta = document.createElement('div');
                 meta.className = 'account-meta';
                 meta.innerHTML = ""
                     + "<div class='account-meta-row'><div class='account-meta-label'>Slug</div><div class='account-meta-value'>" + slug + "</div></div>"
-                    + "<div class='account-meta-row'><div class='account-meta-label'>Map Pages</div><div class='account-meta-value'>" + Number(config.pages || 1) + "</div></div>"
-                    + "<div class='account-meta-row'><div class='account-meta-label'>Default Center</div><div class='account-meta-value'>" + Number(config.lat).toFixed(4) + ", " + Number(config.lng).toFixed(4) + "</div></div>"
-                    + "<div class='account-meta-row'><div class='account-meta-label'>Backend Activities</div><div class='account-meta-value'>" + (backendUser ? Number(backendUser.total_activities || 0) : 'Not synced') + "</div></div>";
+                    + "<div class='account-meta-row'><div class='account-meta-label'>Map Pages</div><div class='account-meta-value'>" + pages + "</div></div>"
+                    + "<div class='account-meta-row'><div class='account-meta-label'>Default Center</div><div class='account-meta-value'>" + (Number.isFinite(latitude) && Number.isFinite(longitude) ? latitude.toFixed(4) + ", " + longitude.toFixed(4) : 'Set after sync') + "</div></div>"
+                    + "<div class='account-meta-row'><div class='account-meta-label'>Backend Activities</div><div class='account-meta-value'>" + Number(backendUser.total_activities || 0) + "</div></div>";
 
                 const actions = document.createElement('div');
                 actions.className = 'account-actions';
@@ -322,7 +335,7 @@
             console.error(error);
             userCountValue.textContent = 'Unavailable';
             modeValue.textContent = 'Error';
-            renderAccountCards([]);
+            accountGrid.innerHTML = '<p class="section-copy">Accounts could not be loaded from the backend.</p>';
         });
     </script>
 </body>
