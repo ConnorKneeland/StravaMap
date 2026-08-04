@@ -217,28 +217,28 @@
 
 <body>
     <main>
-        <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Strava Map</div>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Make your map</div>
         <section class="card" aria-labelledby="page-title">
-            <p class="eyebrow">One quick step</p>
-            <h1 id="page-title">Make your map.</h1>
+            <p class="eyebrow">Bookmark your map link once done</p>
+            <h1 id="page-title">Instructions</h1>
             <p class="intro">Enter your first and last name. Click <strong>Next</strong>, then authenticate your Strava account.</p>
-            <div class="plain-talk">Usernames, passwords, and multi-factor authentication are annoying when you just wanna see a cool map.</div>
+            <div class="plain-talk">Usernames and passwords are dumb. Make sure to bookmark your map once created. That website link is your login.</div>
 
             <form id="new-user-form" novalidate>
                 <div class="field">
                     <label for="first-name">First name <span>(case-sensitive)</span></label>
-                    <input id="first-name" name="first_name" type="text" autocomplete="given-name" maxlength="32" pattern="[A-Za-z]+" placeholder="Matthew" required autofocus>
+                    <input id="first-name" name="first_name" type="text" autocomplete="given-name" maxlength="32" pattern="[A-Za-z]+" placeholder="First Name" required autofocus>
                 </div>
                 <div class="field">
                     <label for="last-name">Last name <span>(case-sensitive)</span></label>
-                    <input id="last-name" name="last_name" type="text" autocomplete="family-name" maxlength="32" pattern="[A-Za-z]+" placeholder="Welsh" required>
+                    <input id="last-name" name="last_name" type="text" autocomplete="family-name" maxlength="32" pattern="[A-Za-z]+" placeholder="Last Name" required>
                 </div>
                 <p id="slug-preview" class="slug-preview" aria-live="polite"></p>
                 <p id="form-error" class="error" role="alert" aria-live="assertive"></p>
                 <button id="next-button" type="submit">Next: Authenticate Strava</button>
             </form>
 
-            <p class="fine-print">Your capitalization is preserved for the name shown on your map. Your private Strava credentials are handled by Strava, not entered here.</p>
+            <p class="fine-print">There are no terms and services or privacy policies to be aware of. Your Strava data is only pulled when you (or someone) looks at your map.</p>
         </section>
     </main>
 
