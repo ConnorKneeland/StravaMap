@@ -2,6 +2,7 @@ const express = require('express');
 const { isMongoConnected, memoryStore, wrapModel } = require('../db');
 const getUserModel = require('../models/user');
 const { toPublicUser, normalizeSlug } = require('../services/connection');
+const { RegistrationError, registerNewUser } = require('../services/registration');
 
 const router = express.Router();
 const PUBLIC_USER_FIELDS = new Set([
@@ -42,20 +43,23 @@ router.get('/users/:slug', async (req, res) => {
 });
 
 router.post('/users', async (req, res) => {
-    const slug = normalizeSlug(req.body && req.body.slug);
-    const payload = Object.assign(pickPublicUserFields(req.body), {
-        slug,
-        connection_status: 'not_connected',
-        needs_reconnect: false,
-        oauth_application: 'primary',
-        migration_status: 'not_started'
-    });
-    if (!slug || !payload.display_name) {
-        res.status(400).json({ error: 'A valid slug and display_name are required' });
-        return;
+    try {
+        const user = await registerNewUser(getUserStore(), req.body);
+        res.status(201).json(toPublicUser(user));
+    } catch (error) {
+        if (error instanceof RegistrationError) {
+            res.status(error.statusCode).json(Object.assign({
+                error: error.message,
+                code: error.code
+            }, error.details));
+            return;
+        }
+        console.error('[User Registration Failed]', error && error.message ? error.message : error);
+        res.status(500).json({
+            error: 'Your map could not be created. Please try again.',
+            code: 'registration_failed'
+        });
     }
-    const user = await getUserStore().insertOne(payload);
-    res.status(201).json(toPublicUser(user));
 });
 
 router.put('/users/:slug', async (req, res) => {

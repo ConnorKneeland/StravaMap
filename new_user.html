@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create your Strava map</title>
+    <link rel="icon" href="img/Strava_Favicon.png">
+    <style>
+        :root {
+            color-scheme: dark;
+            --background: #07090d;
+            --panel: #11151c;
+            --panel-soft: #171c25;
+            --border: rgba(255, 255, 255, 0.12);
+            --text: #f8fafc;
+            --muted: #aab3c2;
+            --orange: #fc4c02;
+            --orange-hover: #ff641f;
+            --danger: #ff8f84;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 18px;
+            overflow-x: hidden;
+            background:
+                radial-gradient(circle at 12% 15%, rgba(252, 76, 2, 0.19), transparent 34rem),
+                radial-gradient(circle at 88% 86%, rgba(47, 111, 237, 0.13), transparent 30rem),
+                var(--background);
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        main {
+            width: 100%;
+            max-width: 560px;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 18px;
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .brand-mark {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+            background: var(--orange);
+            box-shadow: 0 0 22px rgba(252, 76, 2, 0.72);
+            transform: rotate(45deg);
+        }
+
+        .card {
+            padding: clamp(26px, 6vw, 44px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            background: rgba(17, 21, 28, 0.94);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+            backdrop-filter: blur(16px);
+        }
+
+        .eyebrow {
+            margin: 0 0 8px;
+            color: var(--orange);
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(34px, 8vw, 52px);
+            line-height: 0.98;
+            letter-spacing: -0.045em;
+        }
+
+        .intro {
+            margin: 18px 0 24px;
+            color: var(--muted);
+            font-size: 17px;
+            line-height: 1.55;
+        }
+
+        .plain-talk {
+            margin-bottom: 26px;
+            padding: 14px 16px;
+            border: 1px solid rgba(252, 76, 2, 0.3);
+            border-radius: 14px;
+            background: rgba(252, 76, 2, 0.08);
+            color: #ffd9c9;
+            font-size: 15px;
+            line-height: 1.45;
+        }
+
+        form {
+            display: grid;
+            gap: 18px;
+        }
+
+        .field {
+            display: grid;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        label span {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            min-height: 52px;
+            padding: 13px 15px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            outline: none;
+            background: var(--panel-soft);
+            color: var(--text);
+            font: inherit;
+            font-size: 17px;
+            transition: border-color 150ms ease, box-shadow 150ms ease;
+        }
+
+        input:focus {
+            border-color: var(--orange);
+            box-shadow: 0 0 0 4px rgba(252, 76, 2, 0.14);
+        }
+
+        .slug-preview {
+            min-height: 22px;
+            margin: -4px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .slug-preview code {
+            color: #fff;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        button {
+            min-height: 54px;
+            margin-top: 2px;
+            padding: 14px 18px;
+            border: 0;
+            border-radius: 13px;
+            background: var(--orange);
+            color: #fff;
+            cursor: pointer;
+            font: inherit;
+            font-size: 17px;
+            font-weight: 800;
+            transition: background 150ms ease, transform 150ms ease, opacity 150ms ease;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--orange-hover);
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            cursor: wait;
+            opacity: 0.68;
+        }
+
+        .error {
+            min-height: 22px;
+            margin: -4px 0 0;
+            color: var(--danger);
+            font-size: 14px;
+            font-weight: 650;
+            line-height: 1.45;
+        }
+
+        .fine-print {
+            margin: 20px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 520px) {
+            body {
+                align-items: flex-start;
+                padding-top: 20px;
+            }
+
+            .card {
+                border-radius: 19px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Strava Map</div>
+        <section class="card" aria-labelledby="page-title">
+            <p class="eyebrow">One quick step</p>
+            <h1 id="page-title">Make your map.</h1>
+            <p class="intro">Enter your first and last name. Click <strong>Next</strong>, then authenticate your Strava account.</p>
+            <div class="plain-talk">Usernames, passwords, and multi-factor authentication are annoying when you just wanna see a cool map.</div>
+
+            <form id="new-user-form" novalidate>
+                <div class="field">
+                    <label for="first-name">First name <span>(case-sensitive)</span></label>
+                    <input id="first-name" name="first_name" type="text" autocomplete="given-name" maxlength="32" pattern="[A-Za-z]+" placeholder="Matthew" required autofocus>
+                </div>
+                <div class="field">
+                    <label for="last-name">Last name <span>(case-sensitive)</span></label>
+                    <input id="last-name" name="last_name" type="text" autocomplete="family-name" maxlength="32" pattern="[A-Za-z]+" placeholder="Welsh" required>
+                </div>
+                <p id="slug-preview" class="slug-preview" aria-live="polite"></p>
+                <p id="form-error" class="error" role="alert" aria-live="assertive"></p>
+                <button id="next-button" type="submit">Next: Authenticate Strava</button>
+            </form>
+
+            <p class="fine-print">Your capitalization is preserved for the name shown on your map. Your private Strava credentials are handled by Strava, not entered here.</p>
+        </section>
+    </main>
+
+    <script>
+        (function () {
+            const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
+            const apiBase = isLocalHost
+                ? window.location.origin
+                : 'https://stravamap-production-7f28.up.railway.app';
+            const form = document.getElementById('new-user-form');
+            const firstNameInput = document.getElementById('first-name');
+            const lastNameInput = document.getElementById('last-name');
+            const slugPreview = document.getElementById('slug-preview');
+            const formError = document.getElementById('form-error');
+            const nextButton = document.getElementById('next-button');
+            const namePattern = /^[A-Za-z]{1,32}$/;
+
+            function getNameValues() {
+                return {
+                    firstName: firstNameInput.value.trim(),
+                    lastName: lastNameInput.value.trim()
+                };
+            }
+
+            function getSlug(values) {
+                if (!namePattern.test(values.firstName) || !namePattern.test(values.lastName)) {
+                    return '';
+                }
+                return (values.firstName + values.lastName).toLowerCase();
+            }
+
+            function updateSlugPreview() {
+                formError.textContent = '';
+                const slug = getSlug(getNameValues());
+                slugPreview.innerHTML = slug
+                    ? 'Your map link will use <code>' + slug + '</code>.'
+                    : '';
+            }
+
+            firstNameInput.addEventListener('input', updateSlugPreview);
+            lastNameInput.addEventListener('input', updateSlugPreview);
+
+            form.addEventListener('submit', async function (event) {
+                event.preventDefault();
+                formError.textContent = '';
+                const values = getNameValues();
+                if (!namePattern.test(values.firstName) || !namePattern.test(values.lastName)) {
+                    formError.textContent = 'Enter a first and last name using letters only.';
+                    return;
+                }
+
+                nextButton.disabled = true;
+                nextButton.textContent = 'Creating your map...';
+                try {
+                    const response = await fetch(apiBase + '/api/users', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            first_name: values.firstName,
+                            last_name: values.lastName
+                        })
+                    });
+                    const payload = await response.json().catch(function () { return {}; });
+                    if (!response.ok) {
+                        throw new Error(payload.error || 'Your map could not be created. Please try again.');
+                    }
+
+                    nextButton.textContent = 'Opening Strava...';
+                    const returnUrl = new URL('strava_user.html', window.location.href);
+                    returnUrl.search = '';
+                    returnUrl.searchParams.set('user', payload.slug);
+                    const connectUrl = new URL('/api/strava/connect/' + encodeURIComponent(payload.slug), apiBase);
+                    connectUrl.searchParams.set('return_url', returnUrl.toString());
+                    window.location.assign(connectUrl.toString());
+                } catch (error) {
+                    formError.textContent = error && error.message
+                        ? error.message
+                        : 'Your map could not be created. Please try again.';
+                    nextButton.disabled = false;
+                    nextButton.textContent = 'Next: Authenticate Strava';
+                }
+            });
+        }());
+    </script>
+</body>
+
+</html>
