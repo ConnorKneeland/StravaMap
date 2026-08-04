@@ -26,7 +26,10 @@ const {
 } = require('../services/oauth');
 const { refreshUserAccessToken, syncUserActivities } = require('../services/sync');
 const { queueWebhookEvent, processWebhookEvent } = require('../services/webhook');
-const { requirePrimaryOAuthMigration } = require('../require_primary_oauth');
+const {
+    requirePrimaryOAuthMigration,
+    requireAllExistingPrimaryOAuthMigrations
+} = require('../require_primary_oauth');
 const { createApp } = require('../index');
 
 function resetMemory() {
@@ -404,4 +407,51 @@ test('requiring primary OAuth is a no-op for an already migrated user', async ()
     assert.equal(updated.connection_status, 'connected');
     assert.equal(updated.needs_reconnect, false);
     assert.equal(updated.refresh_token, 'primary-refresh');
+});
+
+test('the all-existing campaign excludes connor and tim and targets every other legacy slug', async () => {
+    for (const slug of ['connor', 'tim', 'quinn', 'michael', 'mwelsh', 'kemily', 'brett', 'lee']) {
+        await memoryStore.users.insertOne({
+            slug,
+            display_name: slug,
+            strava_id: 10000 + memoryState.users.length,
+            refresh_token: `${slug}-legacy-refresh`,
+            connection_status: 'connected',
+            needs_reconnect: false,
+            oauth_application: 'legacy',
+            migration_status: 'pending'
+        });
+    }
+    await memoryStore.users.insertOne({
+        slug: 'alreadyprimary',
+        display_name: 'Already Primary',
+        strava_id: 20000,
+        refresh_token: 'primary-refresh',
+        connection_status: 'connected',
+        needs_reconnect: false,
+        oauth_application: 'primary',
+        migration_status: 'complete'
+    });
+
+    const campaign = await requireAllExistingPrimaryOAuthMigrations(memoryStore.users);
+    assert.deepEqual(campaign.excludedSlugs, ['connor', 'tim']);
+    assert.equal(campaign.totalExistingUsers, 9);
+    assert.equal(campaign.primaryOAuthRequired, 6);
+    assert.equal(campaign.alreadyPrimary, 1);
+
+    for (const slug of ['connor', 'tim']) {
+        const user = await memoryStore.users.findOne({ slug });
+        assert.equal(user.connection_status, 'connected');
+        assert.equal(user.needs_reconnect, false);
+    }
+    for (const slug of ['quinn', 'michael', 'mwelsh', 'kemily', 'brett', 'lee']) {
+        const user = await memoryStore.users.findOne({ slug });
+        assert.equal(user.connection_status, 'reconnect_required');
+        assert.equal(user.needs_reconnect, true);
+        assert.equal(user.refresh_token, `${slug}-legacy-refresh`);
+        assert.equal(user.oauth_application, 'legacy');
+    }
+    const alreadyPrimary = await memoryStore.users.findOne({ slug: 'alreadyprimary' });
+    assert.equal(alreadyPrimary.connection_status, 'connected');
+    assert.equal(alreadyPrimary.needs_reconnect, false);
 });
