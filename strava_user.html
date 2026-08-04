@@ -1598,6 +1598,54 @@
         #splash.fade-out{ animation:splashFade 2s forwards ease; }
         @keyframes splashFade{ to{ opacity:0; visibility:hidden; } }
         .splash-text{ font-family:'Aptos Narrow', sans-serif; font-size:clamp(32px,8vw,96px); font-weight:700; color:#fff; text-align:center; text-shadow:0 4px 12px rgba(0,0,0,0.3); padding:0 6vw; line-height:1.2; }
+        #connection-gate{
+            position:fixed;
+            inset:0;
+            z-index:2100;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:24px;
+            background:radial-gradient(circle at 50% 30%, #243447 0, #111827 48%, #05070b 100%);
+            color:#fff;
+        }
+        #connection-gate[hidden]{ display:none; }
+        .connection-card{
+            width:min(520px, 100%);
+            padding:36px;
+            border:1px solid rgba(255,255,255,0.14);
+            border-radius:22px;
+            background:rgba(12,18,28,0.94);
+            box-shadow:0 28px 80px rgba(0,0,0,0.5);
+            text-align:center;
+        }
+        .connection-card h1{ margin:0 0 12px; font-size:clamp(30px,6vw,48px); }
+        .connection-card p{ margin:0 auto 24px; max-width:420px; color:#c7d0dc; font-size:17px; line-height:1.55; }
+        #strava-connect-button{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-height:50px;
+            padding:13px 22px;
+            border-radius:12px;
+            background:#fc4c02;
+            color:#fff;
+            font-size:18px;
+            font-weight:700;
+            text-decoration:none;
+            box-shadow:0 10px 28px rgba(252,76,2,0.3);
+        }
+        #strava-connect-button:hover{ background:#e34402; }
+        #connection-retry-button{
+            min-height:46px;
+            padding:11px 18px;
+            border:1px solid rgba(255,255,255,0.24);
+            border-radius:10px;
+            background:#1f2937;
+            color:#fff;
+            font-size:16px;
+            cursor:pointer;
+        }
         @media(max-width:1200px){
             :root{ --nav-height:78px; }
             #page-title{ font-size:26px; }
@@ -1787,6 +1835,14 @@
 <body id="body">
     <div id="preload"></div>
     <div id="splash"><div class="splash-text" id="splash-text"></div></div>
+    <section id="connection-gate" hidden aria-live="polite">
+        <div class="connection-card">
+            <h1 id="connection-title">Connect Strava</h1>
+            <p id="connection-message">Connect this map to its owner's Strava account. Connor never receives or sees the athlete's password.</p>
+            <a id="strava-connect-button" href="#">Connect with Strava</a>
+            <button id="connection-retry-button" type="button" hidden>Try again</button>
+        </div>
+    </section>
 
     <nav id="top-nav">
         <div id="nav-left">
@@ -1942,9 +1998,10 @@
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
             window.STRAVA_CONFIG = Object.assign({
-                apiBase: isLocalHost ? 'http://localhost:3000' : 'https://stravamap-production-7f28.up.railway.app',
+                apiBase: isLocalHost ? window.location.origin : 'https://stravamap-production-7f28.up.railway.app',
                 requestTimeoutMs: isLocalHost ? 600000 : 30000,
-                syncOnLoad: true
+                syncOnLoad: true,
+                allowDirectStravaFallback: false
             }, existingConfig);
         }());
     </script>
@@ -2130,12 +2187,60 @@
         const collectionPlaybackMembership = document.getElementById('collection-playback-membership');
         const introKpiPanel = document.getElementById('intro-kpi-panel');
         const splashText = document.getElementById('splash-text');
+        const connectionGate = document.getElementById('connection-gate');
+        const connectionTitle = document.getElementById('connection-title');
+        const connectionMessage = document.getElementById('connection-message');
+        const stravaConnectButton = document.getElementById('strava-connect-button');
+        const connectionRetryButton = document.getElementById('connection-retry-button');
         const runtimeDataSource = StravaApp.createRuntimeDataSource(window.STRAVA_CONFIG);
 
         function getBackendSourceLabel() {
             return runtimeDataSource.apiBase && runtimeDataSource.apiBase.indexOf('localhost') !== -1
                 ? 'Local Backend API'
                 : 'Backend API';
+        }
+
+        function getMapReturnUrl() {
+            const returnUrl = new URL(window.location.href);
+            returnUrl.searchParams.set('user', userConfig.slug);
+            returnUrl.searchParams.delete('connected');
+            returnUrl.searchParams.delete('oauth_error');
+            return returnUrl.toString();
+        }
+
+        function getConnectUrl() {
+            const connectUrl = new URL('/api/strava/connect/' + encodeURIComponent(userConfig.slug), runtimeDataSource.apiBase);
+            connectUrl.searchParams.set('return_url', getMapReturnUrl());
+            return connectUrl.toString();
+        }
+
+        function showConnectionGate(status, error) {
+            const needsReconnect = Boolean(status && status.needsReconnect);
+            body.dataset.connectionState = error ? 'error' : (needsReconnect ? 'reconnect_required' : 'not_connected');
+            connectionTitle.textContent = error
+                ? 'Map connection unavailable'
+                : (needsReconnect ? 'Reconnect Strava' : 'Connect Strava');
+            connectionMessage.textContent = error
+                ? 'The map could not check its connection. Try again in a moment.'
+                : (needsReconnect
+                    ? 'Strava authorization needs to be renewed. Your existing map data is safe.'
+                    : 'Authorize once from the athlete\'s own computer. No password sharing or Postman is required.');
+            stravaConnectButton.textContent = needsReconnect ? 'Reconnect Strava' : 'Connect with Strava';
+            stravaConnectButton.href = getConnectUrl();
+            stravaConnectButton.hidden = Boolean(error);
+            connectionRetryButton.hidden = !error;
+            connectionGate.hidden = false;
+            document.getElementById('preload').classList.add('fade');
+            document.getElementById('splash').style.display = 'none';
+        }
+
+        async function fetchConnectionStatus() {
+            return StravaApp.apiGet(
+                runtimeDataSource.apiBase,
+                '/api/user/' + encodeURIComponent(userConfig.slug) + '/status',
+                {},
+                { timeoutMs: window.STRAVA_CONFIG.requestTimeoutMs }
+            );
         }
 
         function getSpeedPalette() {
@@ -3146,7 +3251,10 @@
                     user: userConfig.slug,
                     hydrate: 1
                 }, requestOptions);
-            }, function () {
+            }, function (error) {
+                if (window.STRAVA_CONFIG.allowDirectStravaFallback !== true) {
+                    throw error || new Error('Backend activity detail is unavailable.');
+                }
                 return ensureDirectAccessToken().then(function (accessToken) {
                     return StravaApp.stravaFetchActivity(accessToken, activityId);
                 });
@@ -3162,7 +3270,10 @@
                     resolution: SPEED_STREAM_OPTIONS.resolution,
                     series_type: SPEED_STREAM_OPTIONS.seriesType
                 }, requestOptions);
-            }, function () {
+            }, function (error) {
+                if (window.STRAVA_CONFIG.allowDirectStravaFallback !== true) {
+                    throw error || new Error('Backend activity streams are unavailable.');
+                }
                 return ensureDirectAccessToken().then(function (accessToken) {
                     return StravaApp.stravaFetchActivityStreams(accessToken, activityId, Object.assign({}, SPEED_STREAM_OPTIONS, { keys: keys }));
                 });
@@ -9223,6 +9334,7 @@
         async function loadUserPage() {
             const fallbackCenter = [userConfig.lat, userConfig.lng];
             state.map = await initializeActiveMap(fallbackCenter, 8);
+            let backgroundSyncPromise = null;
 
             const loadResult = await runtimeDataSource.runWithFallback('user activity load', async function (requestOptions) {
                 let syncSummary = {
@@ -9230,16 +9342,25 @@
                     storage: 'MongoDB',
                     syncAvailable: false
                 };
-                if (window.STRAVA_CONFIG.syncOnLoad === true) {
-                    try {
-                        syncSummary = await StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${userConfig.slug}`, {}, requestOptions);
-                    } catch (error) {
-                        console.warn('Strava sync unavailable; loading cached backend activities.', error);
-                    }
-                }
-                const backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
+                let backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
                     user: userConfig.slug
                 }, requestOptions);
+                if (window.STRAVA_CONFIG.syncOnLoad === true) {
+                    body.dataset.connectionState = 'syncing';
+                    const syncRequest = StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${userConfig.slug}`, {}, requestOptions);
+                    if (backendActivities.length) {
+                        backgroundSyncPromise = syncRequest;
+                    } else {
+                        try {
+                            syncSummary = await syncRequest;
+                            backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
+                                user: userConfig.slug
+                            }, requestOptions);
+                        } catch (error) {
+                            console.warn('Initial Strava sync unavailable.', error);
+                        }
+                    }
+                }
                 const normalizedActivities = StravaApp.sortActivitiesNewestFirst(backendActivities.map(StravaApp.normalizeActivityRecord));
                 if (!normalizedActivities.length) {
                     throw new Error('No cached backend activities are available for ' + userConfig.slug + '.');
@@ -9264,7 +9385,10 @@
                     activities: normalizedActivities,
                     latestCenter: latestCenter
                 };
-            }, function () {
+            }, function (error) {
+                if (window.STRAVA_CONFIG.allowDirectStravaFallback !== true) {
+                    throw error || new Error('Backend map data is unavailable.');
+                }
                 return fetchUserActivitiesDirect(fallbackCenter);
             });
 
@@ -9384,11 +9508,49 @@
                 renderRemainingIntroWorkouts({ hideControl: true });
                 await startCollectionPlayback(sharedCollection, { readOnly: true, applyFilter: true });
             }
+
+            if (backgroundSyncPromise) {
+                backgroundSyncPromise.then(function (summary) {
+                    body.dataset.connectionState = 'ready';
+                    if (Number(summary && summary.recordsInserted) > 0) {
+                        window.setTimeout(function () {
+                            window.location.reload();
+                        }, 250);
+                    }
+                }).catch(function (error) {
+                    console.warn('Background Strava sync unavailable; cached routes remain visible.', error);
+                    body.dataset.connectionState = 'error';
+                });
+            } else {
+                body.dataset.connectionState = 'ready';
+            }
         }
 
-        loadUserPage().catch(function (error) {
+        connectionRetryButton.addEventListener('click', function () {
+            window.location.reload();
+        });
+
+        async function bootstrapUserPage() {
+            let connectionStatus;
+            try {
+                connectionStatus = await fetchConnectionStatus();
+            } catch (error) {
+                console.error(error);
+                showConnectionGate(null, error);
+                return;
+            }
+            if (!connectionStatus.connected) {
+                showConnectionGate(connectionStatus, null);
+                return;
+            }
+            body.dataset.connectionState = 'connected';
+            await loadUserPage();
+        }
+
+        bootstrapUserPage().catch(function (error) {
             console.error(error);
-            splashText.textContent = 'Unable to load Strava data';
+            body.dataset.connectionState = 'error';
+            splashText.textContent = 'Unable to load cached Strava data';
         });
     </script>
 </body>
