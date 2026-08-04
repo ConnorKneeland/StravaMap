@@ -6,7 +6,7 @@ const { ensureUserForSync, syncUserActivities } = require('./services/sync');
 dotenv.config();
 
 async function bulkSyncUsers() {
-    await connectDb(process.env.MONGO_URI || '');
+    await connectDb(process.env.MONGODB_URI || process.env.MONGO_URI || '');
     const configuredUsers = getAllFrontendUsers();
     console.log('[Strava Bulk Sync]', {
         configuredUsers: configuredUsers.map((user) => user.slug),

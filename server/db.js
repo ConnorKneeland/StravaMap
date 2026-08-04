@@ -6,7 +6,9 @@ const memoryState = {
     competitions: [],
     collections: [],
     activityNotes: [],
-    activityKpiSnapshots: []
+    activityKpiSnapshots: [],
+    oauthStates: [],
+    webhookEvents: []
 };
 
 function clone(value) {
@@ -25,7 +27,13 @@ function matchesValue(value, expected) {
         if (Object.prototype.hasOwnProperty.call(expected, '$gte') && value < expected.$gte) {
             return false;
         }
+        if (Object.prototype.hasOwnProperty.call(expected, '$gt') && value <= expected.$gt) {
+            return false;
+        }
         if (Object.prototype.hasOwnProperty.call(expected, '$lte') && value > expected.$lte) {
+            return false;
+        }
+        if (Object.prototype.hasOwnProperty.call(expected, '$lt') && value >= expected.$lt) {
             return false;
         }
         return true;
@@ -237,7 +245,9 @@ const memoryStore = {
     competitions: createMemoryCollection('competitions', 'id'),
     collections: createMemoryCollection('collections', 'id'),
     activityNotes: createMemoryCollection('activityNotes', 'id'),
-    activityKpiSnapshots: createMemoryCollection('activityKpiSnapshots', 'id')
+    activityKpiSnapshots: createMemoryCollection('activityKpiSnapshots', 'id'),
+    oauthStates: createMemoryCollection('oauthStates', 'state_hash'),
+    webhookEvents: createMemoryCollection('webhookEvents', 'event_key')
 };
 
 module.exports = {

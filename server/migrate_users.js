@@ -6,13 +6,29 @@ const { getAllFrontendUsers } = require('./frontend_user_configs');
 dotenv.config();
 
 async function migrate() {
-    await connectDb(process.env.MONGO_URI || '');
+    await connectDb(process.env.MONGODB_URI || process.env.MONGO_URI || '');
     if (!isMongoConnected()) {
-        throw new Error('MONGO_URI is required to migrate users into MongoDB.');
+        throw new Error('MONGODB_URI (or legacy MONGO_URI) is required to migrate users into MongoDB.');
     }
     const store = wrapModel(getUserModel());
     for (const user of getAllFrontendUsers()) {
-        await store.upsertOne({ slug: user.slug }, user);
+        const existing = await store.findOne({ slug: user.slug });
+        const migrationFields = existing ? {
+            connection_status: existing.connection_status || (existing.refresh_token ? 'connected' : 'not_connected'),
+            needs_reconnect: existing.needs_reconnect === true,
+            oauth_application: existing.oauth_application || 'legacy',
+            migration_status: existing.migration_status || (existing.refresh_token ? 'pending' : 'not_started'),
+            sync_status: existing.sync_status || 'idle',
+            backfill_complete: existing.backfill_complete === true
+        } : {
+            connection_status: user.refresh_token ? 'connected' : 'not_connected',
+            needs_reconnect: false,
+            oauth_application: 'legacy',
+            migration_status: user.refresh_token ? 'pending' : 'not_started',
+            sync_status: 'idle',
+            backfill_complete: false
+        };
+        await store.upsertOne({ slug: user.slug }, Object.assign({}, user, migrationFields));
     }
     console.log('Users migrated.');
     process.exit(0);

@@ -159,7 +159,7 @@
             : 1;
         return {
             isMobile: isMobile,
-            LINE_WEIGHT: (isMobile ? 5 : 4.25) * baseWeightMultiplier,
+            LINE_WEIGHT: (isMobile ? 5 : 3.5) * baseWeightMultiplier,
             OPACITY_WEIGHT: isMobile ? 0.5 : 0.8
         };
     }

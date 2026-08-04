@@ -7,7 +7,10 @@ const authRoutes = require('./routes/auth');
 const activityRoutes = require('./routes/activities');
 const competitionRoutes = require('./routes/competitions');
 const collectionRoutes = require('./routes/collections');
+const stravaRoutes = require('./routes/strava');
 const { getAllFrontendUsers } = require('./frontend_user_configs');
+const { getConfigurationStatus } = require('./config/strava');
+const { startWebhookRetryWorker } = require('./services/webhook');
 
 dotenv.config();
 
@@ -17,8 +20,8 @@ async function seedMemoryUsers() {
     }
 }
 
-async function start() {
-    await connectDb(process.env.MONGO_URI || '');
+async function createApp() {
+    await connectDb(process.env.MONGODB_URI || process.env.MONGO_URI || '');
     if (!isMongoConnected()) {
         await seedMemoryUsers();
     }
@@ -30,14 +33,23 @@ async function start() {
         res.json({
             status: 'ok',
             storage: isMongoConnected() ? 'MongoDB' : 'memory',
-            mongoConnected: isMongoConnected()
+            mongoConnected: isMongoConnected(),
+            configuration: getConfigurationStatus()
         });
     });
+    app.use('/api', stravaRoutes);
     app.use('/api', authRoutes);
     app.use('/api', activityRoutes);
     app.use('/api', competitionRoutes);
     app.use('/api', collectionRoutes);
     app.use(express.static(path.resolve(__dirname, '..')));
+
+    return app;
+}
+
+async function start() {
+    const app = await createApp();
+    startWebhookRetryWorker();
 
     const port = Number(process.env.PORT || 3000);
     app.listen(port, () => {
@@ -49,7 +61,11 @@ async function start() {
     });
 }
 
-start().catch((error) => {
-    console.error(error);
-    process.exit(1);
-});
+if (require.main === module) {
+    start().catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });
+}
+
+module.exports = { createApp, start };

@@ -15,6 +15,11 @@ const {
 } = require('../stream_config');
 const { isMongoConnected } = require('../db');
 const ActivityTypes = require('../../js/strava_activity_types');
+const {
+    normalizeSlug,
+    isUserConnected,
+    buildConnectionStatus
+} = require('../services/connection');
 
 const router = express.Router();
 const ACTIVITY_TYPE_KEYS = new Set(ActivityTypes.getAllActivityTypes().map((entry) => entry.key));
@@ -152,6 +157,13 @@ function parseAnimationSpeedMultiplier(value) {
     return { valid: true, value: numeric };
 }
 
+function hasUserScope(query) {
+    return parseCsvList((query || {}).users || (query || {}).user)
+        .map(normalizeSlug)
+        .filter(Boolean)
+        .length > 0;
+}
+
 function parseActivityTypeOverride(value) {
     if (value === undefined || value === null || value === '') {
         return { valid: true, value: '', label: '' };
@@ -251,14 +263,27 @@ function hasAnyStreamData(activity) {
 }
 
 router.post('/sync/:slug', async (req, res) => {
-    const userSlug = String(req.params.slug || '').toLowerCase();
+    const userSlug = normalizeSlug(req.params.slug);
+    if (!userSlug) {
+        res.status(400).json({ error: 'Invalid user slug' });
+        return;
+    }
     try {
         const user = await ensureUserForSync(userSlug);
         if (!user) {
             res.status(404).json({ error: 'User not found' });
             return;
         }
-        res.json(await syncUserActivities(user));
+        if (!isUserConnected(user)) {
+            res.status(409).json(Object.assign({ error: 'Strava connection required' }, buildConnectionStatus(user)));
+            return;
+        }
+        const syncResult = await syncUserActivities(user);
+        const safeResult = Object.assign({}, syncResult, {
+            connection: buildConnectionStatus(syncResult.user)
+        });
+        delete safeResult.user;
+        res.json(safeResult);
     } catch (error) {
         let storedActivityCount = 0;
         try {
@@ -291,8 +316,30 @@ router.post('/sync/:slug', async (req, res) => {
             storedActivityCount: storedActivityCount,
             activitiesSynced: 0
         };
-        res.status(storedActivityCount > 0 ? 200 : 503).json(payload);
+        const latestUser = await getUserStore().findOne({ slug: userSlug });
+        Object.assign(payload, latestUser ? buildConnectionStatus(latestUser) : {});
+        res.status(storedActivityCount > 0 ? 200 : (payload.needsReconnect ? 409 : 503)).json(payload);
     }
+});
+
+router.get('/sync/:slug/status', async (req, res) => {
+    const userSlug = normalizeSlug(req.params.slug);
+    if (!userSlug) {
+        res.status(400).json({ error: 'Invalid user slug' });
+        return;
+    }
+    const user = await getUserStore().findOne({ slug: userSlug });
+    if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+    }
+    res.json(Object.assign(buildConnectionStatus(user), {
+        progress: user.sync_progress || null,
+        retryAt: user.sync_retry_at || null,
+        error: user.sync_error || null,
+        totalActivities: Number(user.total_activities || 0),
+        backfillComplete: user.backfill_complete === true
+    }));
 });
 
 router.get('/users/:slug/activity-kpis', async (req, res) => {
@@ -306,6 +353,10 @@ router.get('/users/:slug/activity-kpis', async (req, res) => {
 });
 
 router.get('/activities', async (req, res) => {
+    if (!hasUserScope(req.query)) {
+        res.status(400).json({ error: 'A user slug is required' });
+        return;
+    }
     res.json(await findActivitiesForQuery(req.query, {
         sort: { start_date: -1 },
         limit: req.query.limit ? Number(req.query.limit) : void 0
@@ -313,6 +364,10 @@ router.get('/activities', async (req, res) => {
 });
 
 router.get('/activities/stats', async (req, res) => {
+    if (!hasUserScope(req.query)) {
+        res.status(400).json({ error: 'A user slug is required' });
+        return;
+    }
     const activities = await findActivitiesForQuery(req.query, { sort: { start_date: -1 } });
     const stats = activities.reduce((accumulator, activity) => {
         accumulator.distance += Number(activity.distance || 0);
@@ -327,6 +382,10 @@ router.get('/activities/stats', async (req, res) => {
 });
 
 router.get('/activities/types', async (req, res) => {
+    if (!hasUserScope(req.query)) {
+        res.status(400).json({ error: 'A user slug is required' });
+        return;
+    }
     const activities = await findActivitiesForQuery(req.query, { sort: { type: 1 } });
     res.json(ActivityTypes.sortActivityTypesByCount(ActivityTypes.countActivityTypes(activities)).map((entry) => entry.key));
 });
@@ -338,21 +397,19 @@ router.get('/activities/:id', async (req, res) => {
         return;
     }
 
-    const filter = { strava_id: activityId };
-    if (req.query.user) {
-        filter.user_slug = req.query.user;
+    const userSlug = normalizeSlug(req.query.user);
+    if (!userSlug) {
+        res.status(400).json({ error: 'A valid user slug is required' });
+        return;
     }
+    const filter = { strava_id: activityId, user_slug: userSlug };
 
     let activity = await getActivityStore().findOne(filter);
     const shouldRefresh = isTruthy(req.query.refresh);
     const shouldHydrate = isTruthy(req.query.hydrate);
 
     if (!activity) {
-        if (!req.query.user) {
-            res.status(404).json({ error: 'Activity not found' });
-            return;
-        }
-        const user = await getUserStore().findOne({ slug: req.query.user });
+        const user = await getUserStore().findOne({ slug: userSlug });
         if (!user) {
             res.status(404).json({ error: 'User not found' });
             return;
@@ -363,7 +420,7 @@ router.get('/activities/:id', async (req, res) => {
         } catch (error) {
             console.warn('[Strava Activity Detail Unavailable]', {
                 activityId: activityId,
-                user: req.query.user,
+                user: userSlug,
                 error: getExternalErrorMessage(error)
             });
             res.status(503).json({ error: 'Activity is not cached and Strava is unavailable' });
@@ -449,10 +506,12 @@ router.patch('/activities/:id', async (req, res) => {
         }
     }
 
-    const filter = { strava_id: activityId };
-    if (req.query.user) {
-        filter.user_slug = req.query.user;
+    const userSlug = normalizeSlug(req.query.user);
+    if (!userSlug) {
+        res.status(400).json({ error: 'A valid user slug is required' });
+        return;
     }
+    const filter = { strava_id: activityId, user_slug: userSlug };
 
     const existing = await getActivityStore().findOne(filter);
     if (!existing) {
@@ -489,10 +548,12 @@ router.get('/activities/:id/streams', async (req, res) => {
         seriesType: req.query.series_type || req.query.seriesType
     });
 
-    const filter = { strava_id: activityId };
-    if (req.query.user) {
-        filter.user_slug = req.query.user;
+    const userSlug = normalizeSlug(req.query.user);
+    if (!userSlug) {
+        res.status(400).json({ error: 'A valid user slug is required' });
+        return;
     }
+    const filter = { strava_id: activityId, user_slug: userSlug };
 
     let activity = await getActivityStore().findOne(filter);
     if (!activity) {

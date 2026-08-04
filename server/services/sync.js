@@ -2,7 +2,13 @@ const { isMongoConnected, memoryStore, wrapModel } = require('../db');
 const getUserModel = require('../models/user');
 const getActivityModel = require('../models/activity');
 const getActivityKpiSnapshotModel = require('../models/activity_kpi_snapshot');
-const { getFrontendUserBySlug } = require('../frontend_user_configs');
+const { getUserStravaCredentials } = require('../config/strava');
+const {
+    ensureKnownUser,
+    isUserConnected,
+    markReconnectRequired,
+    normalizeSlug
+} = require('./connection');
 const { enrichActivityLocation } = require('./location_geocode');
 const { buildKpiSnapshots } = require('../activity_kpis');
 const {
@@ -13,6 +19,17 @@ const ActivityTypes = require('../../js/strava_activity_types');
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API_BASE_URL = 'https://www.strava.com/api/v3';
 const SYNC_OVERLAP_MS = 24 * 60 * 60 * 1000;
+const STRAVA_PAGE_SIZE = 200;
+const MAX_BACKFILL_PAGES = 1000;
+
+class StravaRequestError extends Error {
+    constructor(message, status, retryAfterSeconds) {
+        super(message);
+        this.name = 'StravaRequestError';
+        this.status = Number(status || 0);
+        this.retryAfterSeconds = Number(retryAfterSeconds || 0);
+    }
+}
 
 function getUserStore() {
     return isMongoConnected() ? wrapModel(getUserModel()) : memoryStore.users;
@@ -31,9 +48,10 @@ function getStorageLabel() {
 }
 
 function createUserTokenRequestPayload(user) {
+    const credentials = getUserStravaCredentials(user);
     return {
-        client_id: user.client_id,
-        client_secret: user.client_secret,
+        client_id: credentials.clientId,
+        client_secret: credentials.clientSecret,
         refresh_token: user.refresh_token,
         grant_type: 'refresh_token'
     };
@@ -264,7 +282,10 @@ function getTokenUpdate(tokenData) {
     return {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
-        token_expires: tokenData.expires_at ? new Date(tokenData.expires_at * 1000) : null
+        token_expires: tokenData.expires_at ? new Date(tokenData.expires_at * 1000) : null,
+        connection_status: 'connected',
+        needs_reconnect: false,
+        sync_error: ''
     };
 }
 
@@ -282,60 +303,46 @@ async function refreshUserAccessToken(user) {
         return user;
     }
 
-    const tokenResponse = await fetch(STRAVA_AUTH_URL, {
-        method: 'POST',
-        headers: {
-            Accept: 'application/json, text/plain, */*',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(createUserTokenRequestPayload(user))
-    });
+    try {
+        const tokenResponse = await fetch(STRAVA_AUTH_URL, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json, text/plain, */*',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(createUserTokenRequestPayload(user))
+        });
 
-    if (!tokenResponse.ok) {
-        throw new Error(`Strava token refresh failed with ${tokenResponse.status}`);
+        if (!tokenResponse.ok) {
+            if (tokenResponse.status === 400 || tokenResponse.status === 401) {
+                await markReconnectRequired(userStore, user.slug, `Strava token refresh failed with ${tokenResponse.status}`);
+            }
+            throw new StravaRequestError(
+                `Strava token refresh failed with ${tokenResponse.status}`,
+                tokenResponse.status,
+                tokenResponse.headers && tokenResponse.headers.get('retry-after')
+            );
+        }
+
+        const tokenData = await tokenResponse.json();
+        const tokenUpdate = getTokenUpdate(tokenData);
+        const updatedUser = await userStore.updateOne({ slug: user.slug }, tokenUpdate);
+        return updatedUser || Object.assign({}, user, tokenUpdate);
+    } catch (error) {
+        if (error instanceof StravaRequestError) {
+            throw error;
+        }
+        throw new StravaRequestError(`Strava token refresh failed: ${error.message}`, 0, 0);
     }
-
-    const tokenData = await tokenResponse.json();
-    const tokenUpdate = getTokenUpdate(tokenData);
-    const updatedUser = await userStore.updateOne({ slug: user.slug }, tokenUpdate);
-    return updatedUser || Object.assign({}, user, tokenUpdate);
 }
 
 async function ensureUserForSync(slug) {
-    const normalizedSlug = String(slug || '').toLowerCase();
-    const userStore = getUserStore();
-    const existingUser = await userStore.findOne({ slug: normalizedSlug });
-    if (existingUser) {
-        return existingUser;
-    }
-
-    const frontendUser = getFrontendUserBySlug(normalizedSlug);
-    if (!frontendUser) {
+    const normalizedSlug = normalizeSlug(slug);
+    if (!normalizedSlug) {
         return null;
     }
-
-    const tokenResponse = await fetch(STRAVA_AUTH_URL, {
-        method: 'POST',
-        headers: {
-            Accept: 'application/json, text/plain, */*',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(createUserTokenRequestPayload(frontendUser))
-    });
-
-    if (!tokenResponse.ok) {
-        throw new Error(`Unable to auto-provision user ${normalizedSlug}; Strava authorization failed with ${tokenResponse.status}`);
-    }
-
-    const tokenData = await tokenResponse.json();
-    const tokenUpdate = getTokenUpdate(tokenData);
-    const createdUser = await userStore.upsertOne({ slug: normalizedSlug }, Object.assign({}, frontendUser, tokenUpdate));
-    console.log('[Strava User Sync]', {
-        action: 'auto-provisioned',
-        user: normalizedSlug,
-        storage: getStorageLabel()
-    });
-    return createdUser || Object.assign({}, frontendUser, tokenUpdate);
+    const userStore = getUserStore();
+    return ensureKnownUser(userStore, normalizedSlug);
 }
 
 async function stravaFetchJson(path, accessToken, params) {
@@ -352,9 +359,62 @@ async function stravaFetchJson(path, accessToken, params) {
         }
     });
     if (!response.ok) {
-        throw new Error(`Strava request failed with ${response.status}`);
+        throw new StravaRequestError(
+            `Strava request failed with ${response.status}`,
+            response.status,
+            response.headers && response.headers.get('retry-after')
+        );
     }
     return response.json();
+}
+
+async function bindUserToAthlete(user, athleteIdValue) {
+    const athleteId = Number(athleteIdValue);
+    if (!Number.isFinite(athleteId) || athleteId <= 0) {
+        throw new Error(`Strava did not return a valid athlete for slug ${user.slug}`);
+    }
+    if (user.strava_id != null && Number(user.strava_id) !== athleteId) {
+        throw new Error(`Strava athlete mismatch for slug ${user.slug}; admin override required`);
+    }
+    const userStore = getUserStore();
+    const existingOwner = await userStore.findOne({ strava_id: athleteId });
+    if (existingOwner && existingOwner.slug !== user.slug) {
+        throw new Error(`Strava athlete ${athleteId} is already bound to slug ${existingOwner.slug}; admin override required`);
+    }
+    if (user.strava_id == null || user.connection_status !== 'connected') {
+        const updated = await userStore.updateOne({ slug: user.slug }, {
+            strava_id: athleteId,
+            connection_status: 'connected',
+            needs_reconnect: false
+        });
+        return updated || Object.assign({}, user, { strava_id: athleteId });
+    }
+    return user;
+}
+
+async function assertActivitiesBelongToUser(user, activities) {
+    const athleteIds = Array.from(new Set((activities || [])
+        .map((activity) => Number(activity && activity.athlete && activity.athlete.id))
+        .filter((athleteId) => Number.isFinite(athleteId) && athleteId > 0)));
+    if (athleteIds.length > 1) {
+        throw new Error(`Strava returned activities for multiple athletes while syncing ${user.slug}`);
+    }
+    if (!athleteIds.length) {
+        return user;
+    }
+    return bindUserToAthlete(user, athleteIds[0]);
+}
+
+async function assertNoCrossSlugActivityOverwrite(userSlug, activities) {
+    const activityIds = (activities || []).map((activity) => Number(activity.strava_id)).filter(Boolean);
+    if (!activityIds.length) {
+        return;
+    }
+    const existingActivities = await getActivityStore().find({ strava_id: { $in: activityIds } });
+    const conflict = existingActivities.find((activity) => activity.user_slug !== userSlug);
+    if (conflict) {
+        throw new Error(`Activity ${conflict.strava_id} belongs to slug ${conflict.user_slug}; cross-slug write blocked`);
+    }
 }
 
 async function fetchActivityDetailPayload(accessToken, activityId) {
@@ -365,11 +425,13 @@ async function fetchActivityDetailPayload(accessToken, activityId) {
 
 async function fetchActivityDetail(user, activityId) {
     const activityStore = getActivityStore();
-    const authedUser = await refreshUserAccessToken(user);
+    let authedUser = await refreshUserAccessToken(user);
     const activity = await fetchActivityDetailPayload(authedUser.access_token, activityId);
+    authedUser = await assertActivitiesBelongToUser(authedUser, [activity]);
     const storedActivity = transformDetailedActivity(authedUser, activity);
-    await activityStore.upsertOne({ strava_id: Number(activityId) }, storedActivity);
-    const cached = await activityStore.findOne({ strava_id: Number(activityId) });
+    await assertNoCrossSlugActivityOverwrite(authedUser.slug, [storedActivity]);
+    await activityStore.upsertOne({ strava_id: Number(activityId), user_slug: authedUser.slug }, storedActivity);
+    const cached = await activityStore.findOne({ strava_id: Number(activityId), user_slug: authedUser.slug });
     return enrichActivityLocation(activityStore, cached || storedActivity).catch(function () {
         return cached || storedActivity;
     });
@@ -419,7 +481,7 @@ async function fetchActivityStreams(user, activityId, options) {
     const activityStore = getActivityStore();
     const authedUser = await refreshUserAccessToken(user);
     const streamRequest = normalizeStreamRequest(options);
-    const existingActivity = await activityStore.findOne({ strava_id: Number(activityId) });
+    const existingActivity = await activityStore.findOne({ strava_id: Number(activityId), user_slug: authedUser.slug });
     const streamData = await stravaFetchJson(`/activities/${activityId}/streams`, authedUser.access_token, {
         keys: streamRequest.keys.join(','),
         key_by_type: 'true',
@@ -457,8 +519,8 @@ async function fetchActivityStreams(user, activityId, options) {
         stream_time: mergedStreams.time || [],
         stream_fetched_at: new Date()
     };
-    await activityStore.upsertOne({ strava_id: Number(activityId) }, streamUpdate);
-    const cached = await activityStore.findOne({ strava_id: Number(activityId) });
+    await activityStore.upsertOne({ strava_id: Number(activityId), user_slug: authedUser.slug }, streamUpdate);
+    const cached = await activityStore.findOne({ strava_id: Number(activityId), user_slug: authedUser.slug });
     return cached ? {
         strava_id: cached.strava_id,
         stream_resolution: cached.stream_resolution,
@@ -474,23 +536,13 @@ async function fetchActivityStreams(user, activityId, options) {
     } : Object.assign({ strava_id: Number(activityId) }, streamUpdate);
 }
 
-async function fetchActivitySummaries(accessToken, numPages, afterEpochSeconds) {
-    const activities = [];
-    for (let page = 1; page <= numPages; page += 1) {
-        const pageActivities = await stravaFetchJson('/athlete/activities', accessToken, {
-            per_page: 200,
-            page: page,
-            after: afterEpochSeconds
-        });
-        if (!Array.isArray(pageActivities) || !pageActivities.length) {
-            break;
-        }
-        activities.push(...pageActivities);
-        if (pageActivities.length < 200) {
-            break;
-        }
-    }
-    return activities;
+async function fetchActivitySummaryPage(accessToken, page, afterEpochSeconds) {
+    const pageActivities = await stravaFetchJson('/athlete/activities', accessToken, {
+        per_page: STRAVA_PAGE_SIZE,
+        page,
+        after: afterEpochSeconds
+    });
+    return Array.isArray(pageActivities) ? pageActivities : [];
 }
 
 async function recomputeActivityKpiSnapshots(userSlug) {
@@ -526,73 +578,176 @@ function getAfterEpochSeconds(activity) {
     return Math.max(0, Math.floor((timestamp - SYNC_OVERLAP_MS) / 1000));
 }
 
-async function syncUserActivities(user) {
+const activeUserSyncs = new Map();
+
+function getRateLimitRetryDate(user, error) {
+    const attempts = Number(user.sync_backoff_attempts || 0) + 1;
+    const retryAfterMs = Number(error.retryAfterSeconds || 0) * 1000;
+    const exponentialMs = Math.min(15 * 60 * 1000, Math.pow(2, Math.min(attempts, 8)) * 30000);
+    return {
+        attempts,
+        retryAt: new Date(Date.now() + Math.max(retryAfterMs, exponentialMs))
+    };
+}
+
+async function performUserActivitySync(user) {
     const userStore = getUserStore();
     const activityStore = getActivityStore();
-    const authedUser = await refreshUserAccessToken(user);
-    const latestStoredActivity = await activityStore.findOne({ user_slug: authedUser.slug }, {
-        sort: { start_date: -1 }
-    });
-    const afterEpochSeconds = getAfterEpochSeconds(latestStoredActivity);
-    const numPages = Number(authedUser.num_pages || authedUser.pages || 1);
-    const summaryActivities = await fetchActivitySummaries(authedUser.access_token, numPages, afterEpochSeconds);
-    const storedActivities = summaryActivities.map(function (summaryActivity) {
-        return transformSummaryActivity(authedUser, summaryActivity);
-    });
+    if (!isUserConnected(user)) {
+        throw new StravaRequestError(`Strava connection required for ${user.slug}`, 401, 0);
+    }
+    if (user.sync_retry_at && new Date(user.sync_retry_at).getTime() > Date.now()) {
+        throw new StravaRequestError(`Strava sync for ${user.slug} is waiting for rate-limit backoff`, 429, 0);
+    }
 
-    const upsertSummary = await activityStore.bulkUpsertActivities(storedActivities);
-    const recordsInserted = Number(upsertSummary && upsertSummary.insertedCount) || 0;
-    const recordsUpdated = Number(upsertSummary && upsertSummary.updatedCount) || 0;
-    const stravaSummaryFetchedCount = summaryActivities.length;
-    const stravaDetailFetchedCount = 0;
-    const stravaRecordsPulled = recordsInserted;
-    const storedActivityCount = await activityStore.count({ user_slug: authedUser.slug });
-    const activityKpiSnapshots = await recomputeActivityKpiSnapshots(authedUser.slug);
-    const storage = getStorageLabel();
-    const lastSync = new Date();
-
-    console.log('[Strava Sync]', {
-        user: authedUser.slug,
-        source: 'Strava API',
-        storage: storage,
-        after: afterEpochSeconds || null,
-        stravaSummaryFetchedCount: stravaSummaryFetchedCount,
-        stravaDetailFetchedCount: stravaDetailFetchedCount,
-        stravaRecordsPulled: stravaRecordsPulled,
-        recordsInserted: recordsInserted,
-        recordsUpdated: recordsUpdated,
-        storedActivityCount: storedActivityCount,
-        activityKpiSnapshotCount: activityKpiSnapshots.length
+    await userStore.updateOne({ slug: user.slug }, {
+        sync_status: 'syncing',
+        sync_error: ''
     });
 
-    const updatedUser = await userStore.updateOne({ slug: user.slug }, {
-        access_token: authedUser.access_token,
-        refresh_token: authedUser.refresh_token,
-        token_expires: authedUser.token_expires,
-        last_sync: lastSync,
-        total_activities: storedActivityCount
-    });
+    let authedUser = user;
+    try {
+        authedUser = await refreshUserAccessToken(user);
+        const isBackfill = authedUser.backfill_complete !== true;
+        const latestStoredActivity = isBackfill ? null : await activityStore.findOne({ user_slug: authedUser.slug }, {
+            sort: { start_date: -1 }
+        });
+        const afterEpochSeconds = isBackfill ? undefined : getAfterEpochSeconds(latestStoredActivity);
+        const priorProgress = authedUser.sync_progress && typeof authedUser.sync_progress === 'object'
+            ? authedUser.sync_progress
+            : {};
+        let page = isBackfill && priorProgress.mode === 'backfill'
+            ? Math.max(1, Number(priorProgress.next_page || 1))
+            : 1;
+        let backfillComplete = !isBackfill;
+        let recordsInserted = 0;
+        let recordsUpdated = 0;
+        let stravaSummaryFetchedCount = 0;
 
-    return {
-        user: updatedUser || Object.assign({}, user, {
+        for (; page <= MAX_BACKFILL_PAGES; page += 1) {
+            const summaryActivities = await fetchActivitySummaryPage(authedUser.access_token, page, afterEpochSeconds);
+            authedUser = await assertActivitiesBelongToUser(authedUser, summaryActivities);
+            const storedActivities = summaryActivities.map((summaryActivity) => transformSummaryActivity(authedUser, summaryActivity));
+            await assertNoCrossSlugActivityOverwrite(authedUser.slug, storedActivities);
+            const upsertSummary = await activityStore.bulkUpsertActivities(storedActivities);
+            recordsInserted += Number(upsertSummary && upsertSummary.insertedCount) || 0;
+            recordsUpdated += Number(upsertSummary && upsertSummary.updatedCount) || 0;
+            stravaSummaryFetchedCount += summaryActivities.length;
+
+            await userStore.updateOne({ slug: authedUser.slug }, {
+                sync_progress: {
+                    mode: isBackfill ? 'backfill' : 'incremental',
+                    next_page: page + 1,
+                    fetched: Number(priorProgress.fetched || 0) + stravaSummaryFetchedCount,
+                    updated_at: new Date()
+                }
+            });
+
+            if (summaryActivities.length < STRAVA_PAGE_SIZE) {
+                backfillComplete = true;
+                break;
+            }
+        }
+
+        if (page > MAX_BACKFILL_PAGES && !backfillComplete) {
+            throw new Error(`Strava backfill exceeded ${MAX_BACKFILL_PAGES} pages`);
+        }
+        if (authedUser.strava_id == null) {
+            const athlete = await stravaFetchJson('/athlete', authedUser.access_token);
+            authedUser = await bindUserToAthlete(authedUser, athlete && athlete.id);
+        }
+
+        const storedActivityCount = await activityStore.count({ user_slug: authedUser.slug });
+        const activityKpiSnapshots = await recomputeActivityKpiSnapshots(authedUser.slug);
+        const storage = getStorageLabel();
+        const lastSync = new Date();
+        const updatedUser = await userStore.updateOne({ slug: user.slug }, {
             access_token: authedUser.access_token,
             refresh_token: authedUser.refresh_token,
             token_expires: authedUser.token_expires,
             last_sync: lastSync,
-            total_activities: storedActivityCount
-        }),
-        source: 'Strava API',
-        storage: storage,
-        after: afterEpochSeconds || null,
-        recordsInserted: recordsInserted,
-        recordsUpdated: recordsUpdated,
-        stravaSummaryFetchedCount: stravaSummaryFetchedCount,
-        stravaDetailFetchedCount: stravaDetailFetchedCount,
-        stravaRecordsPulled: stravaRecordsPulled,
-        storedActivityCount: storedActivityCount,
-        activityKpiSnapshotCount: activityKpiSnapshots.length,
-        activitiesSynced: stravaSummaryFetchedCount
-    };
+            last_successful_sync_at: lastSync,
+            total_activities: storedActivityCount,
+            connection_status: 'connected',
+            needs_reconnect: false,
+            sync_status: 'ready',
+            sync_error: '',
+            sync_retry_at: null,
+            sync_backoff_attempts: 0,
+            backfill_complete: backfillComplete,
+            sync_progress: {
+                mode: isBackfill ? 'backfill' : 'incremental',
+                complete: true,
+                next_page: null,
+                fetched: stravaSummaryFetchedCount,
+                updated_at: lastSync
+            }
+        });
+
+        console.log('[Strava Sync]', {
+            user: authedUser.slug,
+            mode: isBackfill ? 'backfill' : 'incremental',
+            source: 'Strava API',
+            storage,
+            after: afterEpochSeconds || null,
+            stravaSummaryFetchedCount,
+            recordsInserted,
+            recordsUpdated,
+            storedActivityCount,
+            activityKpiSnapshotCount: activityKpiSnapshots.length
+        });
+
+        return {
+            user: updatedUser || authedUser,
+            source: 'Strava API',
+            storage,
+            mode: isBackfill ? 'backfill' : 'incremental',
+            after: afterEpochSeconds || null,
+            recordsInserted,
+            recordsUpdated,
+            stravaSummaryFetchedCount,
+            stravaDetailFetchedCount: 0,
+            stravaRecordsPulled: recordsInserted,
+            storedActivityCount,
+            activityKpiSnapshotCount: activityKpiSnapshots.length,
+            activitiesSynced: stravaSummaryFetchedCount,
+            backfillComplete
+        };
+    } catch (error) {
+        const latestUser = await userStore.findOne({ slug: user.slug }) || authedUser || user;
+        if (error instanceof StravaRequestError && error.status === 429) {
+            const retry = getRateLimitRetryDate(latestUser, error);
+            await userStore.updateOne({ slug: user.slug }, {
+                sync_status: 'rate_limited',
+                sync_error: error.message,
+                sync_retry_at: retry.retryAt,
+                sync_backoff_attempts: retry.attempts
+            });
+        } else if (latestUser.needs_reconnect || (error instanceof StravaRequestError && [400, 401].includes(error.status))) {
+            await markReconnectRequired(userStore, user.slug, error.message);
+        } else {
+            await userStore.updateOne({ slug: user.slug }, {
+                sync_status: 'error',
+                sync_error: error && error.message ? error.message : 'Unknown sync error'
+            });
+        }
+        throw error;
+    }
+}
+
+async function syncUserActivities(user) {
+    const slug = normalizeSlug(user && user.slug);
+    if (!slug) {
+        throw new Error('A valid user slug is required for sync');
+    }
+    if (activeUserSyncs.has(slug)) {
+        return activeUserSyncs.get(slug);
+    }
+    const syncPromise = performUserActivitySync(user).finally(() => {
+        activeUserSyncs.delete(slug);
+    });
+    activeUserSyncs.set(slug, syncPromise);
+    return syncPromise;
 }
 
 module.exports = {
@@ -601,6 +756,7 @@ module.exports = {
     ensureUserForSync,
     fetchActivityDetail,
     fetchActivityStreams,
+    bindUserToAthlete,
     recomputeActivityKpiSnapshots,
     getUserStore,
     getActivityStore,
