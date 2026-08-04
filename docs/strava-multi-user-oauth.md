@@ -50,6 +50,20 @@ User records retain all legacy fields and add:
 
 Run `npm run migrate:users` after setting the production MongoDB URI. The migration only adds/infer connection metadata and upserts the existing configured user fields. It does not delete activities, change slugs, or remove/rotate existing credentials.
 
+To move every existing user onto the primary app except the already-working `connor` and `tim` slugs, run the campaign command in the Railway service environment:
+
+```bash
+npm run migrate:primary-oauth -- --all-existing
+```
+
+The campaign reads the existing user records from MongoDB at runtime. It always excludes `connor` and `tim`, safely skips any other user already migrated to the primary app, and marks each remaining slug `reconnect_required`. On each athlete's next map visit they see **Reconnect Strava** once. The callback replaces stored tokens with primary-app tokens only after Strava confirms that the authorizing athlete matches the slug's existing athlete ID.
+
+Individual migrations remain available when needed:
+
+```bash
+npm run migrate:primary-oauth -- michael
+```
+
 ## Synchronization behavior
 
 - Initial backfill reads 200 activities per page until Strava returns a short page. `sync_progress.next_page` is saved after every page so an interrupted backfill resumes safely.
