@@ -7,6 +7,9 @@ const memoryState = {
     collections: [],
     activityNotes: [],
     activityKpiSnapshots: [],
+    intervalsActivities: [],
+    intervalsActivityKpiSnapshots: [],
+    providerConnections: [],
     oauthStates: [],
     webhookEvents: []
 };
@@ -246,6 +249,9 @@ const memoryStore = {
     collections: createMemoryCollection('collections', 'id'),
     activityNotes: createMemoryCollection('activityNotes', 'id'),
     activityKpiSnapshots: createMemoryCollection('activityKpiSnapshots', 'id'),
+    intervalsActivities: createMemoryCollection('intervalsActivities', 'activity_key'),
+    intervalsActivityKpiSnapshots: createMemoryCollection('intervalsActivityKpiSnapshots', 'id'),
+    providerConnections: createMemoryCollection('providerConnections', 'connection_key'),
     oauthStates: createMemoryCollection('oauthStates', 'state_hash'),
     webhookEvents: createMemoryCollection('webhookEvents', 'event_key')
 };

@@ -2011,6 +2011,27 @@
     <script>
         const params = new URLSearchParams(window.location.search);
         const requestedUser = String(params.get('user') || window.STRAVA_PAGE_USER || 'connor').toLowerCase();
+        const isIntervalsProvider = /\/icu_map(?:\.html)?$/i.test(window.location.pathname);
+        const providerKey = isIntervalsProvider ? 'intervals_icu' : 'strava';
+        const providerLabel = isIntervalsProvider ? 'Intervals.icu' : 'Strava';
+        const providerStoragePrefix = providerKey + '_' + requestedUser;
+        const OWNER_SESSION_STORAGE_KEY = providerStoragePrefix + '_owner_session';
+        let ownerSessionToken = '';
+        if (isIntervalsProvider) {
+            const fragment = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+            const callbackOwnerToken = fragment.get('owner_token');
+            try {
+                if (callbackOwnerToken) {
+                    window.sessionStorage.setItem(OWNER_SESSION_STORAGE_KEY, callbackOwnerToken);
+                    ownerSessionToken = callbackOwnerToken;
+                    window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+                } else {
+                    ownerSessionToken = window.sessionStorage.getItem(OWNER_SESSION_STORAGE_KEY) || '';
+                }
+            } catch (error) {
+                ownerSessionToken = callbackOwnerToken || '';
+            }
+        }
         const requestedCollectionToken = String(params.get('collection') || '').trim();
         const staticUserConfig = StravaApp.USER_CONFIGS[requestedUser] || null;
         let userConfig = staticUserConfig || {
@@ -2022,14 +2043,25 @@
             pages: 10,
             color: '#fc4c02'
         };
-        const COLLECTIONS_LOCAL_STORAGE_KEY = 'strava_collections_' + requestedUser;
-        const NOTES_LOCAL_STORAGE_KEY = 'strava_activity_notes_' + requestedUser;
+        let hasPublicUserProfile = Boolean(staticUserConfig);
+        const COLLECTIONS_LOCAL_STORAGE_KEY = isIntervalsProvider
+            ? 'intervals_icu_collections_' + requestedUser
+            : 'strava_collections_' + requestedUser;
+        const NOTES_LOCAL_STORAGE_KEY = isIntervalsProvider
+            ? 'intervals_icu_activity_notes_' + requestedUser
+            : 'strava_activity_notes_' + requestedUser;
         const ALL_FILTER_KEYS = ['collection', 'activityType', 'monthYear', 'year', 'date', 'season', 'timeOfDay', 'city', 'regionState', 'country'];
         const SPEED_PANE_NAME = 'strava-speed-pane';
         const SPEED_STREAM_OPTIONS = { profile: 'speed', resolution: 'high', seriesType: 'time' };
-        const SPEED_PALETTE_SESSION_KEY = 'strava_speed_palette_enabled';
-        const STREAM_COLOR_METRIC_SESSION_KEY = 'strava_stream_color_metric';
-        const MAP_STYLE_SESSION_KEY = 'strava_map_style';
+        const SPEED_PALETTE_SESSION_KEY = isIntervalsProvider
+            ? providerStoragePrefix + '_speed_palette_enabled'
+            : 'strava_speed_palette_enabled';
+        const STREAM_COLOR_METRIC_SESSION_KEY = isIntervalsProvider
+            ? providerStoragePrefix + '_stream_color_metric'
+            : 'strava_stream_color_metric';
+        const MAP_STYLE_SESSION_KEY = isIntervalsProvider
+            ? providerStoragePrefix + '_map_style'
+            : 'strava_map_style';
         const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
         const DEFAULT_MAP_STYLE_ID = 'light';
         const MAP_STYLE_CONFIGS = {
@@ -2203,6 +2235,66 @@
         const connectionRetryButton = document.getElementById('connection-retry-button');
         const runtimeDataSource = StravaApp.createRuntimeDataSource(window.STRAVA_CONFIG);
 
+        const providerPaths = isIntervalsProvider ? {
+            activities: '/api/intervals/activities',
+            status: '/api/intervals/user/' + encodeURIComponent(requestedUser) + '/status',
+            sync: '/api/intervals/sync/' + encodeURIComponent(requestedUser),
+            kpis: '/api/intervals/users/' + encodeURIComponent(requestedUser) + '/activity-kpis',
+            connect: '/api/intervals/connect/' + encodeURIComponent(requestedUser)
+        } : {
+            activities: '/api/activities',
+            status: '/api/user/' + encodeURIComponent(requestedUser) + '/status',
+            sync: '/api/sync/' + encodeURIComponent(requestedUser),
+            kpis: '/api/users/' + encodeURIComponent(requestedUser) + '/activity-kpis',
+            connect: '/api/strava/connect/' + encodeURIComponent(requestedUser)
+        };
+
+        function providerRequestOptions(requestOptions) {
+            const options = Object.assign({}, requestOptions || {});
+            options.headers = Object.assign({
+                Accept: 'application/json, text/plain, */*',
+                'Content-Type': 'application/json'
+            }, options.headers || {});
+            if (isIntervalsProvider && ownerSessionToken) {
+                options.headers.Authorization = 'Bearer ' + ownerSessionToken;
+            }
+            return options;
+        }
+
+        function isOwnerWritable() {
+            return !isIntervalsProvider || Boolean(ownerSessionToken);
+        }
+
+        function isReadOnlyMode() {
+            return Boolean(state && state.shareMode) || !isOwnerWritable();
+        }
+
+        function assertOwnerWritable() {
+            if (!isOwnerWritable()) {
+                throw new Error('This public ' + providerLabel + ' map is read-only. Open a current owner link in this browser to edit it.');
+            }
+        }
+
+        function normalizeActivityReference(value) {
+            if (isIntervalsProvider) {
+                return String(value === undefined || value === null ? '' : value).trim();
+            }
+            const numeric = Number(value);
+            return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+        }
+
+        function encodeActivityReference(value) {
+            return encodeURIComponent(String(normalizeActivityReference(value)));
+        }
+
+        function getProviderActivityPath(activityId) {
+            return providerPaths.activities + '/' + encodeActivityReference(activityId);
+        }
+
+        function providerQuery(query) {
+            return Object.assign({}, query || {}, isIntervalsProvider ? { source: providerKey } : {});
+        }
+
         function getBackendSourceLabel() {
             return runtimeDataSource.apiBase && runtimeDataSource.apiBase.indexOf('localhost') !== -1
                 ? 'Local Backend API'
@@ -2214,29 +2306,46 @@
             returnUrl.searchParams.set('user', userConfig.slug);
             returnUrl.searchParams.delete('connected');
             returnUrl.searchParams.delete('oauth_error');
+            returnUrl.searchParams.delete('intervals_error');
             return returnUrl.toString();
         }
 
         function getConnectUrl() {
-            const connectUrl = new URL('/api/strava/connect/' + encodeURIComponent(userConfig.slug), runtimeDataSource.apiBase);
+            const connectUrl = new URL(providerPaths.connect, runtimeDataSource.apiBase);
             connectUrl.searchParams.set('return_url', getMapReturnUrl());
             return connectUrl.toString();
         }
 
         function showConnectionGate(status, error) {
             const needsReconnect = Boolean(status && status.needsReconnect);
+            const interactiveConnectAvailable = !isIntervalsProvider
+                || Boolean(status && status.interactiveConnectAvailable);
+            const apiKeyConnection = isIntervalsProvider
+                && status && status.connectionMethod === 'api_key';
             body.dataset.connectionState = error ? 'error' : (needsReconnect ? 'reconnect_required' : 'not_connected');
             connectionTitle.textContent = error
                 ? 'Map connection unavailable'
-                : (needsReconnect ? 'Reconnect Strava' : 'Connect Strava');
+                : (needsReconnect
+                    ? (apiKeyConnection ? 'Replace the Intervals.icu API key' : 'Reconnect ' + providerLabel)
+                    : (isIntervalsProvider && !interactiveConnectAvailable
+                        ? 'Intervals.icu map not provisioned'
+                        : 'Connect ' + providerLabel));
             connectionMessage.textContent = error
                 ? 'The map could not check its connection. Try again in a moment.'
                 : (needsReconnect
-                    ? 'Strava authorization needs to be renewed. Your existing map data is safe.'
-                    : 'Authorize once from the athlete\'s own computer. No password sharing or Postman is required.');
-            stravaConnectButton.textContent = needsReconnect ? 'Reconnect Strava' : 'Connect with Strava';
-            stravaConnectButton.href = getConnectUrl();
-            stravaConnectButton.hidden = Boolean(error);
+                    ? (apiKeyConnection
+                        ? 'The saved personal API key is no longer accepted. The map administrator must provision a replacement; cached map data remains safe.'
+                        : providerLabel + ' authorization needs to be renewed. Your existing map data is safe.')
+                    : (isIntervalsProvider
+                        ? (interactiveConnectAvailable
+                            ? 'Authorize the Intervals.icu account once in this browser. The provider token stays on the server.'
+                            : 'The map administrator must link an Intervals.icu Athlete ID and personal API key to this slug before it can load.')
+                        : 'Authorize once from the athlete\'s own computer. No password sharing or Postman is required.'));
+            stravaConnectButton.textContent = needsReconnect ? 'Reconnect ' + providerLabel : 'Connect with ' + providerLabel;
+            if (interactiveConnectAvailable) {
+                stravaConnectButton.href = getConnectUrl();
+            }
+            stravaConnectButton.hidden = Boolean(error) || !interactiveConnectAvailable;
             connectionRetryButton.hidden = !error;
             connectionGate.hidden = false;
             document.getElementById('preload').classList.add('fade');
@@ -2246,9 +2355,9 @@
         async function fetchConnectionStatus() {
             return StravaApp.apiGet(
                 runtimeDataSource.apiBase,
-                '/api/user/' + encodeURIComponent(userConfig.slug) + '/status',
+                providerPaths.status,
                 {},
-                { timeoutMs: window.STRAVA_CONFIG.requestTimeoutMs }
+                providerRequestOptions({ timeoutMs: window.STRAVA_CONFIG.requestTimeoutMs })
             );
         }
 
@@ -2367,6 +2476,9 @@
         });
 
         async function ensureDirectAccessToken() {
+            if (isIntervalsProvider) {
+                throw new Error('Intervals.icu credentials are server-only and cannot use direct browser fallback.');
+            }
             if (state.accessToken) {
                 return state.accessToken;
             }
@@ -3256,10 +3368,10 @@
 
         function fetchActivityDetailData(activityId) {
             return runtimeDataSource.runWithFallback('activity detail', function (requestOptions) {
-                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities/' + activityId, {
+                return StravaApp.apiGet(runtimeDataSource.apiBase, getProviderActivityPath(activityId), {
                     user: userConfig.slug,
                     hydrate: 1
-                }, requestOptions);
+                }, providerRequestOptions(requestOptions));
             }, function (error) {
                 if (window.STRAVA_CONFIG.allowDirectStravaFallback !== true) {
                     throw error || new Error('Backend activity detail is unavailable.');
@@ -3273,12 +3385,12 @@
         function fetchActivityStreamData(activityId, streamKeys) {
             const keys = Array.isArray(streamKeys) && streamKeys.length ? streamKeys : getRequiredStreamKeysForMetric(getActiveStreamColorMetricId());
             return runtimeDataSource.runWithFallback('activity stream', function (requestOptions) {
-                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities/' + activityId + '/streams', {
+                return StravaApp.apiGet(runtimeDataSource.apiBase, getProviderActivityPath(activityId) + '/streams', {
                     user: userConfig.slug,
                     keys: keys.join(','),
                     resolution: SPEED_STREAM_OPTIONS.resolution,
                     series_type: SPEED_STREAM_OPTIONS.seriesType
-                }, requestOptions);
+                }, providerRequestOptions(requestOptions));
             }, function (error) {
                 if (window.STRAVA_CONFIG.allowDirectStravaFallback !== true) {
                     throw error || new Error('Backend activity streams are unavailable.');
@@ -3370,11 +3482,14 @@
             normalized.owner_user_slug = String(normalized.owner_user_slug || userConfig.slug || '').toLowerCase();
             normalized.name = String(normalized.name || 'Untitled Collection').trim() || 'Untitled Collection';
             normalized.description = String(normalized.description || '').trim();
-            normalized.activity_ids = Array.from(new Set((Array.isArray(normalized.activity_ids) ? normalized.activity_ids : []).map(function (value) {
-                return Number(value);
-            }).filter(function (value) {
-                return Number.isFinite(value) && value > 0;
-            })));
+            normalized.source = String(normalized.source || providerKey).toLowerCase();
+            const rawActivityIds = isIntervalsProvider && Array.isArray(normalized.activity_refs) && normalized.activity_refs.length
+                ? normalized.activity_refs
+                : normalized.activity_ids;
+            normalized.activity_ids = Array.from(new Set((Array.isArray(rawActivityIds) ? rawActivityIds : []).map(function (value) {
+                return normalizeActivityReference(value);
+            }).filter(Boolean)));
+            normalized.activity_refs = isIntervalsProvider ? normalized.activity_ids.slice() : [];
             return normalized;
         }
 
@@ -3388,7 +3503,7 @@
             const membership = new Map();
             state.collections.forEach(function (collection) {
                 (collection.activity_ids || []).forEach(function (activityId) {
-                    const key = Number(activityId);
+                    const key = normalizeActivityReference(activityId);
                     const ids = membership.get(key) || [];
                     if (ids.indexOf(collection.id) === -1) {
                         ids.push(collection.id);
@@ -3469,7 +3584,7 @@
                 return '';
             }
             const url = new URL(window.location.href);
-            url.pathname = url.pathname.replace(/[^/]*$/, 'strava_user.html');
+            url.pathname = url.pathname.replace(/[^/]*$/, isIntervalsProvider ? 'icu_map.html' : 'strava_user.html');
             url.search = '';
             url.searchParams.set('user', collection.owner_user_slug || userConfig.slug);
             url.searchParams.set('collection', token);
@@ -3482,7 +3597,7 @@
                 return getLocalCollections();
             }
             return runtimeDataSource.runWithFallback('collection list', function (requestOptions) {
-                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/users/' + userConfig.slug + '/collections', {}, requestOptions);
+                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/users/' + userConfig.slug + '/collections', providerQuery({}), providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 return getLocalCollections();
@@ -3507,6 +3622,8 @@
         }
 
         async function createCollectionData(payload) {
+            assertOwnerWritable();
+            payload = Object.assign({}, payload || {}, { source: providerKey });
             if (!isBackendCollectionMode()) {
                 return upsertCollection(saveLocalCollection(Object.assign({}, payload, {
                     id: createLocalToken('local_collection'),
@@ -3515,7 +3632,7 @@
                 })));
             }
             return runtimeDataSource.runWithFallback('collection create', function (requestOptions) {
-                return StravaApp.apiPost(runtimeDataSource.apiBase, '/api/users/' + userConfig.slug + '/collections', payload, requestOptions);
+                return StravaApp.apiPost(runtimeDataSource.apiBase, '/api/users/' + userConfig.slug + '/collections', payload, providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 return saveLocalCollection(Object.assign({}, payload, {
@@ -3527,6 +3644,7 @@
         }
 
         async function updateCollectionData(collectionId, payload) {
+            assertOwnerWritable();
             const existingCollection = state.collectionsById.get(collectionId);
             if (!isBackendCollectionMode() || isLocalCollection(existingCollection)) {
                 return upsertCollection(saveLocalCollection(Object.assign({}, existingCollection || {}, payload || {}, {
@@ -3536,7 +3654,7 @@
                 })));
             }
             return runtimeDataSource.runWithFallback('collection update', function (requestOptions) {
-                return StravaApp.apiPatch(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId), payload, requestOptions);
+                return StravaApp.apiPatch(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId), payload, providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 return saveLocalCollection(Object.assign({}, existingCollection || {}, payload || {}, {
@@ -3548,9 +3666,11 @@
         }
 
         async function addActivityToCollection(collectionId, activityId) {
+            assertOwnerWritable();
             const existingCollection = state.collectionsById.get(collectionId);
+            const activityRef = normalizeActivityReference(activityId);
             if (!isBackendCollectionMode() || isLocalCollection(existingCollection)) {
-                const activityIds = Array.from(new Set((existingCollection && existingCollection.activity_ids ? existingCollection.activity_ids : []).concat([Number(activityId)])));
+                const activityIds = Array.from(new Set((existingCollection && existingCollection.activity_ids ? existingCollection.activity_ids : []).concat([activityRef])));
                 return upsertCollection(saveLocalCollection(Object.assign({}, existingCollection || {}, {
                     id: collectionId,
                     owner_user_slug: userConfig.slug,
@@ -3558,10 +3678,10 @@
                 })));
             }
             return runtimeDataSource.runWithFallback('collection activity add', function (requestOptions) {
-                return StravaApp.apiPost(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId) + '/activities/' + Number(activityId), {}, requestOptions);
+                return StravaApp.apiPost(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId) + '/activities/' + encodeActivityReference(activityRef), {}, providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
-                const activityIds = Array.from(new Set((existingCollection && existingCollection.activity_ids ? existingCollection.activity_ids : []).concat([Number(activityId)])));
+                const activityIds = Array.from(new Set((existingCollection && existingCollection.activity_ids ? existingCollection.activity_ids : []).concat([activityRef])));
                 return saveLocalCollection(Object.assign({}, existingCollection || {}, {
                     id: collectionId,
                     owner_user_slug: userConfig.slug,
@@ -3571,10 +3691,12 @@
         }
 
         async function removeActivityFromCollection(collectionId, activityId) {
+            assertOwnerWritable();
             const existingCollection = state.collectionsById.get(collectionId);
+            const activityRef = normalizeActivityReference(activityId);
             if (!isBackendCollectionMode() || isLocalCollection(existingCollection)) {
                 const activityIds = (existingCollection && existingCollection.activity_ids ? existingCollection.activity_ids : []).filter(function (id) {
-                    return Number(id) !== Number(activityId);
+                    return normalizeActivityReference(id) !== activityRef;
                 });
                 return upsertCollection(saveLocalCollection(Object.assign({}, existingCollection || {}, {
                     id: collectionId,
@@ -3583,11 +3705,11 @@
                 })));
             }
             return runtimeDataSource.runWithFallback('collection activity remove', function (requestOptions) {
-                return StravaApp.apiDelete(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId) + '/activities/' + Number(activityId), {}, requestOptions);
+                return StravaApp.apiDelete(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId) + '/activities/' + encodeActivityReference(activityRef), {}, providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 const activityIds = (existingCollection && existingCollection.activity_ids ? existingCollection.activity_ids : []).filter(function (id) {
-                    return Number(id) !== Number(activityId);
+                    return normalizeActivityReference(id) !== activityRef;
                 });
                 return saveLocalCollection(Object.assign({}, existingCollection || {}, {
                     id: collectionId,
@@ -3598,6 +3720,7 @@
         }
 
         async function deleteCollectionData(collectionId) {
+            assertOwnerWritable();
             const existingCollection = state.collectionsById.get(collectionId);
             if (!isBackendCollectionMode() || isLocalCollection(existingCollection)) {
                 deleteLocalCollection(collectionId);
@@ -3605,7 +3728,7 @@
                 return existingCollection || { id: collectionId };
             }
             return runtimeDataSource.runWithFallback('collection delete', function (requestOptions) {
-                return StravaApp.apiDelete(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId), {}, requestOptions);
+                return StravaApp.apiDelete(runtimeDataSource.apiBase, '/api/collections/' + encodeURIComponent(collectionId), {}, providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 deleteLocalCollection(collectionId);
@@ -3620,7 +3743,9 @@
             const normalized = Object.assign({}, note || {});
             normalized.id = String(normalized.id || normalized._id || '');
             normalized.user_slug = String(normalized.user_slug || userConfig.slug).toLowerCase();
-            normalized.strava_id = Number(normalized.strava_id || 0);
+            normalized.source = String(normalized.source || providerKey).toLowerCase();
+            normalized.activity_ref = normalizeActivityReference(normalized.activity_ref || normalized.strava_id);
+            normalized.strava_id = isIntervalsProvider ? undefined : Number(normalized.strava_id || normalized.activity_ref || 0);
             normalized.elapsed_seconds = Math.max(0, Number(normalized.elapsed_seconds || 0));
             normalized.subject = String(normalized.subject || normalized.title || '').trim() || 'Untitled Note';
             normalized.text = String(normalized.text || normalized.body || '').trim();
@@ -3640,139 +3765,148 @@
         }
 
         async function fetchActivityNotes(activityId, options) {
-            const numericId = Number(activityId);
-            if (!numericId) {
+            const activityRef = normalizeActivityReference(activityId);
+            if (!activityRef) {
                 return [];
             }
             if (!isBackendCollectionMode()) {
                 const notesMap = getLocalNotesMap();
-                const localNotes = sortNotes(notesMap[String(numericId)] || []);
-                state.activityNotesById.set(numericId, localNotes);
+                const localNotes = sortNotes(notesMap[String(activityRef)] || []);
+                state.activityNotesById.set(activityRef, localNotes);
                 return localNotes;
             }
-            if (!(options && options.refresh) && state.activityNotesById.has(numericId)) {
-                return state.activityNotesById.get(numericId);
+            if (!(options && options.refresh) && state.activityNotesById.has(activityRef)) {
+                return state.activityNotesById.get(activityRef);
             }
-            if (state.notePromises.has(numericId)) {
-                return state.notePromises.get(numericId);
+            if (state.notePromises.has(activityRef)) {
+                return state.notePromises.get(activityRef);
             }
             const request = runtimeDataSource.runWithFallback('activity notes', function (requestOptions) {
-                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities/' + numericId + '/notes', { user: userConfig.slug }, requestOptions);
+                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities/' + encodeActivityReference(activityRef) + '/notes', providerQuery({ user: userConfig.slug }), providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 return [];
             }).then(function (notes) {
                 const normalized = sortNotes(notes);
-                state.activityNotesById.set(numericId, normalized);
+                state.activityNotesById.set(activityRef, normalized);
                 return normalized;
             }).finally(function () {
-                state.notePromises.delete(numericId);
+                state.notePromises.delete(activityRef);
             });
-            state.notePromises.set(numericId, request);
+            state.notePromises.set(activityRef, request);
             return request;
         }
 
         async function createActivityNote(activityId, payload) {
-            const numericId = Number(activityId);
+            assertOwnerWritable();
+            const activityRef = normalizeActivityReference(activityId);
+            payload = Object.assign({}, payload || {}, { source: providerKey, activity_ref: activityRef });
             if (!isBackendCollectionMode()) {
                 const notesMap = getLocalNotesMap();
                 const note = normalizeActivityNote(Object.assign({}, payload || {}, {
                     id: createLocalToken('local_note'),
                     user_slug: userConfig.slug,
-                    strava_id: numericId
+                    source: providerKey,
+                    activity_ref: activityRef,
+                    strava_id: isIntervalsProvider ? undefined : activityRef
                 }));
-                notesMap[String(numericId)] = sortNotes((notesMap[String(numericId)] || []).concat([note]));
+                notesMap[String(activityRef)] = sortNotes((notesMap[String(activityRef)] || []).concat([note]));
                 saveLocalNotesMap(notesMap);
-                state.activityNotesById.delete(numericId);
+                state.activityNotesById.delete(activityRef);
                 return note;
             }
             return runtimeDataSource.runWithFallback('activity note create', function (requestOptions) {
-                return StravaApp.apiPost(runtimeDataSource.apiBase, '/api/activities/' + numericId + '/notes?user=' + encodeURIComponent(userConfig.slug), payload, requestOptions);
+                return StravaApp.apiPost(runtimeDataSource.apiBase, '/api/activities/' + encodeActivityReference(activityRef) + '/notes?user=' + encodeURIComponent(userConfig.slug) + (isIntervalsProvider ? '&source=' + providerKey : ''), payload, providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 const notesMap = getLocalNotesMap();
                 const note = normalizeActivityNote(Object.assign({}, payload || {}, {
                     id: createLocalToken('local_note'),
                     user_slug: userConfig.slug,
-                    strava_id: numericId
+                    source: providerKey,
+                    activity_ref: activityRef,
+                    strava_id: isIntervalsProvider ? undefined : activityRef
                 }));
-                notesMap[String(numericId)] = sortNotes((notesMap[String(numericId)] || []).concat([note]));
+                notesMap[String(activityRef)] = sortNotes((notesMap[String(activityRef)] || []).concat([note]));
                 saveLocalNotesMap(notesMap);
                 return note;
             }).then(function (note) {
-                state.activityNotesById.delete(numericId);
+                state.activityNotesById.delete(activityRef);
                 return normalizeActivityNote(note);
             });
         }
 
         async function updateActivityNote(activityId, noteId, payload) {
-            const numericId = Number(activityId);
+            assertOwnerWritable();
+            const activityRef = normalizeActivityReference(activityId);
+            payload = Object.assign({}, payload || {}, { source: providerKey });
             if (!isBackendCollectionMode() || String(noteId || '').indexOf('local_note_') === 0) {
                 const notesMap = getLocalNotesMap();
-                notesMap[String(numericId)] = sortNotes((notesMap[String(numericId)] || []).map(function (note) {
+                notesMap[String(activityRef)] = sortNotes((notesMap[String(activityRef)] || []).map(function (note) {
                     if (String(note.id) !== String(noteId)) {
                         return note;
                     }
                     return Object.assign({}, note, payload || {});
                 }));
                 saveLocalNotesMap(notesMap);
-                state.activityNotesById.delete(numericId);
-                return normalizeActivityNote((notesMap[String(numericId)] || []).find(function (note) {
+                state.activityNotesById.delete(activityRef);
+                return normalizeActivityNote((notesMap[String(activityRef)] || []).find(function (note) {
                     return String(note.id) === String(noteId);
                 }));
             }
             return runtimeDataSource.runWithFallback('activity note update', function (requestOptions) {
-                return StravaApp.apiPatch(runtimeDataSource.apiBase, '/api/activities/' + numericId + '/notes/' + encodeURIComponent(noteId) + '?user=' + encodeURIComponent(userConfig.slug), payload, requestOptions);
+                return StravaApp.apiPatch(runtimeDataSource.apiBase, '/api/activities/' + encodeActivityReference(activityRef) + '/notes/' + encodeURIComponent(noteId) + '?user=' + encodeURIComponent(userConfig.slug) + (isIntervalsProvider ? '&source=' + providerKey : ''), payload, providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 const notesMap = getLocalNotesMap();
-                notesMap[String(numericId)] = sortNotes((notesMap[String(numericId)] || []).map(function (note) {
+                notesMap[String(activityRef)] = sortNotes((notesMap[String(activityRef)] || []).map(function (note) {
                     if (String(note.id) !== String(noteId)) {
                         return note;
                     }
                     return Object.assign({}, note, payload || {});
                 }));
                 saveLocalNotesMap(notesMap);
-                return (notesMap[String(numericId)] || []).find(function (note) {
+                return (notesMap[String(activityRef)] || []).find(function (note) {
                     return String(note.id) === String(noteId);
                 }) || null;
             }).then(function (note) {
-                state.activityNotesById.delete(numericId);
+                state.activityNotesById.delete(activityRef);
                 return normalizeActivityNote(note);
             });
         }
 
         async function deleteActivityNote(activityId, noteId) {
-            const numericId = Number(activityId);
+            assertOwnerWritable();
+            const activityRef = normalizeActivityReference(activityId);
             if (!isBackendCollectionMode() || String(noteId || '').indexOf('local_note_') === 0) {
                 const notesMap = getLocalNotesMap();
-                const existingNotes = notesMap[String(numericId)] || [];
+                const existingNotes = notesMap[String(activityRef)] || [];
                 const removed = existingNotes.find(function (note) {
                     return String(note.id) === String(noteId);
                 }) || null;
-                notesMap[String(numericId)] = existingNotes.filter(function (note) {
+                notesMap[String(activityRef)] = existingNotes.filter(function (note) {
                     return String(note.id) !== String(noteId);
                 });
                 saveLocalNotesMap(notesMap);
-                state.activityNotesById.delete(numericId);
+                state.activityNotesById.delete(activityRef);
                 return normalizeActivityNote(removed);
             }
             return runtimeDataSource.runWithFallback('activity note delete', function (requestOptions) {
-                return StravaApp.apiDelete(runtimeDataSource.apiBase, '/api/activities/' + numericId + '/notes/' + encodeURIComponent(noteId), { user: userConfig.slug }, requestOptions);
+                return StravaApp.apiDelete(runtimeDataSource.apiBase, '/api/activities/' + encodeActivityReference(activityRef) + '/notes/' + encodeURIComponent(noteId), providerQuery({ user: userConfig.slug }), providerRequestOptions(requestOptions));
             }, function (error) {
                 markCollectionsUnavailable(error);
                 const notesMap = getLocalNotesMap();
-                const existingNotes = notesMap[String(numericId)] || [];
+                const existingNotes = notesMap[String(activityRef)] || [];
                 const removed = existingNotes.find(function (note) {
                     return String(note.id) === String(noteId);
                 }) || null;
-                notesMap[String(numericId)] = existingNotes.filter(function (note) {
+                notesMap[String(activityRef)] = existingNotes.filter(function (note) {
                     return String(note.id) !== String(noteId);
                 });
                 saveLocalNotesMap(notesMap);
                 return removed;
             }).then(function (note) {
-                state.activityNotesById.delete(numericId);
+                state.activityNotesById.delete(activityRef);
                 return normalizeActivityNote(note);
             });
         }
@@ -3888,8 +4022,12 @@
 
         function applyPageIdentity() {
             const displayName = String(userConfig.displayName || 'Athlete').trim() || 'Athlete';
-            document.title = displayName + "'s Map";
-            pageTitle.textContent = displayName + "'s Map";
+            document.title = displayName + "'s " + (isIntervalsProvider ? 'Intervals.icu Map' : 'Map');
+            pageTitle.textContent = displayName + "'s " + (isIntervalsProvider ? 'Intervals.icu Map' : 'Map');
+            if (isIntervalsProvider) {
+                const favicon = document.querySelector("link[rel='icon']");
+                if (favicon) favicon.href = 'img/make-your-map-logo.svg';
+            }
         }
 
         async function hydrateUserConfig() {
@@ -3906,6 +4044,18 @@
                     applyPageIdentity();
                     return;
                 }
+                if (isIntervalsProvider) {
+                    const slugLabel = requestedUser.replace(/[-_]+/g, ' ').replace(/\b\w/g, function (letter) {
+                        return letter.toUpperCase();
+                    });
+                    userConfig = Object.assign({}, userConfig, {
+                        slug: requestedUser,
+                        displayName: slugLabel || 'Athlete',
+                        title: (slugLabel || 'Athlete') + "'s Map"
+                    });
+                    applyPageIdentity();
+                    return;
+                }
                 throw error;
             }
             const latitude = Number(publicUser.default_lat);
@@ -3919,6 +4069,7 @@
                 pages: Math.max(1, Number(publicUser.num_pages || (staticUserConfig && staticUserConfig.pages) || 10)),
                 color: publicUser.color || (staticUserConfig && staticUserConfig.color) || '#fc4c02'
             });
+            hasPublicUserProfile = true;
             applyPageIdentity();
         }
 
@@ -3956,7 +4107,7 @@
         }
 
         function getCollectionIdsForActivityId(activityId) {
-            const ids = state.activityCollectionsById.get(Number(activityId)) || [];
+            const ids = state.activityCollectionsById.get(normalizeActivityReference(activityId)) || [];
             return ids.slice();
         }
 
@@ -4072,7 +4223,7 @@
 
         async function loadActivityKpisData(activities) {
             return runtimeDataSource.runWithFallback('activity KPI load', function (requestOptions) {
-                return StravaApp.apiGet(runtimeDataSource.apiBase, '/api/users/' + encodeURIComponent(userConfig.slug) + '/activity-kpis', {}, requestOptions).then(function (snapshots) {
+                return StravaApp.apiGet(runtimeDataSource.apiBase, providerPaths.kpis, {}, providerRequestOptions(requestOptions)).then(function (snapshots) {
                     return new Map((Array.isArray(snapshots) ? snapshots : []).map(function (snapshot) {
                         return [snapshot.category_key, snapshot];
                     }));
@@ -4252,7 +4403,7 @@
         }
 
         function getActivityId(activity) {
-            return Number(activity && (activity.id || activity.strava_id) || 0);
+            return normalizeActivityReference(activity && (activity.intervals_activity_id || activity.id || activity.strava_id));
         }
 
         function normalizeStreamPayload(streamData) {
@@ -5957,15 +6108,15 @@
         }
 
         function getLayerForActivityId(activityId) {
-            const numericId = Number(activityId);
+            const activityRef = normalizeActivityReference(activityId);
             return (state.map && state.map._stravaPolylines ? state.map._stravaPolylines : []).find(function (layer) {
-                return layer && layer._stravaDescriptor && getActivityId(layer._stravaDescriptor.activity) === numericId;
+                return layer && layer._stravaDescriptor && getActivityId(layer._stravaDescriptor.activity) === activityRef;
             }) || null;
         }
 
         function getCollectionPlaybackItems(collection) {
             return (collection && collection.activity_ids ? collection.activity_ids : []).map(function (activityId) {
-                return state.activityItemsById.get(Number(activityId)) || null;
+                return state.activityItemsById.get(normalizeActivityReference(activityId)) || null;
             }).filter(Boolean);
         }
 
@@ -5977,11 +6128,11 @@
 
         function moveCollectionActivity(collectionId, activityId, direction) {
             const collection = state.collectionsById.get(collectionId);
-            if (!collection || state.shareMode) {
+            if (!collection || isReadOnlyMode()) {
                 return Promise.resolve(null);
             }
             const activityIds = (collection.activity_ids || []).slice();
-            const currentIndex = activityIds.indexOf(Number(activityId));
+            const currentIndex = activityIds.indexOf(normalizeActivityReference(activityId));
             const nextIndex = currentIndex + Number(direction || 0);
             if (currentIndex === -1 || nextIndex < 0 || nextIndex >= activityIds.length) {
                 return Promise.resolve(collection);
@@ -6546,7 +6697,7 @@
             collectionPlaybackSubtitle.textContent = playback.sourceType === 'workout'
                 ? 'Single workout playback'
                 : playback.items.length + (playback.items.length === 1 ? ' activity' : ' activities')
-                    + (playback.readOnly ? ' - shared view' : '');
+                    + (playback.readOnly ? ' - read-only view' : '');
             const activityDateLabel = item ? formatActivityDateLabel(item.activity) : '';
             collectionWorkoutLabel.textContent = item
                 ? (playback.currentActivityIndex + 1) + ' of ' + playback.items.length
@@ -6717,7 +6868,7 @@
             state.playback.currentLayer = null;
             state.playback.collection = normalized;
             state.playback.items = getCollectionPlaybackItems(normalized);
-            state.playback.readOnly = Boolean(opts.readOnly || state.shareMode);
+            state.playback.readOnly = Boolean(opts.readOnly || isReadOnlyMode());
             state.playback.sourceType = 'collection';
             state.playback.currentActivityIndex = -1;
             state.playback.detailsExpanded = false;
@@ -6730,7 +6881,7 @@
                 renderCollectionPlaybackPanel();
                 return;
             }
-            const requestedActivityId = Number(opts.activityId || 0);
+            const requestedActivityId = normalizeActivityReference(opts.activityId);
             const startIndex = requestedActivityId
                 ? Math.max(0, state.playback.items.findIndex(function (item) { return getActivityId(item.activity) === requestedActivityId; }))
                 : 0;
@@ -6757,7 +6908,7 @@
                 share_token: ''
             };
             state.playback.items = [{ activity: activity }];
-            state.playback.readOnly = Boolean(opts.readOnly || state.shareMode);
+            state.playback.readOnly = Boolean(opts.readOnly || isReadOnlyMode());
             state.playback.sourceType = 'workout';
             state.playback.currentActivityIndex = -1;
             state.playback.detailsExpanded = false;
@@ -6981,13 +7132,15 @@
             }
             collectionsPanelSubtitle.textContent = state.collections.length + (state.collections.length === 1 ? ' collection' : ' collections');
             if (collectionsCreateName) {
-                collectionsCreateName.disabled = state.shareMode;
+                collectionsCreateName.disabled = isReadOnlyMode();
+                const createPanel = collectionsCreateName.closest('.collections-panel-create');
+                if (createPanel) createPanel.hidden = isReadOnlyMode();
             }
             if (collectionsCreateButton) {
-                collectionsCreateButton.disabled = state.shareMode;
+                collectionsCreateButton.disabled = isReadOnlyMode();
             }
-            setCollectionsPanelMessage(state.shareMode
-                ? 'Shared collection view is read-only.'
+            setCollectionsPanelMessage(isReadOnlyMode()
+                ? (state.shareMode ? 'Shared collection view is read-only.' : 'This public map is read-only. Connor can connect Intervals.icu to edit it.')
                 : isBackendCollectionMode()
                 ? ''
                 : 'Backend API is unavailable, so collection changes are saved in this browser and share links are disabled.');
@@ -7010,21 +7163,22 @@
                 const latestActivityId = latestItem ? getActivityId(latestItem.activity) : 0;
                 const latestAlreadyAdded = latestActivityId && orderedActivityIds.indexOf(latestActivityId) !== -1;
                 const activityRows = orderedActivityIds.map(function (activityId, index) {
-                    const activityItem = state.activityItemsById.get(Number(activityId)) || null;
+                    const activityItem = state.activityItemsById.get(normalizeActivityReference(activityId)) || null;
                     const activity = activityItem ? activityItem.activity : null;
-                    const activityTitle = activity ? (activity.name || 'Workout') : 'Unavailable activity #' + Number(activityId);
+                    const activityTitle = activity ? (activity.name || 'Workout') : 'Unavailable activity #' + String(activityId);
                     const activityMeta = activity ? formatStartDateTime(activity) : 'Route unavailable on this map';
                     const canOpen = Boolean(activityItem);
-                    const readOnlyDisabled = state.shareMode ? ' disabled' : '';
+                    const mutationActions = isReadOnlyMode() ? '' : ""
+                        + "<button class='details-action secondary collection-activity-up' type='button'" + (index === 0 ? " disabled" : "") + ">Move Up</button>"
+                        + "<button class='details-action secondary collection-activity-down' type='button'" + (index === orderedActivityIds.length - 1 ? " disabled" : "") + ">Move Down</button>"
+                        + "<button class='details-action secondary collection-activity-remove' type='button'>Remove</button>";
                     return ""
                         + "<div class='collection-activity-item' data-activity-id='" + escapeHtml(activityId) + "'>"
                         + "<div class='collection-activity-title'>" + escapeHtml((index + 1) + '. ' + activityTitle) + "</div>"
                         + "<div class='collection-list-meta'>" + escapeHtml(activityMeta) + "</div>"
                         + "<div class='collection-activity-actions'>"
                         + "<button class='details-action collection-activity-open' type='button'" + (canOpen ? "" : " disabled") + ">Open Playback</button>"
-                        + "<button class='details-action secondary collection-activity-up' type='button'" + (state.shareMode || index === 0 ? " disabled" : "") + ">Move Up</button>"
-                        + "<button class='details-action secondary collection-activity-down' type='button'" + (state.shareMode || index === orderedActivityIds.length - 1 ? " disabled" : "") + ">Move Down</button>"
-                        + "<button class='details-action secondary collection-activity-remove' type='button'" + readOnlyDisabled + ">Remove</button>"
+                        + mutationActions
                         + "</div>"
                         + "</div>";
                 }).join('');
@@ -7043,12 +7197,12 @@
                     + (activityRows || "<div class='details-note'>No activities in this collection yet.</div>")
                     + "</div>"
                     + "</details>"
-                    + "<div class='collection-add-latest'>"
+                    + (isReadOnlyMode() ? "" : "<div class='collection-add-latest'>"
                     + "<div class='collection-list-meta'>Most recent workout: " + escapeHtml(latestItem ? (latestItem.activity.name || 'Workout') : 'Unavailable') + "</div>"
-                    + "<button class='details-action collection-add-latest-button' type='button'" + (state.shareMode || !latestItem || latestAlreadyAdded ? " disabled" : "") + ">"
+                    + "<button class='details-action collection-add-latest-button' type='button'" + (isReadOnlyMode() || !latestItem || latestAlreadyAdded ? " disabled" : "") + ">"
                     + (latestAlreadyAdded ? "Most Recent Workout Added" : "Add Most Recent Workout")
                     + "</button>"
-                    + "</div>";
+                    + "</div>");
 
                 const openButton = item.querySelector('.collection-panel-open');
                 const shareButton = item.querySelector('.collection-panel-share');
@@ -7057,7 +7211,7 @@
                 if (openButton) {
                     openButton.addEventListener('click', function () {
                         closeCollectionsPanel();
-                        startCollectionPlayback(collection, { readOnly: state.shareMode });
+                        startCollectionPlayback(collection, { readOnly: isReadOnlyMode() });
                     });
                 }
                 if (shareButton) {
@@ -7089,7 +7243,7 @@
                     });
                 }
                 item.querySelectorAll('.collection-activity-item').forEach(function (row) {
-                    const activityId = Number(row.dataset.activityId || 0);
+                    const activityId = normalizeActivityReference(row.dataset.activityId);
                     const openActivityButton = row.querySelector('.collection-activity-open');
                     const moveUpButton = row.querySelector('.collection-activity-up');
                     const moveDownButton = row.querySelector('.collection-activity-down');
@@ -7097,7 +7251,7 @@
                     if (openActivityButton) {
                         openActivityButton.addEventListener('click', function () {
                             closeCollectionsPanel();
-                            startCollectionPlayback(collection, { activityId: activityId, readOnly: state.shareMode });
+                            startCollectionPlayback(collection, { activityId: activityId, readOnly: isReadOnlyMode() });
                         });
                     }
                     if (moveUpButton) {
@@ -7197,7 +7351,7 @@
                 return left.label.localeCompare(right.label);
             });
             const customSelected = Boolean(selectedKey && !options.some(function (entry) { return entry.key === selectedKey; }));
-            return "<option value=''" + (!selectedKey ? " selected" : "") + ">Use Strava type - " + escapeHtml(stravaTypeLabel) + "</option>"
+            return "<option value=''" + (!selectedKey ? " selected" : "") + ">Use " + escapeHtml(providerLabel) + " type - " + escapeHtml(stravaTypeLabel) + "</option>"
                 + options.map(function (entry) {
                     return "<option value='" + escapeHtml(entry.key) + "'" + (entry.key === selectedKey ? " selected" : "") + ">" + escapeHtml(entry.label) + "</option>";
                 }).join('')
@@ -7226,7 +7380,19 @@
             const customAnimationSpeed = StravaApp.normalizeAnimationSpeedMultiplier(normalized.animation_speed_multiplier);
             const currentAnimationSpeed = StravaApp.getActivityAnimationSpeedMultiplier(normalized, defaultAnimationSpeed);
             const hasCustomSettings = Boolean(activityTypeOverride || customColor || customThickness !== null || customOpacity !== null || customAnimationSpeed !== null);
-            const readOnly = state.shareMode;
+            const readOnly = isReadOnlyMode();
+            if (readOnly) {
+                return ""
+                    + "<div class='details-card'>"
+                    + "<div class='details-card-title'>Line Settings</div>"
+                    + "<div class='details-grid'>"
+                    + createDetailRow('Workout Type', activityTypeLabel)
+                    + createDetailRow('Line Color', customColor || defaultColorHex)
+                    + createDetailRow('Line Thickness', currentThickness + ' px')
+                    + createDetailRow('Line Opacity', formatLineOpacityPercent(currentOpacity) + '%')
+                    + createDetailRow('Animation Speed', currentAnimationSpeed + 'x')
+                    + "</div><div class='details-note'>Connor-only editing controls are hidden on the public map.</div></div>";
+            }
             return ""
                 + "<div class='details-card'>"
                 + "<div class='details-card-title'>Line Settings</div>"
@@ -7238,7 +7404,7 @@
                 + getWorkoutTypeOverrideOptionsMarkup(normalized, activityTypeOverride)
                 + "</select>"
                 + "<input id='details-workout-type-custom-input' class='details-input' type='text' maxlength='80' autocomplete='off' placeholder='Enter workout type' value='" + escapeHtml(customActivityTypeLabel) + "'" + (!hasCustomActivityType ? " hidden" : "") + (readOnly ? " disabled" : "") + ">"
-                + "<span id='details-workout-type-value' class='details-setting-copy'>" + escapeHtml(activityTypeOverride ? activityTypeLabel + ' manual' : activityTypeLabel + ' from Strava') + "</span>"
+                + "<span id='details-workout-type-value' class='details-setting-copy'>" + escapeHtml(activityTypeOverride ? activityTypeLabel + ' manual' : activityTypeLabel + ' from ' + providerLabel) + "</span>"
                 + "</div>"
                 + "<div class='details-setting-block'>"
                 + "<div class='details-setting-label'>Line Color</div>"
@@ -7298,15 +7464,16 @@
         }
 
         async function updateActivityLineColorData(activityId, settings) {
+            assertOwnerWritable();
             if (!runtimeDataSource.isBackendEnabled || !runtimeDataSource.isBackendEnabled()) {
                 throw new Error('Backend API is unavailable, so line settings cannot be saved right now.');
             }
             return runtimeDataSource.runWithFallback('activity line settings update', function (requestOptions) {
                 return StravaApp.apiPatch(
                     runtimeDataSource.apiBase,
-                    '/api/activities/' + Number(activityId) + '?user=' + encodeURIComponent(userConfig.slug),
+                    getProviderActivityPath(activityId) + '?user=' + encodeURIComponent(userConfig.slug),
                     settings || {},
-                    requestOptions
+                    providerRequestOptions(requestOptions)
                 );
             }, function (error) {
                 throw error || new Error('Backend API is unavailable, so line settings cannot be saved right now.');
@@ -7479,7 +7646,7 @@
                             activity_type_override: selectedOverride,
                             activity_type_override_label: selectedOverride
                         }) + ' manual'
-                        : StravaApp.getActivityLabel(stravaTypeKey) + ' from Strava';
+                        : StravaApp.getActivityLabel(stravaTypeKey) + ' from ' + providerLabel;
                 }
             }
             function updatePickerUi(hexColor) {
@@ -7720,12 +7887,12 @@
                 : "<div class='details-note'>This workout is not in a collection yet.</div>";
             const backendDown = !isBackendCollectionMode();
             const disabled = false;
-            const readOnly = state.shareMode;
+            const readOnly = isReadOnlyMode();
             const disabledNote = backendDown
                 ? "<div class='details-note'>Backend API is unavailable, so collections and notes are being saved in this browser only. Share links are disabled until the backend reconnects.</div>"
                 : "";
             const readOnlyNote = readOnly
-                ? "<div class='details-note'>Shared collection view is read-only.</div>"
+                ? "<div class='details-note'>This map view is read-only.</div>"
                 : "";
             const selectedCollectionHasShare = Boolean(selectedCollection && selectedCollection.share_token);
             const collectionActionControls = readOnly
@@ -7898,7 +8065,7 @@
                 openButton.addEventListener('click', function () {
                     const collection = getSelectedDetailsCollection();
                     if (collection) {
-                        startCollectionPlayback(collection, { activityId: activityId, readOnly: state.shareMode });
+                        startCollectionPlayback(collection, { activityId: activityId, readOnly: isReadOnlyMode() });
                     }
                 });
             }
@@ -7991,6 +8158,40 @@
             });
         }
 
+        function formatProviderMetricValue(value) {
+            if (Array.isArray(value)) return value.join(', ');
+            if (value && typeof value === 'object') return JSON.stringify(value);
+            if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2);
+            return String(value === undefined || value === null ? '' : value);
+        }
+
+        function renderIntervalsProviderCards(activity) {
+            if (!isIntervalsProvider) return '';
+            const intervalBlocks = Array.isArray(activity.intervals) ? activity.intervals : [];
+            const intervalMarkup = intervalBlocks.length
+                ? intervalBlocks.map(function (interval, index) {
+                    const title = interval.name || interval.label || interval.type || ('Interval ' + (index + 1));
+                    const duration = interval.moving_time || interval.elapsed_time || interval.duration || interval.duration_seconds;
+                    return "<div class='details-row'><span>" + escapeHtml(title) + "</span><strong>"
+                        + escapeHtml(duration ? StravaApp.formatTime(Number(duration)) : formatProviderMetricValue(interval))
+                        + "</strong></div>";
+                }).join('')
+                : "<div class='details-note'>No detected or manual interval blocks are cached for this workout.</div>";
+            const metrics = activity.intervals_metrics && typeof activity.intervals_metrics === 'object'
+                ? Object.entries(activity.intervals_metrics).filter(function (entry) {
+                    return entry[1] !== undefined && entry[1] !== null && entry[1] !== '' && typeof entry[1] !== 'object';
+                }).slice(0, 24)
+                : [];
+            const metricsMarkup = metrics.length
+                ? metrics.map(function (entry) {
+                    const label = entry[0].replace(/^icu_/, '').replace(/_/g, ' ');
+                    return createDetailRow(label.replace(/\b\w/g, function (letter) { return letter.toUpperCase(); }), formatProviderMetricValue(entry[1]));
+                }).join('')
+                : "<div class='details-note'>No additional Intervals.icu training metrics are cached.</div>";
+            return "<div class='details-card'><div class='details-card-title'>Intervals</div>" + intervalMarkup + "</div>"
+                + "<div class='details-card'><div class='details-card-title'>Intervals.icu Training Metrics</div><div class='details-grid'>" + metricsMarkup + "</div></div>";
+        }
+
         function renderDetailsPanel(layer) {
             if (!layer || !layer._stravaDescriptor) {
                 return;
@@ -8016,6 +8217,17 @@
             if (activity.max_heartrate) {
                 rows.push(createDetailRow('Max Heart Rate', Number(activity.max_heartrate).toFixed(0) + ' bpm'));
             }
+            if (isIntervalsProvider && activity.upstream_source) {
+                rows.push(createDetailRow('Upstream Source', activity.upstream_source));
+            }
+            if (isIntervalsProvider && activity.device_name) {
+                rows.push(createDetailRow('Recording Device', activity.device_name));
+            }
+
+            const garminSourced = /garmin/i.test(String(activity.device_name || '') + ' ' + String(activity.upstream_source || ''));
+            const sourceAttribution = isIntervalsProvider && garminSourced
+                ? "<div class='details-card'><div class='details-card-title'>Source Attribution</div><div class='details-note'>Activity data provided by Garmin through Intervals.icu.</div></div>"
+                : '';
 
             const chartMetricId = getDetailsChartMetricId(layer);
             const chartMetric = getStreamMetricConfig(chartMetricId);
@@ -8041,6 +8253,8 @@
                 + rows.join('')
                 + "</div></div>"
                 + "<div class='details-card'><div class='details-card-heading-row'><div class='details-card-title'>Workout Profile</div>" + metricControl + "</div>" + speedContent + "</div>"
+                + sourceAttribution
+                + renderIntervalsProviderCards(activity)
                 + renderDetailsCollectionCard(activity)
                 + renderDetailsLineColorCard(activity);
             syncReplayButtonState();
@@ -8785,7 +8999,7 @@
         });
 
         collectionsCreateButton.addEventListener('click', async function () {
-            if (state.shareMode) {
+            if (isReadOnlyMode()) {
                 return;
             }
             const name = collectionsCreateName.value.trim();
@@ -9380,22 +9594,25 @@
                     storage: 'MongoDB',
                     syncAvailable: false
                 };
-                let backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
+                let backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, providerPaths.activities, {
                     user: userConfig.slug
-                }, requestOptions);
-                if (window.STRAVA_CONFIG.syncOnLoad === true) {
+                }, providerRequestOptions(requestOptions));
+                if (window.STRAVA_CONFIG.syncOnLoad === true && isOwnerWritable()) {
                     body.dataset.connectionState = 'syncing';
-                    const syncRequest = StravaApp.apiPost(runtimeDataSource.apiBase, `/api/sync/${userConfig.slug}`, {}, requestOptions);
+                    const syncRequest = StravaApp.apiPost(runtimeDataSource.apiBase, providerPaths.sync, {}, providerRequestOptions(requestOptions));
                     if (backendActivities.length) {
                         backgroundSyncPromise = syncRequest;
                     } else {
                         try {
                             syncSummary = await syncRequest;
-                            backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
+                            backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, providerPaths.activities, {
                                 user: userConfig.slug
-                            }, requestOptions);
+                            }, providerRequestOptions(requestOptions));
                         } catch (error) {
-                            console.warn('Initial Strava sync unavailable.', error);
+                            console.warn('Initial ' + providerLabel + ' sync unavailable.', error);
+                            backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, providerPaths.activities, {
+                                user: userConfig.slug
+                            }, providerRequestOptions(requestOptions));
                         }
                     }
                 }
@@ -9550,13 +9767,13 @@
             if (backgroundSyncPromise) {
                 backgroundSyncPromise.then(function (summary) {
                     body.dataset.connectionState = 'ready';
-                    if (Number(summary && summary.recordsInserted) > 0) {
+                    if (Number(summary && (summary.recordsInserted || summary.inserted)) > 0) {
                         window.setTimeout(function () {
                             window.location.reload();
                         }, 250);
                     }
                 }).catch(function (error) {
-                    console.warn('Background Strava sync unavailable; cached routes remain visible.', error);
+                    console.warn('Background ' + providerLabel + ' sync unavailable; cached routes remain visible.', error);
                     body.dataset.connectionState = 'error';
                 });
             } else {
@@ -9573,14 +9790,27 @@
             try {
                 await hydrateUserConfig();
                 connectionStatus = await fetchConnectionStatus();
+                if (isIntervalsProvider && !hasPublicUserProfile && connectionStatus.athleteName) {
+                    userConfig.displayName = String(connectionStatus.athleteName).trim() || userConfig.displayName;
+                    userConfig.title = userConfig.displayName + "'s Map";
+                    applyPageIdentity();
+                }
             } catch (error) {
                 console.error(error);
                 showConnectionGate(null, error);
                 return;
             }
-            if (!connectionStatus.connected) {
+            if (!connectionStatus.connected && !(isIntervalsProvider && Number(connectionStatus.totalActivities || 0) > 0)) {
                 showConnectionGate(connectionStatus, null);
                 return;
+            }
+            if (isIntervalsProvider && !connectionStatus.owner && ownerSessionToken) {
+                ownerSessionToken = '';
+                try {
+                    window.sessionStorage.removeItem(OWNER_SESSION_STORAGE_KEY);
+                } catch (error) {
+                    // The public cached map still works when session storage is unavailable.
+                }
             }
             body.dataset.connectionState = 'connected';
             await loadUserPage();
@@ -9589,7 +9819,7 @@
         bootstrapUserPage().catch(function (error) {
             console.error(error);
             body.dataset.connectionState = 'error';
-            splashText.textContent = 'Unable to load cached Strava data';
+            splashText.textContent = 'Unable to load cached ' + providerLabel + ' data';
         });
     </script>
 </body>

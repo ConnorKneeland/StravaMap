@@ -8,6 +8,8 @@
     "test": "node --test server/tests/*.test.js",
     "migrate:users": "node server/migrate_users.js",
     "migrate:primary-oauth": "node server/require_primary_oauth.js",
+    "provision:intervals-api-key": "node server/provision_intervals_api_key.js",
+    "intervals:owner-link": "node server/provision_intervals_api_key.js --owner-link",
     "sync:users": "node server/bulk_sync_users.js",
     "backfill:locations": "node server/backfill_activity_locations.js"
   },

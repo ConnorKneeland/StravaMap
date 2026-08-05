@@ -6,6 +6,12 @@ The production map now uses one server-side Strava OAuth application with persis
 
 See [Shared Strava OAuth Operations Guide](docs/strava-multi-user-oauth.md) for the OAuth flow, endpoints, database fields, migration notes, Railway variables, Strava dashboard setup, and Tim acceptance run.
 
+## Intervals.icu personal API-key proof of concept
+
+The separate Intervals.icu map is available at `icu_map.html?user=<slug>`. Test accounts are manually linked to slugs with an Athlete ID and personal API key. Credentials are verified, encrypted, and stored server-side in a separate provider connection; the existing Strava map and `activities` collection are not migrated or modified by ICU synchronization.
+
+See the [Intervals.icu Proof-of-Concept Operations Guide](docs/intervals-icu-poc.md) for Railway provisioning, owner links, key rotation, security behavior, API routes, and smoke tests. OAuth remains available in the code for a later public onboarding flow but is not required for personal API-key testing.
+
 ## Legacy Strava modes
 
 ### Mode 1: Frontend only (legacy fallback)

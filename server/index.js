@@ -8,8 +8,10 @@ const activityRoutes = require('./routes/activities');
 const competitionRoutes = require('./routes/competitions');
 const collectionRoutes = require('./routes/collections');
 const stravaRoutes = require('./routes/strava');
+const intervalsRoutes = require('./routes/intervals');
 const { getAllFrontendUsers } = require('./frontend_user_configs');
 const { getConfigurationStatus } = require('./config/strava');
+const { getIntervalsConfigurationStatus } = require('./config/intervals');
 const { startWebhookRetryWorker } = require('./services/webhook');
 
 dotenv.config();
@@ -34,14 +36,19 @@ async function createApp() {
             status: 'ok',
             storage: isMongoConnected() ? 'MongoDB' : 'memory',
             mongoConnected: isMongoConnected(),
-            configuration: getConfigurationStatus()
+            configuration: getConfigurationStatus(),
+            intervals: getIntervalsConfigurationStatus()
         });
     });
+    app.use('/api', intervalsRoutes);
     app.use('/api', stravaRoutes);
     app.use('/api', authRoutes);
     app.use('/api', activityRoutes);
     app.use('/api', competitionRoutes);
     app.use('/api', collectionRoutes);
+    app.get('/icu_map.html', (req, res) => {
+        res.sendFile(path.resolve(__dirname, '..', 'strava_user.html'));
+    });
     app.use(express.static(path.resolve(__dirname, '..')));
 
     return app;

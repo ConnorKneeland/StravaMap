@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const oauthStateSchema = new mongoose.Schema({
     state_hash: { type: String, required: true, unique: true, index: true },
     slug: { type: String, required: true, index: true },
+    provider: { type: String, default: 'strava', index: true },
     nonce: { type: String, required: true, unique: true },
     expires_at: { type: Date, required: true },
     return_url: { type: String },
