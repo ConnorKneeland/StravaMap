@@ -83,7 +83,10 @@ const activitySchema = new mongoose.Schema({
     stream_latlng: { type: [[Number]], default: void 0 },
     stream_velocity_smooth: { type: [Number], default: void 0 },
     stream_time: { type: [Number], default: void 0 },
-    stream_fetched_at: { type: Date }
+    stream_fetched_at: { type: Date },
+    upstream_deleted: { type: Boolean, default: false, index: true },
+    upstream_deleted_at: { type: Date },
+    upstream_delete_source: { type: String }
 }, { timestamps: true });
 
 activitySchema.index({ user_id: 1, type: 1 });

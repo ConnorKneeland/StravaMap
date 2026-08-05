@@ -21,7 +21,9 @@ const providerConnectionSchema = new mongoose.Schema({
     sync_error: { type: String },
     sync_retry_at: { type: Date },
     total_activities: { type: Number, default: 0 },
-    backfill_complete: { type: Boolean, default: false }
+    backfill_complete: { type: Boolean, default: false },
+    last_import_at: { type: Date },
+    last_import_summary: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true, collection: 'provider_connections' });
 
 providerConnectionSchema.index({ user_slug: 1, provider: 1 }, { unique: true });

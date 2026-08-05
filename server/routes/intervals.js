@@ -28,6 +28,12 @@ const {
     reconcileIntervalsActivity,
     reconcileRecentIntervalsActivities
 } = require('../services/intervals_sync');
+const {
+    isStravaExportImportActive,
+    importStravaExportZipFile,
+    saveRequestToTemporaryZip,
+    removeTemporaryZip
+} = require('../services/strava_export_import');
 
 const router = express.Router();
 
@@ -171,7 +177,8 @@ router.get('/intervals/activities', async (req, res) => {
         if (req.query.from) filter.start_date.$gte = req.query.from;
         if (req.query.to) filter.start_date.$lte = req.query.to;
     }
-    let activities = await getIntervalsActivityStore().find(filter, { sort: { start_date: -1 } });
+    let activities = (await getIntervalsActivityStore().find(filter, { sort: { start_date: -1 } }))
+        .filter((activity) => activity.dedupe_hidden !== true);
     const requestedTypes = parseList(req.query.types || req.query.type)
         .map((value) => ActivityTypes.normalizeActivityTypeKey(value));
     if (requestedTypes.length) {
@@ -181,6 +188,36 @@ router.get('/intervals/activities', async (req, res) => {
         activities = activities.slice(0, Math.max(0, Number(req.query.limit) || 0));
     }
     res.json(activities);
+});
+
+router.post('/intervals/import/strava-export/:slug', requireIntervalsOwner, async (req, res) => {
+    const slug = normalizeSlug(req.params.slug);
+    if (!slug || !isIntervalsSlugEnabled(slug)) {
+        req.resume();
+        res.status(404).json({ error: 'Intervals.icu is not enabled for this user' });
+        return;
+    }
+    if (isStravaExportImportActive(slug)) {
+        req.resume();
+        res.status(409).json({ error: 'A Strava export import is already running for this user' });
+        return;
+    }
+    const contentType = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    if (!['application/zip', 'application/x-zip-compressed', 'application/octet-stream'].includes(contentType)) {
+        req.resume();
+        res.status(415).json({ error: 'Upload the original Strava export ZIP file' });
+        return;
+    }
+    let temporaryUpload;
+    try {
+        temporaryUpload = await saveRequestToTemporaryZip(req, slug);
+        const result = await importStravaExportZipFile(temporaryUpload.path, slug);
+        res.json(Object.assign({ uploadedBytes: temporaryUpload.bytes }, result));
+    } catch (error) {
+        sendIntervalsError(res, error, 400);
+    } finally {
+        await removeTemporaryZip(temporaryUpload && temporaryUpload.path);
+    }
 });
 
 router.get('/intervals/users/:slug/activity-kpis', async (req, res) => {

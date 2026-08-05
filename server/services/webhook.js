@@ -66,9 +66,13 @@ async function processWebhookEvent(event) {
             });
         }
         if (event.aspect_type === 'delete') {
-            await getActivityStore().deleteOne({
+            await getActivityStore().updateOne({
                 strava_id: Number(event.object_id),
                 user_slug: user.slug
+            }, {
+                upstream_deleted: true,
+                upstream_deleted_at: new Date(Number(event.payload && event.payload.event_time || 0) * 1000 || Date.now()),
+                upstream_delete_source: 'strava_webhook'
             });
         } else if (event.aspect_type === 'create' || event.aspect_type === 'update') {
             await syncUserActivities(user);

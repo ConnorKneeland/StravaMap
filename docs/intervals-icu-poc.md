@@ -137,6 +137,37 @@ https://fluffy-druid-f9a1d0.netlify.app/icu_map.html?user=<slug>
 
 No migration command is needed. In particular, do not rerun the Strava primary-OAuth campaign for this provider.
 
+## Import historical activities from a Strava export
+
+An authorized owner can add historical Strava-export workouts to the ICU map without changing the existing Strava map or its MongoDB data:
+
+1. Open the current owner link for the slug so the browser has a valid owner session.
+2. Open the map menu and select **Import Strava ZIP**.
+3. Choose the original ZIP downloaded from Strava. Do not extract or rearrange it first.
+4. Leave the page open while the browser uploads the file and the server processes it. The map reloads after a successful import.
+
+The importer reads `activities.csv` and the linked workout files under `activities/`. It supports FIT, compressed FIT, GPX, compressed GPX, and TCX workout files. Photos, profile data, and other account-export content are ignored. The CSV supplies activity titles and summary metadata; activity files supply the detailed route and metric streams used by the map.
+
+Import behavior is deliberately non-destructive:
+
+- Imported workouts are written only to `intervals_activities`, with `provider: "strava_export"` and an ID based on the Strava export Activity ID.
+- The importer never writes to or deletes from the existing Strava `activities` collection.
+- Re-importing the same archive updates the same records and preserves previously stored richer stream data.
+- Regular Intervals.icu synchronization neither hydrates nor deletes Strava-export records.
+- When an Intervals.icu activity and an imported activity appear to describe the same workout, both records remain in MongoDB. The map exposes the record with the most route and stream datapoints and marks the weaker copy as hidden from normal map reads.
+
+The default maximum ZIP upload is 1 GiB. Set `STRAVA_EXPORT_MAX_ZIP_BYTES` to a byte value only if a different server limit is needed. ZIP entry counts, CSV size, individual activity-file size, and total extracted workout data also have defensive limits. The archive is streamed to a temporary server file rather than loaded completely into memory.
+
+The endpoint used by the button is:
+
+```text
+POST /api/intervals/import/strava-export/:slug
+Content-Type: application/zip
+Authorization: Bearer <owner-session-token>
+```
+
+It is owner-only and accepts a raw ZIP request body. The personal Intervals.icu API key is not involved in the browser upload.
+
 ## Key rotation and reconnection
 
 If Intervals.icu returns `401` or `403` for a personal API-key connection, the server marks it as requiring reconnection and leaves cached map records readable.
@@ -156,8 +187,10 @@ Provisioning intentionally refuses to attach a different Athlete ID to a slug th
 - Anyone with a slug URL can read cached ICU map data.
 - Synchronization and mutations require a valid signed owner browser session.
 - Full synchronization reconciles provider IDs and deletes only missing records from that slug in `intervals_activities`.
+- Full synchronization excludes `strava_export` records from provider deletion reconciliation.
 - Intervals.icu activity IDs remain strings throughout the API and browser.
-- The existing Strava `activities` collection is never read, written, or deleted by ICU synchronization.
+- The existing Strava `activities` collection is never read, written, or deleted by ICU synchronization or Strava-export import.
+- A Strava webhook deletion is retained as an upstream-deleted marker instead of removing the stored workout document.
 - API-key testing uses manual synchronization rather than the OAuth application's webhook flow.
 
 ## MongoDB collections
@@ -173,6 +206,7 @@ The existing Strava `activities` and `activity_kpi_snapshots` collections are no
 ```text
 GET   /api/intervals/user/:slug/status
 POST  /api/intervals/sync/:slug
+POST  /api/intervals/import/strava-export/:slug
 GET   /api/intervals/activities?user=:slug
 GET   /api/intervals/activities/:id?user=:slug
 GET   /api/intervals/activities/:id/streams?user=:slug

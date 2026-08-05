@@ -441,7 +441,9 @@ function buildIntervalsConnectionStatus(connection, slugValue) {
         syncStatus: connection && connection.sync_status || 'idle',
         progress: connection && connection.sync_progress || null,
         totalActivities: Number(connection && connection.total_activities || 0),
-        backfillComplete: Boolean(connection && connection.backfill_complete)
+        backfillComplete: Boolean(connection && connection.backfill_complete),
+        lastImport: connection && connection.last_import_at || null,
+        lastImportSummary: connection && connection.last_import_summary || null
     };
 }
 

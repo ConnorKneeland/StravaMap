@@ -10,6 +10,7 @@ const {
     buildIntervalsProviderAuthorization
 } = require('./intervals_auth');
 const { normalizeSlug } = require('./connection');
+const { reconcileDuplicateActivitiesForSlug } = require('./intervals_dedupe');
 
 const REQUEST_SPACING_MS = 140;
 const MAX_RATE_LIMIT_RETRIES = 5;
@@ -404,7 +405,8 @@ async function recomputeIntervalsKpis(slugValue) {
     const slug = normalizeSlug(slugValue);
     const activityStore = getIntervalsActivityStore();
     const snapshotStore = getIntervalsKpiStore();
-    const activities = await activityStore.find({ user_slug: slug }, { sort: { start_date: 1 } });
+    const activities = (await activityStore.find({ user_slug: slug }, { sort: { start_date: 1 } }))
+        .filter((activity) => activity.dedupe_hidden !== true);
     const snapshots = buildKpiSnapshots(slug, activities, {
         idPrefix: PROVIDER,
         latestActivityId: (activity) => String(activity.intervals_activity_id || activity.id || '') || undefined
@@ -463,7 +465,9 @@ async function performIntervalsSync(connection) {
         let deleted = 0;
         if (providerListComplete) {
             for (const stored of await activityStore.find({ user_slug: slug })) {
-                if (!providerIds.has(String(stored.intervals_activity_id))) {
+                if (stored.import_source !== 'strava_export'
+                    && stored.provider !== 'strava_export'
+                    && !providerIds.has(String(stored.intervals_activity_id))) {
                     await activityStore.deleteOne({ activity_key: stored.activity_key });
                     deleted += 1;
                 }
@@ -471,7 +475,8 @@ async function performIntervalsSync(connection) {
         }
 
         let mapsHydrated = 0;
-        const storedActivities = await activityStore.find({ user_slug: slug }, { sort: { start_date: -1 } });
+        const storedActivities = (await activityStore.find({ user_slug: slug }, { sort: { start_date: -1 } }))
+            .filter((activity) => activity.import_source !== 'strava_export' && activity.provider !== 'strava_export');
         for (let index = 0; index < storedActivities.length; index += 1) {
             const activity = storedActivities[index];
             if (!activity.map_fetched_at) {
@@ -492,10 +497,12 @@ async function performIntervalsSync(connection) {
             });
         }
 
+        const deduplication = await reconcileDuplicateActivitiesForSlug(slug, activityStore);
         await recomputeIntervalsKpis(slug);
         const completedAt = new Date();
         const result = { provider: PROVIDER, slug, fetched: providerActivities.length, eligible: eligible.length,
-            inserted, updated, deleted, mapsHydrated, deletionReconciliationSkipped: !providerListComplete, completedAt };
+            inserted, updated, deleted, mapsHydrated, deduplication,
+            deletionReconciliationSkipped: !providerListComplete, completedAt };
         await connectionStore.updateOne({ connection_key: connection.connection_key }, {
             last_sync: completedAt,
             last_successful_sync_at: completedAt,
@@ -503,7 +510,7 @@ async function performIntervalsSync(connection) {
             sync_error: '',
             sync_retry_at: null,
             sync_progress: { phase: 'complete', processed: eligible.length, total: eligible.length },
-            total_activities: eligible.length,
+            total_activities: deduplication.visibleRecords,
             backfill_complete: providerListComplete
         });
         return result;

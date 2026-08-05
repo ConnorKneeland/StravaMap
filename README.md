@@ -12,6 +12,8 @@ The separate Intervals.icu map is available at `icu_map.html?user=<slug>`. Test 
 
 See the [Intervals.icu Proof-of-Concept Operations Guide](docs/intervals-icu-poc.md) for Railway provisioning, owner links, key rotation, security behavior, API routes, and smoke tests. OAuth remains available in the code for a later public onboarding flow but is not required for personal API-key testing.
 
+An authorized ICU-map owner can also use **Import Strava ZIP** to add historical workouts from a Strava account export. The importer reads `activities.csv` and linked FIT/GPX/TCX files into the separate `intervals_activities` collection. It never modifies or deletes the existing Strava `activities` collection; duplicate source records are retained in MongoDB while the richer copy is displayed on the ICU map.
+
 ## Legacy Strava modes
 
 ### Mode 1: Frontend only (legacy fallback)

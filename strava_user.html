@@ -281,6 +281,15 @@
             border-color:var(--border-strong);
             background:var(--panel-strong);
         }
+        .menu-import-status{
+            max-width:260px;
+            padding:7px 10px;
+            color:var(--muted);
+            font-size:12px;
+            line-height:1.35;
+        }
+        .menu-import-status.is-error{ color:#ff9d9d; }
+        .menu-import-status.is-success{ color:#8ce6b1; }
         .menu-control-row{
             display:flex;
             align-items:center;
@@ -1885,6 +1894,9 @@
                     <a class="menu-link" href="strava_compare.html">Comparison Map</a>
                     <a class="menu-link" href="strava_competitions.html">Competitions Map</a>
                     <a class="menu-link" href="strava_account_settings.html">Account Settings</a>
+                    <button id="strava-export-import-button" class="menu-link" type="button" hidden>Import Strava ZIP</button>
+                    <input id="strava-export-import-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+                    <div id="strava-export-import-status" class="menu-import-status" hidden aria-live="polite"></div>
                     <div class="menu-control-row map-style-row">
                         <div class="menu-toggle-copy">
                             <div class="menu-toggle-title">Map Style</div>
@@ -2189,6 +2201,9 @@
         const navActionShell = document.getElementById('nav-action-shell');
         const navActionTrigger = document.getElementById('nav-action-trigger');
         const navActionMenu = document.getElementById('nav-action-menu');
+        const stravaExportImportButton = document.getElementById('strava-export-import-button');
+        const stravaExportImportInput = document.getElementById('strava-export-import-input');
+        const stravaExportImportStatus = document.getElementById('strava-export-import-status');
         const mapStyleOptions = document.getElementById('map-style-options');
         const mapStyleIcon = document.getElementById('map-style-icon');
         const mapStyleLabel = document.getElementById('map-style-label');
@@ -2240,7 +2255,8 @@
             status: '/api/intervals/user/' + encodeURIComponent(requestedUser) + '/status',
             sync: '/api/intervals/sync/' + encodeURIComponent(requestedUser),
             kpis: '/api/intervals/users/' + encodeURIComponent(requestedUser) + '/activity-kpis',
-            connect: '/api/intervals/connect/' + encodeURIComponent(requestedUser)
+            connect: '/api/intervals/connect/' + encodeURIComponent(requestedUser),
+            stravaExportImport: '/api/intervals/import/strava-export/' + encodeURIComponent(requestedUser)
         } : {
             activities: '/api/activities',
             status: '/api/user/' + encodeURIComponent(requestedUser) + '/status',
@@ -2263,6 +2279,90 @@
 
         function isOwnerWritable() {
             return !isIntervalsProvider || Boolean(ownerSessionToken);
+        }
+
+        function setStravaExportImportStatus(message, stateName) {
+            if (!stravaExportImportStatus) return;
+            stravaExportImportStatus.textContent = String(message || '');
+            stravaExportImportStatus.hidden = !message;
+            stravaExportImportStatus.classList.toggle('is-error', stateName === 'error');
+            stravaExportImportStatus.classList.toggle('is-success', stateName === 'success');
+        }
+
+        function syncStravaExportImportControls() {
+            const available = isIntervalsProvider && isOwnerWritable();
+            if (stravaExportImportButton) stravaExportImportButton.hidden = !available;
+            if (!available) setStravaExportImportStatus('', '');
+        }
+
+        function uploadStravaExportZip(file) {
+            return new Promise(function (resolve, reject) {
+                const request = new XMLHttpRequest();
+                request.open('POST', new URL(providerPaths.stravaExportImport, runtimeDataSource.apiBase).toString(), true);
+                request.responseType = 'json';
+                request.setRequestHeader('Accept', 'application/json');
+                request.setRequestHeader('Content-Type', 'application/zip');
+                request.setRequestHeader('Authorization', 'Bearer ' + ownerSessionToken);
+                request.upload.addEventListener('progress', function (event) {
+                    if (!event.lengthComputable) {
+                        setStravaExportImportStatus('Uploading Strava export...', '');
+                        return;
+                    }
+                    const percentage = Math.min(100, Math.round(event.loaded / event.total * 100));
+                    setStravaExportImportStatus('Uploading Strava export: ' + percentage + '%', '');
+                    if (percentage === 100) {
+                        setStravaExportImportStatus('Upload complete. Reading activities and workout files...', '');
+                    }
+                });
+                request.addEventListener('load', function () {
+                    const response = request.response && typeof request.response === 'object'
+                        ? request.response
+                        : {};
+                    if (request.status >= 200 && request.status < 300) {
+                        resolve(response);
+                        return;
+                    }
+                    reject(new Error(response.error || 'The Strava export import failed.'));
+                });
+                request.addEventListener('error', function () {
+                    reject(new Error('The ZIP upload could not reach the server.'));
+                });
+                request.addEventListener('abort', function () {
+                    reject(new Error('The ZIP upload was cancelled.'));
+                });
+                request.send(file);
+            });
+        }
+
+        async function handleStravaExportSelection(file) {
+            if (!file) return;
+            if (!/\.zip$/i.test(file.name || '')) {
+                setStravaExportImportStatus('Choose the original .zip file downloaded from Strava.', 'error');
+                return;
+            }
+            const confirmed = window.confirm(
+                'Import this Strava export into the ICU map? Existing MongoDB Strava workouts will not be changed or deleted.'
+            );
+            if (!confirmed) return;
+            stravaExportImportButton.disabled = true;
+            stravaExportImportButton.textContent = 'Importing Strava ZIP...';
+            setStravaExportImportStatus('Preparing ZIP upload...', '');
+            try {
+                const result = await uploadStravaExportZip(file);
+                const duplicateText = result.deduplication && result.deduplication.hiddenRecords
+                    ? '; ' + result.deduplication.hiddenRecords + ' duplicate record(s) hidden in favor of richer data'
+                    : '';
+                setStravaExportImportStatus(
+                    'Import complete: ' + Number(result.inserted || 0) + ' added, '
+                    + Number(result.updated || 0) + ' updated' + duplicateText + '. Reloading map...',
+                    'success'
+                );
+                window.setTimeout(function () { window.location.reload(); }, 1800);
+            } catch (error) {
+                setStravaExportImportStatus(error && error.message ? error.message : 'The import failed.', 'error');
+                stravaExportImportButton.disabled = false;
+                stravaExportImportButton.textContent = 'Import Strava ZIP';
+            }
         }
 
         function isReadOnlyMode() {
@@ -9785,6 +9885,20 @@
             window.location.reload();
         });
 
+        if (stravaExportImportButton && stravaExportImportInput) {
+            stravaExportImportButton.addEventListener('click', function () {
+                if (!stravaExportImportButton.disabled) stravaExportImportInput.click();
+            });
+            stravaExportImportInput.addEventListener('change', function () {
+                const file = stravaExportImportInput.files && stravaExportImportInput.files[0];
+                stravaExportImportInput.value = '';
+                handleStravaExportSelection(file).catch(function (error) {
+                    setStravaExportImportStatus(error && error.message ? error.message : 'The import failed.', 'error');
+                });
+            });
+        }
+        syncStravaExportImportControls();
+
         async function bootstrapUserPage() {
             let connectionStatus;
             try {
@@ -9812,6 +9926,7 @@
                     // The public cached map still works when session storage is unavailable.
                 }
             }
+            syncStravaExportImportControls();
             body.dataset.connectionState = 'connected';
             await loadUserPage();
         }

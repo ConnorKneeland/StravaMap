@@ -333,7 +333,7 @@ test('a cross-athlete activity payload is blocked before it can contaminate a sl
     }
 });
 
-test('webhook deletion is scoped by both athlete binding and slug', async () => {
+test('webhook deletion preserves every stored Strava activity and only marks its upstream state', async () => {
     await memoryStore.users.insertOne({
         slug: 'tim',
         display_name: 'Tim',
@@ -358,7 +358,11 @@ test('webhook deletion is scoped by both athlete binding and slug', async () => 
         event_time: 1785000000
     });
     await processWebhookEvent(event);
-    assert.equal(await memoryStore.activities.findOne({ strava_id: 9001, user_slug: 'tim' }), null);
+    const retained = await memoryStore.activities.findOne({ strava_id: 9001, user_slug: 'tim' });
+    assert.ok(retained);
+    assert.equal(retained.name, 'Tim activity');
+    assert.equal(retained.upstream_deleted, true);
+    assert.equal(retained.upstream_delete_source, 'strava_webhook');
     assert.ok(await memoryStore.activities.findOne({ strava_id: 9002, user_slug: 'quinn' }));
 });
 

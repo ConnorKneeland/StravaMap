@@ -4,3 +4,4 @@
 !.env.example
 /.agents/
 /.claude/worktrees/
+/node_modules/
