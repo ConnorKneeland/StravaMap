@@ -3,6 +3,7 @@ const express = require('express');
 const { isMongoConnected, memoryStore, wrapModel } = require('../db');
 const getActivityCollectionModel = require('../models/activity_collection');
 const getActivityNoteModel = require('../models/activity_note');
+const { verifyOwnerToken } = require('../services/intervals_auth');
 
 const router = express.Router();
 
@@ -26,6 +27,28 @@ function normalizeSlug(value) {
     return cleanString(value).toLowerCase();
 }
 
+function normalizeSource(value) {
+    return cleanString(value).toLowerCase() === 'intervals_icu' ? 'intervals_icu' : 'strava';
+}
+
+function getBearerToken(req) {
+    const match = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+    return match ? match[1] : '';
+}
+
+function requireSourceOwner(req, res, source, slug) {
+    if (normalizeSource(source) !== 'intervals_icu') {
+        return true;
+    }
+    try {
+        verifyOwnerToken(getBearerToken(req), slug);
+        return true;
+    } catch (error) {
+        res.status(error.statusCode || 401).json({ error: error.message, code: error.code || 'owner_auth_required' });
+        return false;
+    }
+}
+
 function normalizeActivityIds(value) {
     if (!Array.isArray(value)) {
         return [];
@@ -38,6 +61,17 @@ function hasInvalidActivityIds(value) {
         const numeric = Number(item);
         return !Number.isFinite(numeric) || numeric <= 0;
     });
+}
+
+function normalizeActivityRefs(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return Array.from(new Set(value.map(cleanString).filter((item) => item && item.length <= 128)));
+}
+
+function hasInvalidActivityRefs(value) {
+    return Array.isArray(value) && value.some((item) => !cleanString(item) || cleanString(item).length > 128);
 }
 
 function normalizeLatLng(value) {
@@ -55,8 +89,15 @@ function normalizeCollection(collection) {
     if (!collection) {
         return null;
     }
+    const source = normalizeSource(collection.source);
+    const activityRefs = source === 'intervals_icu'
+        ? normalizeActivityRefs(collection.activity_refs && collection.activity_refs.length
+            ? collection.activity_refs : collection.activity_ids)
+        : normalizeActivityIds(collection.activity_ids);
     return Object.assign({}, collection, {
-        activity_ids: normalizeActivityIds(collection.activity_ids)
+        source,
+        activity_refs: source === 'intervals_icu' ? activityRefs : normalizeActivityRefs(collection.activity_refs),
+        activity_ids: activityRefs
     });
 }
 
@@ -65,8 +106,11 @@ function normalizeNote(note) {
         return null;
     }
     const text = cleanString(note.text || note.body);
+    const source = normalizeSource(note.source);
     return Object.assign({}, note, {
-        strava_id: Number(note.strava_id),
+        source,
+        activity_ref: source === 'intervals_icu' ? cleanString(note.activity_ref) : String(note.strava_id),
+        strava_id: source === 'strava' ? Number(note.strava_id) : undefined,
         elapsed_seconds: Number(note.elapsed_seconds || 0),
         subject: cleanString(note.subject) || 'Untitled Note',
         text: text,
@@ -95,19 +139,25 @@ async function findCollection(identifier) {
 
 function validateCollectionPayload(req, res) {
     const payload = req.body || {};
+    const source = normalizeSource(payload.source || req.query.source);
     const name = cleanString(payload.name);
     if (!name) {
         res.status(400).json({ error: 'Collection name is required' });
         return null;
     }
-    if (hasInvalidActivityIds(payload.activity_ids)) {
-        res.status(400).json({ error: 'activity_ids must contain only positive numeric ids' });
+    const rawActivityIds = payload.activity_refs || payload.activity_ids;
+    if (source === 'intervals_icu' ? hasInvalidActivityRefs(rawActivityIds) : hasInvalidActivityIds(rawActivityIds)) {
+        res.status(400).json({ error: source === 'intervals_icu'
+            ? 'activity ids must contain valid Intervals.icu string ids'
+            : 'activity_ids must contain only positive numeric ids' });
         return null;
     }
     return {
+        source,
         name: name,
         description: cleanString(payload.description),
-        activity_ids: normalizeActivityIds(payload.activity_ids)
+        activity_ids: source === 'strava' ? normalizeActivityIds(rawActivityIds) : [],
+        activity_refs: source === 'intervals_icu' ? normalizeActivityRefs(rawActivityIds) : []
     };
 }
 
@@ -117,8 +167,9 @@ router.get('/users/:slug/collections', async (req, res) => {
         res.status(400).json({ error: 'User slug is required' });
         return;
     }
+    const requestedSource = normalizeSource(req.query.source);
     const collections = await getCollectionStore().find({ owner_user_slug: ownerUserSlug }, { sort: { updatedAt: -1 } });
-    res.json(collections.map(normalizeCollection));
+    res.json(collections.map(normalizeCollection).filter((collection) => collection.source === requestedSource));
 });
 
 router.post('/users/:slug/collections', async (req, res) => {
@@ -128,6 +179,9 @@ router.post('/users/:slug/collections', async (req, res) => {
         if (!ownerUserSlug) {
             res.status(400).json({ error: 'User slug is required' });
         }
+        return;
+    }
+    if (!requireSourceOwner(req, res, payload.source, ownerUserSlug)) {
         return;
     }
 
@@ -163,6 +217,9 @@ router.patch('/collections/:id', async (req, res) => {
         res.status(404).json({ error: 'Collection not found' });
         return;
     }
+    if (!requireSourceOwner(req, res, existing.source, existing.owner_user_slug)) {
+        return;
+    }
     const updates = {};
     if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'name')) {
         updates.name = cleanString(req.body.name);
@@ -174,12 +231,18 @@ router.patch('/collections/:id', async (req, res) => {
     if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'description')) {
         updates.description = cleanString(req.body.description);
     }
-    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'activity_ids')) {
-        if (hasInvalidActivityIds(req.body.activity_ids)) {
-            res.status(400).json({ error: 'activity_ids must contain only positive numeric ids' });
+    if (req.body && (Object.prototype.hasOwnProperty.call(req.body, 'activity_ids')
+        || Object.prototype.hasOwnProperty.call(req.body, 'activity_refs'))) {
+        const values = req.body.activity_refs || req.body.activity_ids;
+        if (existing.source === 'intervals_icu' ? hasInvalidActivityRefs(values) : hasInvalidActivityIds(values)) {
+            res.status(400).json({ error: 'Invalid activity ids' });
             return;
         }
-        updates.activity_ids = normalizeActivityIds(req.body.activity_ids);
+        if (existing.source === 'intervals_icu') {
+            updates.activity_refs = normalizeActivityRefs(values);
+        } else {
+            updates.activity_ids = normalizeActivityIds(values);
+        }
     }
     const collection = await getCollectionStore().updateOne({ id: existing.id }, updates);
     res.json(normalizeCollection(collection));
@@ -191,46 +254,64 @@ router.delete('/collections/:id', async (req, res) => {
         res.status(404).json({ error: 'Collection not found' });
         return;
     }
+    if (!requireSourceOwner(req, res, existing.source, existing.owner_user_slug)) {
+        return;
+    }
     const removed = await getCollectionStore().deleteOne({ id: existing.id });
     res.json(normalizeCollection(removed) || { deleted: false });
 });
 
-router.post('/collections/:id/activities/:stravaId', async (req, res) => {
+router.post('/collections/:id/activities/:activityId', async (req, res) => {
     const existing = await findCollection(req.params.id);
-    const stravaId = Number(req.params.stravaId);
     if (!existing) {
         res.status(404).json({ error: 'Collection not found' });
         return;
     }
-    if (!Number.isFinite(stravaId) || stravaId <= 0) {
+    if (!requireSourceOwner(req, res, existing.source, existing.owner_user_slug)) {
+        return;
+    }
+    const activityRef = existing.source === 'intervals_icu'
+        ? cleanString(req.params.activityId)
+        : Number(req.params.activityId);
+    if (existing.source === 'intervals_icu' ? !activityRef : (!Number.isFinite(activityRef) || activityRef <= 0)) {
         res.status(400).json({ error: 'Invalid activity id' });
         return;
     }
-    const activityIds = normalizeActivityIds((existing.activity_ids || []).concat([stravaId]));
-    const collection = await getCollectionStore().updateOne({ id: existing.id }, { activity_ids: activityIds });
+    const updates = existing.source === 'intervals_icu'
+        ? { activity_refs: normalizeActivityRefs((existing.activity_refs || existing.activity_ids || []).concat([activityRef])) }
+        : { activity_ids: normalizeActivityIds((existing.activity_ids || []).concat([activityRef])) };
+    const collection = await getCollectionStore().updateOne({ id: existing.id }, updates);
     res.json(normalizeCollection(collection));
 });
 
-router.delete('/collections/:id/activities/:stravaId', async (req, res) => {
+router.delete('/collections/:id/activities/:activityId', async (req, res) => {
     const existing = await findCollection(req.params.id);
-    const stravaId = Number(req.params.stravaId);
     if (!existing) {
         res.status(404).json({ error: 'Collection not found' });
         return;
     }
-    if (!Number.isFinite(stravaId) || stravaId <= 0) {
+    if (!requireSourceOwner(req, res, existing.source, existing.owner_user_slug)) {
+        return;
+    }
+    const activityRef = existing.source === 'intervals_icu'
+        ? cleanString(req.params.activityId)
+        : Number(req.params.activityId);
+    if (existing.source === 'intervals_icu' ? !activityRef : (!Number.isFinite(activityRef) || activityRef <= 0)) {
         res.status(400).json({ error: 'Invalid activity id' });
         return;
     }
-    const activityIds = normalizeActivityIds(existing.activity_ids).filter((activityId) => activityId !== stravaId);
-    const collection = await getCollectionStore().updateOne({ id: existing.id }, { activity_ids: activityIds });
+    const updates = existing.source === 'intervals_icu'
+        ? { activity_refs: normalizeActivityRefs(existing.activity_refs || existing.activity_ids).filter((id) => id !== activityRef) }
+        : { activity_ids: normalizeActivityIds(existing.activity_ids).filter((id) => id !== activityRef) };
+    const collection = await getCollectionStore().updateOne({ id: existing.id }, updates);
     res.json(normalizeCollection(collection));
 });
 
 router.get('/activities/:id/notes', async (req, res) => {
-    const stravaId = Number(req.params.id);
+    const source = normalizeSource(req.query.source);
+    const activityRef = source === 'intervals_icu' ? cleanString(req.params.id) : Number(req.params.id);
     const userSlug = normalizeSlug(req.query.user);
-    if (!Number.isFinite(stravaId) || stravaId <= 0) {
+    if (source === 'intervals_icu' ? !activityRef : (!Number.isFinite(activityRef) || activityRef <= 0)) {
         res.status(400).json({ error: 'Invalid activity id' });
         return;
     }
@@ -238,23 +319,33 @@ router.get('/activities/:id/notes', async (req, res) => {
         res.status(400).json({ error: 'User slug is required' });
         return;
     }
-    const notes = await getNoteStore().find({ user_slug: userSlug, strava_id: stravaId }, { sort: { elapsed_seconds: 1 } });
+    let notes;
+    if (source === 'intervals_icu') {
+        notes = await getNoteStore().find({ user_slug: userSlug, source, activity_ref: activityRef }, { sort: { elapsed_seconds: 1 } });
+    } else {
+        notes = await getNoteStore().find({ user_slug: userSlug, strava_id: activityRef }, { sort: { elapsed_seconds: 1 } });
+        notes = notes.filter((note) => normalizeSource(note.source) === 'strava');
+    }
     res.json(notes.map(normalizeNote));
 });
 
 router.post('/activities/:id/notes', async (req, res) => {
-    const stravaId = Number(req.params.id);
+    const source = normalizeSource(req.query.source || (req.body && req.body.source));
+    const activityRef = source === 'intervals_icu' ? cleanString(req.params.id) : Number(req.params.id);
     const userSlug = normalizeSlug(req.query.user || (req.body && req.body.user_slug));
     const elapsedSeconds = Number(req.body && req.body.elapsed_seconds);
     const subject = cleanString(req.body && (req.body.subject || req.body.title)) || 'Untitled Note';
     const text = cleanString(req.body && (req.body.text || req.body.body));
     const latlng = normalizeLatLng(req.body && req.body.latlng);
-    if (!Number.isFinite(stravaId) || stravaId <= 0) {
+    if (source === 'intervals_icu' ? !activityRef : (!Number.isFinite(activityRef) || activityRef <= 0)) {
         res.status(400).json({ error: 'Invalid activity id' });
         return;
     }
     if (!userSlug) {
         res.status(400).json({ error: 'User slug is required' });
+        return;
+    }
+    if (!requireSourceOwner(req, res, source, userSlug)) {
         return;
     }
     if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
@@ -269,7 +360,9 @@ router.post('/activities/:id/notes', async (req, res) => {
     const note = await getNoteStore().insertOne({
         id: cleanString(req.body && req.body.id) || createToken('note'),
         user_slug: userSlug,
-        strava_id: stravaId,
+        source,
+        activity_ref: String(activityRef),
+        strava_id: source === 'strava' ? activityRef : undefined,
         elapsed_seconds: elapsedSeconds,
         latlng: latlng,
         subject: subject,
@@ -279,13 +372,23 @@ router.post('/activities/:id/notes', async (req, res) => {
 });
 
 router.patch('/activities/:id/notes/:noteId', async (req, res) => {
-    const stravaId = Number(req.params.id);
+    const source = normalizeSource(req.query.source || (req.body && req.body.source));
+    const activityRef = source === 'intervals_icu' ? cleanString(req.params.id) : Number(req.params.id);
     const userSlug = normalizeSlug(req.query.user || (req.body && req.body.user_slug));
-    if (!Number.isFinite(stravaId) || stravaId <= 0) {
+    if (source === 'intervals_icu' ? !activityRef : (!Number.isFinite(activityRef) || activityRef <= 0)) {
         res.status(400).json({ error: 'Invalid activity id' });
         return;
     }
-    const filter = { id: req.params.noteId, strava_id: stravaId };
+    if (source === 'intervals_icu' && !userSlug) {
+        res.status(400).json({ error: 'User slug is required' });
+        return;
+    }
+    if (!requireSourceOwner(req, res, source, userSlug)) {
+        return;
+    }
+    const filter = source === 'intervals_icu'
+        ? { id: req.params.noteId, source, activity_ref: activityRef }
+        : { id: req.params.noteId, strava_id: activityRef };
     if (userSlug) {
         filter.user_slug = userSlug;
     }
@@ -325,13 +428,23 @@ router.patch('/activities/:id/notes/:noteId', async (req, res) => {
 });
 
 router.delete('/activities/:id/notes/:noteId', async (req, res) => {
-    const stravaId = Number(req.params.id);
+    const source = normalizeSource(req.query.source);
+    const activityRef = source === 'intervals_icu' ? cleanString(req.params.id) : Number(req.params.id);
     const userSlug = normalizeSlug(req.query.user);
-    if (!Number.isFinite(stravaId) || stravaId <= 0) {
+    if (source === 'intervals_icu' ? !activityRef : (!Number.isFinite(activityRef) || activityRef <= 0)) {
         res.status(400).json({ error: 'Invalid activity id' });
         return;
     }
-    const filter = { id: req.params.noteId, strava_id: stravaId };
+    if (source === 'intervals_icu' && !userSlug) {
+        res.status(400).json({ error: 'User slug is required' });
+        return;
+    }
+    if (!requireSourceOwner(req, res, source, userSlug)) {
+        return;
+    }
+    const filter = source === 'intervals_icu'
+        ? { id: req.params.noteId, source, activity_ref: activityRef }
+        : { id: req.params.noteId, strava_id: activityRef };
     if (userSlug) {
         filter.user_slug = userSlug;
     }

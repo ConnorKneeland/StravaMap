@@ -14,7 +14,7 @@ function getActivityKpiValues(activity) {
     };
 }
 
-function addActivityToKpiSnapshot(snapshot, activity) {
+function addActivityToKpiSnapshot(snapshot, activity, options) {
     const values = getActivityKpiValues(activity);
     snapshot.count += values.count;
     snapshot.distance_meters += values.distance_meters;
@@ -25,18 +25,22 @@ function addActivityToKpiSnapshot(snapshot, activity) {
     const activityStart = activity && activity.start_date ? new Date(activity.start_date) : null;
     const priorStart = snapshot.latest_activity_start_date ? new Date(snapshot.latest_activity_start_date) : null;
     if (activityStart && !Number.isNaN(activityStart.getTime()) && (!priorStart || activityStart > priorStart)) {
-        snapshot.latest_activity_id = Number(activity.strava_id || activity.id || 0) || undefined;
+        const resolver = options && typeof options.latestActivityId === 'function'
+            ? options.latestActivityId
+            : (item) => Number(item.strava_id || item.id || 0) || undefined;
+        snapshot.latest_activity_id = resolver(activity);
         snapshot.latest_activity_start_date = activityStart;
     }
 }
 
-function buildKpiSnapshots(userSlug, activities) {
+function buildKpiSnapshots(userSlug, activities, options) {
+    const opts = options || {};
     const snapshotsByKey = new Map();
     (activities || []).forEach((activity) => {
         const category = getActivityKpiCategory(activity);
         if (!snapshotsByKey.has(category.key)) {
             snapshotsByKey.set(category.key, {
-                id: `${String(userSlug || '').toLowerCase()}:${category.key}`,
+                id: `${opts.idPrefix ? `${opts.idPrefix}:` : ''}${String(userSlug || '').toLowerCase()}:${category.key}`,
                 user_slug: String(userSlug || '').toLowerCase(),
                 category_key: category.key,
                 category_label: category.label,
@@ -50,7 +54,7 @@ function buildKpiSnapshots(userSlug, activities) {
                 recomputed_at: new Date()
             });
         }
-        addActivityToKpiSnapshot(snapshotsByKey.get(category.key), activity);
+        addActivityToKpiSnapshot(snapshotsByKey.get(category.key), activity, opts);
     });
     return Array.from(snapshotsByKey.values()).sort((left, right) => {
         return String(left.category_label).localeCompare(String(right.category_label));
