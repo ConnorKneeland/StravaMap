@@ -118,6 +118,8 @@ Replace `connor` with the provisioned slug. The command reads the encrypted conn
 
 Anyone without a current owner link can still view cached map data, but cannot synchronize, change line styles, edit activity types, add notes, or mutate collections.
 
+The ICU map allows up to ten minutes for background synchronization and large cached-map reads. The normal Strava map retains its shorter request timeout. Background-sync failures are handled immediately while cached routes remain visible. A browser timeout does not roll back a server-side synchronization or a completed ZIP import, but the ICU-specific allowance prevents a healthy long-running sync from appearing as an uncaught console error.
+
 ## Initial synchronization and smoke test
 
 1. Deploy the GitHub changes to Railway and Netlify. Deployment does not initiate an ICU sync.

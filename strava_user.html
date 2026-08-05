@@ -2009,9 +2009,10 @@
         (function () {
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
+            const isIcuMapPath = /\/icu_map(?:\.html)?$/i.test(window.location.pathname);
             window.STRAVA_CONFIG = Object.assign({
                 apiBase: isLocalHost ? window.location.origin : 'https://stravamap-production-7f28.up.railway.app',
-                requestTimeoutMs: isLocalHost ? 600000 : 30000,
+                requestTimeoutMs: (isLocalHost || isIcuMapPath) ? 600000 : 30000,
                 syncOnLoad: true,
                 allowDirectStravaFallback: false
             }, existingConfig);
@@ -9701,7 +9702,11 @@
                     body.dataset.connectionState = 'syncing';
                     const syncRequest = StravaApp.apiPost(runtimeDataSource.apiBase, providerPaths.sync, {}, providerRequestOptions(requestOptions));
                     if (backendActivities.length) {
-                        backgroundSyncPromise = syncRequest;
+                        backgroundSyncPromise = syncRequest.catch(function (error) {
+                            console.warn('Background ' + providerLabel + ' sync unavailable; cached routes remain visible.', error);
+                            body.dataset.connectionState = 'error';
+                            return null;
+                        });
                     } else {
                         try {
                             syncSummary = await syncRequest;
