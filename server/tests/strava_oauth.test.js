@@ -38,13 +38,21 @@ function resetMemory() {
     });
 }
 
-function request(server, path) {
+function request(server, path, options = {}) {
     return new Promise((resolve, reject) => {
         const address = server.address();
-        const requestHandle = http.get({
+        const body = options.body == null
+            ? ''
+            : (typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
+        const requestHandle = http.request({
             hostname: '127.0.0.1',
             port: address.port,
-            path
+            path,
+            method: options.method || 'GET',
+            headers: Object.assign({}, body ? {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body)
+            } : {}, options.headers || {})
         }, (response) => {
             const chunks = [];
             response.on('data', (chunk) => chunks.push(chunk));
@@ -55,6 +63,7 @@ function request(server, path) {
             }));
         });
         requestHandle.on('error', reject);
+        requestHandle.end(body);
     });
 }
 
@@ -170,6 +179,12 @@ test('a rejected refresh marks only that slug as reconnect-required', async () =
 
 test('Tim status and connect endpoints skip OAuth when Tim already has tokens', async (t) => {
     const app = await createApp();
+    await memoryStore.users.updateOne({ slug: 'tim' }, {
+        refresh_token: 'tim-test-refresh',
+        access_token: 'tim-test-access',
+        connection_status: 'connected',
+        needs_reconnect: false
+    });
     const server = app.listen(0, '127.0.0.1');
     await new Promise((resolve) => server.once('listening', resolve));
     t.after(() => new Promise((resolve) => server.close(resolve)));
@@ -362,6 +377,57 @@ test('public user and activity APIs do not expose tokens or unscoped activities'
 
     const activityResponse = await request(server, '/api/activities');
     assert.equal(activityResponse.status, 400);
+});
+
+test('new-user registration derives the slug server-side and stores only the first name', async (t) => {
+    const app = await createApp();
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => server.once('listening', resolve));
+    t.after(() => new Promise((resolve) => server.close(resolve)));
+
+    const response = await request(server, '/api/users', {
+        method: 'POST',
+        body: { first_name: 'MaTThew', last_name: 'Welsh' }
+    });
+    const publicUser = JSON.parse(response.body);
+    const storedUser = await memoryStore.users.findOne({ slug: 'matthewwelsh' });
+
+    assert.equal(response.status, 201);
+    assert.equal(publicUser.slug, 'matthewwelsh');
+    assert.equal(publicUser.display_name, 'MaTThew');
+    assert.equal(publicUser.connected, false);
+    assert.equal(storedUser.display_name, 'MaTThew');
+    assert.equal(storedUser.oauth_application, 'primary');
+    assert.equal(storedUser.connection_status, 'not_connected');
+    assert.equal(Object.prototype.hasOwnProperty.call(storedUser, 'first_name'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(storedUser, 'last_name'), false);
+});
+
+test('new-user registration rejects an invalid name or an already-used lowercase slug', async (t) => {
+    const app = await createApp();
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => server.once('listening', resolve));
+    t.after(() => new Promise((resolve) => server.close(resolve)));
+
+    const invalidResponse = await request(server, '/api/users', {
+        method: 'POST',
+        body: { first_name: 'Matthew2', last_name: 'Welsh' }
+    });
+    assert.equal(invalidResponse.status, 400);
+    assert.equal(JSON.parse(invalidResponse.body).code, 'invalid_name');
+
+    await request(server, '/api/users', {
+        method: 'POST',
+        body: { first_name: 'Matthew', last_name: 'Welsh' }
+    });
+    const duplicateResponse = await request(server, '/api/users', {
+        method: 'POST',
+        body: { first_name: 'MATTHEW', last_name: 'WELSH' }
+    });
+    const duplicatePayload = JSON.parse(duplicateResponse.body);
+    assert.equal(duplicateResponse.status, 409);
+    assert.equal(duplicatePayload.code, 'slug_taken');
+    assert.equal(duplicatePayload.slug, 'matthewwelsh');
 });
 
 test('a valid legacy user can be required to authorize the primary app without deleting legacy credentials', async () => {

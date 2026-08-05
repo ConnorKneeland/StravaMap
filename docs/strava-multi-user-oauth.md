@@ -4,7 +4,17 @@
 
 All new authorizations use Connor's primary Strava API application. The map slug remains the application identity, while `strava_id` remains the Strava athlete identity. They are independently stored and checked on every OAuth callback and sync.
 
-Existing per-user credentials remain in their current files and database fields for migration safety. A legacy user with a stored refresh token remains connected and is not forced through OAuth just to view cached data. The next required reconnect uses the primary application and marks `oauth_application` as `primary` and `migration_status` as `complete`.
+Existing per-user credentials remain in their database fields for migration safety. The active shared map configuration no longer contains them. Older standalone Strava scripts still need to be retired and their exposed credentials rotated separately. A legacy user with a stored refresh token remains connected and is not forced through OAuth just to view cached data. The next required reconnect uses the primary application and marks `oauth_application` as `primary` and `migration_status` as `complete`.
+
+## New-user onboarding
+
+1. The athlete opens `https://fluffy-druid-f9a1d0.netlify.app/new_user.html`.
+2. They enter a case-sensitive first and last name using letters only.
+3. `POST /api/users` derives the slug on the server as `lowercase(first name + last name)`. For example, `Matthew` and `Welsh` become `matthewwelsh`.
+4. The first name is preserved as `display_name`. The last name is used only to derive the slug and is not stored.
+5. An already-used slug returns `409 slug_taken`; it never overwrites the existing user.
+6. A successful registration immediately redirects to the primary Strava OAuth flow, then returns to `strava_user.html?user=<slug>`.
+7. The map and account-settings pages read database-created users through the public, token-free user API; no frontend configuration edit is required.
 
 ## One-time connection flow
 
@@ -24,6 +34,8 @@ The frontend passes its current `strava_user.html` URL as `return_url`. Only the
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/user/:slug/status` | Public, token-free connection and sync status |
+| `POST` | `/api/users` | Create an unused first-name/last-name slug and pending primary-app user |
+| `GET` | `/api/users/:slug` | Read a token-free map profile for static or database-created users |
 | `GET` | `/api/strava/connect/:slug` | Skip OAuth for connected slugs or start primary-app OAuth |
 | `GET` | `/api/strava/callback` | Validate one-time state and bind primary-app tokens |
 | `POST` | `/api/sync/:slug` | Backfill or incrementally sync one isolated slug |
@@ -112,4 +124,4 @@ The callback domain is a dashboard setting and cannot be changed or proven by re
 7. Close the browser, reopen the unchanged URL, and confirm no connect screen appears.
 8. Create or update a Tim activity and confirm the webhook causes it to appear without affecting another slug.
 
-The automated suite validates the one-time decision, state replay rejection, primary credential refresh, athlete/slug uniqueness, reconnect isolation, initial backfill, incremental overlap, webhook deletion scope, and API token redaction. It intentionally does not use live production tokens or mutate the Strava dashboard.
+The automated suite validates name-to-slug registration and duplicate rejection, the one-time OAuth decision, state replay rejection, primary credential refresh, athlete/slug uniqueness, reconnect isolation, initial backfill, incremental overlap, webhook deletion scope, and API token redaction. It intentionally does not use live production tokens or mutate the Strava dashboard.

@@ -55,14 +55,14 @@
         maxSourcePoints: 1200
     };
     const USER_CONFIGS = {
-        connor: { slug: 'connor', displayName: 'Connor', title: "Connor's Map", clientId: 162238, clientSecret: '526b6989b62616ce1416f27e0414866958666013', refreshToken: '23227cb9c49a632130451aa2206241479b6dd842', lat: 43.0722, lng: -89.4008, pages: 10, color: '#ff412e' },
-        tim: { slug: 'tim', displayName: 'Tim', title: "Tim's Map", clientId: 100558, clientSecret: 'dde52b1f1718be7fb8e2d3d0e75d7cbd8eac3910', refreshToken: 'fd40d09e3d95895eda12334f5a6254db341ac516', lat: 44.4347, lng: -88.0679, pages: 30, color: '#ff8000ff' },
-        quinn: { slug: 'quinn', displayName: 'Quinn', title: "Quinn's Map", clientId: 100558, clientSecret: 'dde52b1f1718be7fb8e2d3d0e75d7cbd8eac3910', refreshToken: '93bfb1298cb4e356053a8116127327d78a607608', lat: 43.034, lng: -87.912, pages: 10, color: '#1648ebff' },
-        michael: { slug: 'michael', displayName: 'Michael', title: "Michael's Map", clientId: 162250, clientSecret: '730145084c5ba6dce48c112dee1156c426ee951c', refreshToken: 'b769e8affe3469c2acf39bfca5752ef06fea5f1d', lat: 44.43475, lng: -88.06789, pages: 10, color: '#0a7b0a' },
-        mwelsh: { slug: 'mwelsh', displayName: 'Mwelsh', title: "Mwelsh's Map", clientId: 216000, clientSecret: '1cf9ccdbac63f92e3c62991df61b030bf1329f47', refreshToken: '6ce920762a92619324899932cca36fd33a90e119', lat: 43.0722, lng: -89.4008, pages: 5, color: '#8c564b' },
-        kemily: { slug: 'kemily', displayName: 'Kemily', title: "Kemily's Map", clientId: 249867, clientSecret: 'b18781e72b031c087a3e1ad70d143ec7e0c79b12', refreshToken: 'fbde056c0d903b952e7e9fc3da70f5c1a17b9957', lat: 43.0722, lng: -89.4008, pages: 10, color: '#d45087' },
-        brett: { slug: 'brett', displayName: 'Brett', title: "Brett's Map", clientId: 257104, clientSecret: 'b178cdd574239601579df4a40689e698abdefb08', refreshToken: '7a53286838949cab0f6e65bb851d5b272519f77c', lat: 27.7671, lng: -82.6384, pages: 10, color: '#00a6a6' },
-        lee: { slug: 'lee', displayName: 'Lee', title: "Lee's Map", clientId: 100558, clientSecret: 'dde52b1f1718be7fb8e2d3d0e75d7cbd8eac3910', refreshToken: '6568dbed5af3c4fa40e7dabc6f5768039e2cb53d', lat: 39.6351, lng: -106.5221, pages: 12, color: '#bcbd22' }
+        connor: { slug: 'connor', displayName: 'Connor', title: "Connor's Map", lat: 43.0722, lng: -89.4008, pages: 10, color: '#ff412e' },
+        tim: { slug: 'tim', displayName: 'Tim', title: "Tim's Map", lat: 44.4347, lng: -88.0679, pages: 30, color: '#ff8000ff' },
+        quinn: { slug: 'quinn', displayName: 'Quinn', title: "Quinn's Map", lat: 43.034, lng: -87.912, pages: 10, color: '#1648ebff' },
+        michael: { slug: 'michael', displayName: 'Michael', title: "Michael's Map", lat: 44.43475, lng: -88.06789, pages: 10, color: '#0a7b0a' },
+        mwelsh: { slug: 'mwelsh', displayName: 'Mwelsh', title: "Mwelsh's Map", lat: 43.0722, lng: -89.4008, pages: 5, color: '#8c564b' },
+        kemily: { slug: 'kemily', displayName: 'Kemily', title: "Kemily's Map", lat: 43.0722, lng: -89.4008, pages: 10, color: '#d45087' },
+        brett: { slug: 'brett', displayName: 'Brett', title: "Brett's Map", lat: 27.7671, lng: -82.6384, pages: 10, color: '#00a6a6' },
+        lee: { slug: 'lee', displayName: 'Lee', title: "Lee's Map", lat: 39.6351, lng: -106.5221, pages: 12, color: '#bcbd22' }
     };
 
     window.STRAVA_CONFIG = Object.assign({ apiBase: '' }, window.STRAVA_CONFIG || {});

@@ -43,7 +43,7 @@ async function ensureKnownUser(userStore, slugValue) {
     return userStore.upsertOne({ slug }, Object.assign({}, frontendUser, {
         connection_status: hasLegacyToken ? 'connected' : 'not_connected',
         needs_reconnect: false,
-        oauth_application: 'legacy',
+        oauth_application: hasLegacyToken ? 'legacy' : 'primary',
         migration_status: hasLegacyToken ? 'pending' : 'not_started'
     }));
 }
@@ -90,6 +90,7 @@ function toPublicUser(user) {
         color: user.color || null,
         default_lat: user.default_lat,
         default_lng: user.default_lng,
+        num_pages: Number(user.num_pages || 1),
         profile_pic: user.profile_pic || null,
         total_activities: Number(user.total_activities || 0),
         ...buildConnectionStatus(user)

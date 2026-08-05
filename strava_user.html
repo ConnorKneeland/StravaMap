@@ -2012,7 +2012,16 @@
         const params = new URLSearchParams(window.location.search);
         const requestedUser = String(params.get('user') || window.STRAVA_PAGE_USER || 'connor').toLowerCase();
         const requestedCollectionToken = String(params.get('collection') || '').trim();
-        const userConfig = StravaApp.USER_CONFIGS[requestedUser];
+        const staticUserConfig = StravaApp.USER_CONFIGS[requestedUser] || null;
+        let userConfig = staticUserConfig || {
+            slug: requestedUser,
+            displayName: 'Athlete',
+            title: "Athlete's Map",
+            lat: 39.8283,
+            lng: -98.5795,
+            pages: 10,
+            color: '#fc4c02'
+        };
         const COLLECTIONS_LOCAL_STORAGE_KEY = 'strava_collections_' + requestedUser;
         const NOTES_LOCAL_STORAGE_KEY = 'strava_activity_notes_' + requestedUser;
         const ALL_FILTER_KEYS = ['collection', 'activityType', 'monthYear', 'year', 'date', 'season', 'timeOfDay', 'city', 'regionState', 'country'];
@@ -3877,14 +3886,43 @@
 
         StravaApp.setupSplashScreen();
 
-        if (!userConfig) {
-            pageTitle.textContent = 'Unknown Map';
-            splashText.textContent = 'Unknown user';
-            throw new Error('Unknown user: ' + requestedUser);
+        function applyPageIdentity() {
+            const displayName = String(userConfig.displayName || 'Athlete').trim() || 'Athlete';
+            document.title = displayName + "'s Map";
+            pageTitle.textContent = displayName + "'s Map";
         }
 
-        document.title = userConfig.displayName + "'s Map";
-        pageTitle.textContent = userConfig.displayName + "'s Map";
+        async function hydrateUserConfig() {
+            let publicUser;
+            try {
+                publicUser = await StravaApp.apiGet(
+                    runtimeDataSource.apiBase,
+                    '/api/users/' + encodeURIComponent(requestedUser),
+                    {},
+                    { timeoutMs: window.STRAVA_CONFIG.requestTimeoutMs }
+                );
+            } catch (error) {
+                if (staticUserConfig) {
+                    applyPageIdentity();
+                    return;
+                }
+                throw error;
+            }
+            const latitude = Number(publicUser.default_lat);
+            const longitude = Number(publicUser.default_lng);
+            userConfig = Object.assign({}, staticUserConfig || {}, {
+                slug: String(publicUser.slug || requestedUser).toLowerCase(),
+                displayName: String(publicUser.display_name || (staticUserConfig && staticUserConfig.displayName) || 'Athlete'),
+                title: String(publicUser.display_name || 'Athlete') + "'s Map",
+                lat: Number.isFinite(latitude) ? latitude : 39.8283,
+                lng: Number.isFinite(longitude) ? longitude : -98.5795,
+                pages: Math.max(1, Number(publicUser.num_pages || (staticUserConfig && staticUserConfig.pages) || 10)),
+                color: publicUser.color || (staticUserConfig && staticUserConfig.color) || '#fc4c02'
+            });
+            applyPageIdentity();
+        }
+
+        applyPageIdentity();
 
         function cleanText(value) {
             const text = String(value || '').trim();
@@ -9533,6 +9571,7 @@
         async function bootstrapUserPage() {
             let connectionStatus;
             try {
+                await hydrateUserConfig();
                 connectionStatus = await fetchConnectionStatus();
             } catch (error) {
                 console.error(error);
