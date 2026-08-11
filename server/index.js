@@ -9,6 +9,7 @@ const competitionRoutes = require('./routes/competitions');
 const collectionRoutes = require('./routes/collections');
 const stravaRoutes = require('./routes/strava');
 const intervalsRoutes = require('./routes/intervals');
+const { router: widgetRoutes } = require('./routes/widget');
 const { getAllFrontendUsers } = require('./frontend_user_configs');
 const { getConfigurationStatus } = require('./config/strava');
 const { getIntervalsConfigurationStatus } = require('./config/intervals');
@@ -41,6 +42,7 @@ async function createApp() {
         });
     });
     app.use('/api', intervalsRoutes);
+    app.use('/api', widgetRoutes);
     app.use('/api', stravaRoutes);
     app.use('/api', authRoutes);
     app.use('/api', activityRoutes);

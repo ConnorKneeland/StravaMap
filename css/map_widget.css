@@ -1,0 +1,187 @@
+:root {
+    color-scheme: light;
+    font-family: "Aptos", "Aptos Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --widget-panel: rgba(9, 15, 24, 0.88);
+    --widget-text: #ffffff;
+    --widget-muted: rgba(255, 255, 255, 0.72);
+}
+
+* {
+    box-sizing: border-box;
+    animation: none !important;
+    transition: none !important;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #dce8ee;
+}
+
+html {
+    visibility: hidden;
+}
+
+html[data-map-widget-ready="true"],
+html[data-map-widget-error="true"] {
+    visibility: visible;
+}
+
+body {
+    position: relative;
+}
+
+#map-widget {
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
+}
+
+body[data-state="ready"] #map-widget {
+    visibility: visible;
+}
+
+#map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #dce8ee;
+}
+
+#kpi-strip {
+    position: absolute;
+    z-index: 1000;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 76px;
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+    color: var(--widget-text);
+    background: var(--widget-panel);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: none;
+}
+
+.kpi {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 0 8px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.kpi + .kpi {
+    border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.kpi-label {
+    color: var(--widget-muted);
+    font-size: clamp(10px, 1.7vw, 13px);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+.kpi-value {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--widget-text);
+    font-size: clamp(16px, 3.6vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#error-state,
+.noscript-error {
+    position: absolute;
+    z-index: 2000;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: #101923;
+    color: #ffffff;
+    text-align: center;
+}
+
+#error-state {
+    display: none;
+}
+
+.noscript-error {
+    display: flex;
+}
+
+body[data-state="error"] #error-state {
+    display: flex;
+}
+
+.error-card {
+    width: min(520px, 100%);
+    padding: 22px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.error-card h1 {
+    margin: 0 0 8px;
+    font-size: clamp(20px, 4vw, 30px);
+}
+
+.error-card p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.76);
+    font-size: clamp(14px, 2.5vw, 18px);
+    line-height: 1.45;
+}
+
+.leaflet-control-zoom {
+    display: none !important;
+}
+
+.leaflet-container,
+.leaflet-pane,
+.leaflet-map-pane,
+.leaflet-tile,
+.leaflet-zoom-animated,
+.leaflet-fade-anim .leaflet-tile,
+.leaflet-zoom-anim .leaflet-zoom-animated {
+    animation: none !important;
+    transition: none !important;
+}
+
+.leaflet-control-attribution {
+    font-size: 8px !important;
+    opacity: 0.82;
+}
+
+@media (max-width: 480px) {
+    #kpi-strip {
+        min-height: 64px;
+        padding-right: 6px;
+        padding-left: 6px;
+    }
+
+    .kpi {
+        padding-right: 4px;
+        padding-left: 4px;
+    }
+}

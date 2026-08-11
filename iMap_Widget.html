@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
+    <title>Intervals.icu Workout Map Widget</title>
+    <link rel="icon" href="img/Strava_Favicon.png" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+        integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <link rel="stylesheet" href="css/map_widget.css" />
+</head>
+<body data-state="loading" aria-busy="true">
+    <main id="map-widget" aria-label="Selected Intervals.icu workout map">
+        <div id="map" aria-hidden="true"></div>
+        <section id="kpi-strip" aria-label="Workout metrics">
+            <div class="kpi">
+                <span class="kpi-label">Time</span>
+                <span id="kpi-time" class="kpi-value">00:00:00</span>
+            </div>
+            <div class="kpi">
+                <span class="kpi-label">Miles</span>
+                <span id="kpi-distance" class="kpi-value">0.00</span>
+            </div>
+            <div class="kpi">
+                <span class="kpi-label">Date</span>
+                <span id="kpi-date" class="kpi-value">—</span>
+            </div>
+        </section>
+    </main>
+    <div id="error-state" role="alert">
+        <div class="error-card">
+            <h1>Map unavailable</h1>
+            <p id="error-message">The selected workout could not be loaded.</p>
+        </div>
+    </div>
+    <noscript>
+        <style>html { visibility: visible !important; }</style>
+        <div class="noscript-error">JavaScript is required to render this workout map.</div>
+    </noscript>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+        integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+    <script src="js/map_widget_loader.js"></script>
+    <script>window.MapWidgetLoader.writePayloadScript('intervals');</script>
+    <script src="js/strava_activity_types.js"></script>
+    <script src="js/strava_shared.js"></script>
+    <script src="js/map_widget.js"></script>
+    <script>window.MapWidget.bootstrap({ provider: 'intervals', payload: window.__MAP_WIDGET_PAYLOAD__ });</script>
+</body>
+</html>

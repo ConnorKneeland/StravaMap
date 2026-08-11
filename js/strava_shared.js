@@ -1744,6 +1744,7 @@
         stravaFetchActivityStreams: stravaFetchActivityStreams,
         stravaFetchActivities: stravaFetchActivities,
         stravaGetLatestLocation: stravaGetLatestLocation,
+        createBaseTileLayer: createBaseTileLayer,
         initMap: initMap,
         setMapTheme: setMapTheme,
         flyIn: flyIn,

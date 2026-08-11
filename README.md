@@ -14,6 +14,15 @@ See the [Intervals.icu Proof-of-Concept Operations Guide](docs/intervals-icu-poc
 
 An authorized ICU-map owner can also use **Import Strava ZIP** to add historical workouts from a Strava account export. The importer reads `activities.csv` and linked FIT/GPX/TCX files into the separate `intervals_activities` collection. It never modifies or deletes the existing Strava `activities` collection; duplicate source records are retained in MongoDB while the richer copy is displayed on the ICU map.
 
+## Static workout widgets
+
+Two full-viewport, animation-free pages render one indexed workout route and a top KPI strip for screenshot-based home-screen or dashboard widgets:
+
+- Strava: `sMap_Widget.html?user=<slug>&index=0`
+- Intervals.icu: `iMap_Widget.html?user=<slug>&index=0`
+
+`index` is optional and zero-based: `0` selects the newest workout, `1` the second newest, and so on. The selected activity must contain route data. A parser-blocking backend payload selects and supplies that one activity before the page can finish opening. Nothing is rendered while the polyline is created, the map is fitted without animation, and the initial map tiles load (or their bounded wait elapses), so screenshot widgets receive the finished map as the first visible frame.
+
 ## Legacy Strava modes
 
 ### Mode 1: Frontend only (legacy fallback)
@@ -90,6 +99,7 @@ If `MONGODB_URI` and legacy `MONGO_URI` are blank, the backend still runs for lo
 | `GET` | `/api/activities` | Read activities with optional `user`, `type`, `from`, `to`, `limit` filters |
 | `GET` | `/api/activities/stats` | Aggregate stats over filtered activities |
 | `GET` | `/api/activities/types` | List detected activity types |
+| `GET` | `/api/widget/activity-script` | Supply one parser-blocking activity payload for a screenshot widget |
 | `GET` | `/api/competitions` | List competitions |
 | `POST` | `/api/competitions` | Create a competition |
 | `GET` | `/api/competitions/:id` | Read one competition |
