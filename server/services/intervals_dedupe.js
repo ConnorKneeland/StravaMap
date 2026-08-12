@@ -9,7 +9,7 @@ const SUMMARY_FIELDS = Object.freeze([
     'start_date', 'start_date_local', 'timezone', 'distance', 'elapsed_time', 'moving_time',
     'total_elevation_gain', 'total_elevation_loss', 'average_speed', 'max_speed', 'average_heartrate',
     'max_heartrate', 'average_cadence', 'average_watts', 'weighted_average_watts', 'max_watts',
-    'calories', 'average_temp', 'device_name', 'start_latlng', 'end_latlng', 'intervals'
+    'calories', 'sport_metrics', 'average_temp', 'device_name', 'start_latlng', 'end_latlng', 'intervals'
 ]);
 
 const CUSTOMIZATION_FIELDS = Object.freeze([

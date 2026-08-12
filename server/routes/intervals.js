@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const ActivityTypes = require('../../js/strava_activity_types');
+const { SNAPSHOT_SCHEMA_VERSION } = require('../activity_kpis');
 const { normalizeSlug } = require('../services/connection');
 const { getIntervalsConfig, isIntervalsSlugEnabled } = require('../config/intervals');
 const {
@@ -227,7 +228,8 @@ router.get('/intervals/users/:slug/activity-kpis', async (req, res) => {
         return;
     }
     let snapshots = await getIntervalsKpiStore().find({ user_slug: slug }, { sort: { category_label: 1 } });
-    if (!snapshots.length && await getIntervalsActivityStore().count({ user_slug: slug })) {
+    const snapshotsAreStale = snapshots.some((snapshot) => Number(snapshot.schema_version || 0) < SNAPSHOT_SCHEMA_VERSION);
+    if ((!snapshots.length || snapshotsAreStale) && await getIntervalsActivityStore().count({ user_slug: slug })) {
         snapshots = await recomputeIntervalsKpis(slug);
     }
     res.json(snapshots);
@@ -245,6 +247,7 @@ router.get('/intervals/activities/:id', async (req, res) => {
     if (hydrationRequested && hasOwnerAccess(req, slug)) {
         try {
             activity = await fetchIntervalsActivityDetail(slug, id);
+            await recomputeIntervalsKpis(slug);
         } catch (error) {
             if (!activity) return sendIntervalsError(res, error, 503);
         }

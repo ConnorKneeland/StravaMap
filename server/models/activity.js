@@ -47,6 +47,7 @@ const activitySchema = new mongoose.Schema({
     suffer_score: { type: Number },
     description: { type: String },
     calories: { type: Number },
+    sport_metrics: { type: Mixed },
     total_photo_count: { type: Number },
     from_accepted_tag: { type: Boolean },
     device_name: { type: String },

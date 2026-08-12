@@ -1132,132 +1132,135 @@
             display:none;
         }
         .intro-kpi-panel{
-            position:fixed;
-            bottom:30px;
-            left:50%;
-            transform:translateX(-50%);
-            z-index:1300;
-            width:min(1180px, calc(100vw - 36px));
-            color:rgba(248,247,236,0.92);
+            position:static;
+            width:max-content;
+            max-width:100%;
+            min-width:0;
+            color:#f8fafc;
             display:grid;
-            grid-template-columns:1fr;
-            justify-items:center;
-            gap:12px;
+            grid-template-columns:clamp(160px, 10vw, 195px) max-content;
+            align-items:center;
+            gap:clamp(16px, 1.15vw, 22px);
             pointer-events:none;
             font-family:"Segoe UI Variable Display", "Segoe UI", "Aptos", "Helvetica Neue", Arial, system-ui, sans-serif;
-            text-shadow:
-                -1px 0 rgba(20,22,26,0.86),
-                1px 0 rgba(20,22,26,0.86),
-                0 -1px rgba(20,22,26,0.86),
-                0 1px rgba(20,22,26,0.86),
-                0 2px 8px rgba(0,0,0,0.28);
+            text-shadow:none;
         }
         .intro-kpi-panel[hidden]{
             display:none;
         }
         .intro-kpi-title{
             width:100%;
-            color:rgba(248,247,236,0.94);
-            font-size:clamp(22px, 3vw, 42px);
-            font-weight:800;
-            line-height:1;
-            text-align:center;
+            color:#ffffff;
+            font-size:clamp(16px, 1.45vw, 24px);
+            font-weight:850;
+            line-height:1.02;
+            text-align:left;
             text-transform:uppercase;
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:ellipsis;
+            text-wrap:balance;
+            letter-spacing:0.015em;
             transition:color 260ms ease, text-shadow 260ms ease, transform 260ms ease;
         }
         .intro-kpi-grid{
             display:grid;
-            grid-template-columns:repeat(3, minmax(0, 1fr));
-            align-items:end;
-            gap:clamp(12px, 2.6vw, 36px);
-            width:100%;
-        }
-        .intro-kpi-item{
-            min-width:0;
-            display:grid;
-            justify-items:center;
-            gap:6px;
-            overflow:visible;
-        }
-        .intro-kpi-metric{
-            position:relative;
-            display:grid;
-            justify-items:center;
-            grid-template-rows:auto auto;
+            grid-template-columns:max-content repeat(var(--intro-kpi-count, 3), max-content);
+            grid-template-rows:repeat(2, minmax(22px, auto));
+            align-items:center;
+            column-gap:clamp(15px, 1.15vw, 23px);
+            row-gap:6px;
+            width:max-content;
             max-width:100%;
-            padding:0 0.35em 0;
-            overflow:visible;
+            min-width:0;
         }
-        .intro-kpi-value{
-            color:rgba(248,247,236,0.92);
-            font-size:clamp(34px, 4.85vw, 66px);
-            font-weight:800;
-            line-height:1.08;
+        .intro-kpi-column{
+            display:contents;
+        }
+        .intro-kpi-column.is-total{
+            border:0;
+            padding:0;
+        }
+        .intro-kpi-column-label{
+            color:#e2e8f0;
+            font-size:12px;
+            font-weight:850;
+            line-height:1;
+            letter-spacing:0.11em;
+            text-transform:uppercase;
             white-space:nowrap;
-            overflow:visible;
+        }
+        .intro-kpi-column.is-current .intro-kpi-column-label{
+            grid-column:1;
+            grid-row:1;
+        }
+        .intro-kpi-column.is-total .intro-kpi-column-label{
+            grid-column:1;
+            grid-row:2;
+        }
+        .intro-kpi-column.is-total .intro-kpi-column-label{
+            color:#ffffff;
+        }
+        .intro-kpi-values{
+            display:contents;
+        }
+        .intro-kpi-column.is-current .intro-kpi-item{
+            grid-row:1;
+        }
+        .intro-kpi-column.is-total .intro-kpi-item{
+            grid-row:2;
+        }
+        .intro-kpi-column .intro-kpi-item:nth-child(1){ grid-column:2; }
+        .intro-kpi-column .intro-kpi-item:nth-child(2){ grid-column:3; }
+        .intro-kpi-column .intro-kpi-item:nth-child(3){ grid-column:4; }
+        .intro-kpi-column .intro-kpi-item:nth-child(4){ grid-column:5; }
+        .intro-kpi-column .intro-kpi-item:nth-child(5){ grid-column:6; }
+        .intro-kpi-column .intro-kpi-item:nth-child(6){ grid-column:7; }
+        .intro-kpi-column .intro-kpi-item:nth-child(7){ grid-column:8; }
+        .intro-kpi-column .intro-kpi-item:nth-child(8){ grid-column:9; }
+        .intro-kpi-item{
+            align-self:center;
+        }
+        .intro-kpi-primary{
+            color:#4ade80;
+            font-size:clamp(15px, 1vw, 18px);
+            font-weight:850;
+            line-height:1;
+            white-space:nowrap;
+            overflow:hidden;
             text-overflow:ellipsis;
             font-variant-numeric:tabular-nums lining-nums;
             font-feature-settings:"tnum" 1, "lnum" 1;
             max-width:100%;
             transition:color 260ms ease, text-shadow 260ms ease, transform 260ms ease;
+            text-shadow:none;
         }
-        .intro-kpi-delta{
-            position:static;
-            justify-self:end;
-            transform:translateX(0.55em);
-            margin-top:-0.18em;
-            color:rgba(69,232,127,0.96);
-            font-size:clamp(13px, 1.35vw, 20px);
-            font-weight:900;
+        .intro-kpi-total{
+            max-width:100%;
+            overflow:hidden;
+            color:#ffffff;
+            background:#1d2a3a;
+            border:1px solid rgba(255,255,255,0.16);
+            border-radius:6px;
+            padding:3px 7px;
+            font-size:clamp(14px, 0.94vw, 17px);
+            font-weight:800;
             line-height:1;
-            letter-spacing:0.02em;
             white-space:nowrap;
+            text-overflow:ellipsis;
             font-variant-numeric:tabular-nums lining-nums;
             font-feature-settings:"tnum" 1, "lnum" 1;
-            text-shadow:
-                -1px 0 rgba(5,18,10,0.88),
-                1px 0 rgba(5,18,10,0.88),
-                0 -1px rgba(5,18,10,0.88),
-                0 1px rgba(5,18,10,0.88),
-                0 2px 7px rgba(0,0,0,0.34);
-        }
-        .intro-kpi-label{
-            color:rgba(248,247,236,0.86);
-            font-size:clamp(12px, 1.1vw, 16px);
-            font-weight:800;
-            letter-spacing:0.12em;
-            text-transform:uppercase;
             transition:color 260ms ease, text-shadow 260ms ease;
         }
         .intro-kpi-panel.is-locked .intro-kpi-title,
-        .intro-kpi-panel.is-locked .intro-kpi-value{
-            color:rgba(70,76,84,0.96);
-            text-shadow:
-                -1px 0 rgba(238,238,226,0.52),
-                1px 0 rgba(238,238,226,0.52),
-                0 -1px rgba(238,238,226,0.52),
-                0 1px rgba(238,238,226,0.52),
-                0 2px 8px rgba(0,0,0,0.2);
+        .intro-kpi-panel.is-locked .intro-kpi-primary{
             animation:introKpiLockIn 420ms cubic-bezier(.18,.84,.24,1) both;
         }
-        .intro-kpi-panel.is-locked .intro-kpi-label{
-            color:rgba(70,76,84,0.9);
-            text-shadow:
-                -1px 0 rgba(238,238,226,0.5),
-                1px 0 rgba(238,238,226,0.5),
-                0 -1px rgba(238,238,226,0.5),
-                0 1px rgba(238,238,226,0.5);
-        }
         .intro-ticker-text{
-            display:inline-flex;
+            display:block;
             align-items:center;
-            justify-content:center;
+            justify-content:flex-start;
             max-width:100%;
             min-height:1.08em;
-            overflow:visible;
+            overflow:hidden;
+            text-overflow:ellipsis;
             white-space:nowrap;
             transition:transform 160ms ease, opacity 160ms ease;
         }
@@ -1718,19 +1721,38 @@
             }
         }
         @media(max-width:680px){
-            #title-slot{ max-width:180px; }
-            #page-title{ font-size:21px; }
+            #top-nav{
+                gap:6px;
+                padding:8px;
+            }
+            #nav-left{ gap:6px; }
+            #title-slot{
+                max-width:88px;
+                text-overflow:ellipsis;
+                white-space:nowrap;
+            }
+            #page-title{
+                overflow:hidden;
+                text-overflow:ellipsis;
+                font-size:16px;
+            }
+            #filter-bar{
+                flex:0 1 auto;
+                gap:6px;
+            }
+            #primary-filters:empty{ display:none; }
             .filter-menu{ width:min(92vw, 320px); }
             .filter-menu.more-menu{ width:min(92vw, 360px); }
             .filter-menu.nav-action-menu{
                 width:min(280px, calc(100vw - 16px));
                 min-width:0;
             }
-            #clear-filters-btn{ padding:10px 12px; }
+            #clear-filters-btn{ display:none; }
             .details-chart{ height:210px; }
             .filter-trigger.more-trigger{
                 min-width:0;
-                padding:9px 11px;
+                max-width:84px;
+                padding:7px 8px;
             }
             #filter-count-chip{
                 display:none;
@@ -1762,30 +1784,6 @@
                 width:min(230px, calc(100vw - 120px));
                 min-width:0;
                 padding:11px 14px;
-            }
-            .intro-kpi-panel{
-                bottom:18px;
-                width:calc(100vw - 28px);
-                gap:10px;
-            }
-            .intro-kpi-grid{
-                grid-template-columns:repeat(3, minmax(0, 1fr));
-                gap:6px;
-            }
-            .intro-kpi-value{
-                font-size:clamp(22px, 6.2vw, 32px);
-            }
-            .intro-kpi-title{
-                font-size:clamp(17px, 5.6vw, 28px);
-            }
-            .intro-kpi-label{
-                font-size:10px;
-                letter-spacing:0.06em;
-            }
-            .intro-kpi-delta{
-                font-size:clamp(10px, 3vw, 14px);
-                transform:translateX(0.35em);
-                margin-top:-0.12em;
             }
             .map-action-fab{
                 padding:10px 12px;
@@ -1822,20 +1820,146 @@
                 padding:12px;
             }
             .nav-palette-control{
-                gap:7px;
-                padding:7px 9px;
+                gap:4px;
+                min-width:0;
+                padding:5px 6px;
             }
             .nav-stream-label,
             .nav-palette-title{
                 display:none;
             }
             .nav-stream-select{
-                min-width:86px;
-                max-width:94px;
-                padding:7px 6px;
+                min-width:62px;
+                max-width:68px;
+                padding:6px 4px;
+                font-size:14px;
             }
             .nav-palette-title{
                 font-size:13px;
+            }
+        }
+        body.intro-kpi-active #title-slot,
+        body.intro-kpi-active #filter-bar,
+        body.intro-kpi-active .nav-palette-control{
+            display:none;
+        }
+        body.intro-kpi-active #nav-left{
+            flex:1 1 auto;
+            overflow:hidden;
+        }
+        body.intro-kpi-active #nav-right{
+            gap:0;
+        }
+        body.intro-kpi-active #nav-action-trigger{
+            border-color:rgba(255,255,255,0.22);
+        }
+        @media(min-width:681px) and (max-width:1100px){
+            body.intro-kpi-active .intro-kpi-panel{
+                width:100%;
+                grid-template-columns:minmax(135px, 0.75fr) minmax(0, 2.25fr);
+                gap:10px;
+            }
+            body.intro-kpi-active .intro-kpi-title{
+                font-size:13px;
+            }
+            body.intro-kpi-active .intro-kpi-grid{
+                display:grid;
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+                grid-template-rows:none;
+                width:100%;
+                gap:8px;
+            }
+            body.intro-kpi-active .intro-kpi-column{
+                display:grid;
+                grid-template-columns:max-content minmax(0, 1fr);
+                grid-template-rows:1fr;
+                align-items:center;
+                gap:6px;
+            }
+            body.intro-kpi-active .intro-kpi-column.is-total{
+                border-left:1px solid rgba(255,255,255,0.2);
+                padding-left:8px;
+            }
+            body.intro-kpi-active .intro-kpi-column.is-current .intro-kpi-column-label,
+            body.intro-kpi-active .intro-kpi-column.is-total .intro-kpi-column-label{
+                grid-column:1;
+                grid-row:1;
+                font-size:8px;
+            }
+            body.intro-kpi-active .intro-kpi-values{
+                display:grid;
+                grid-column:2;
+                grid-row:1;
+                grid-template-columns:1fr;
+                justify-content:stretch;
+                gap:1px;
+            }
+            body.intro-kpi-active .intro-kpi-column .intro-kpi-item{
+                grid-column:auto;
+                grid-row:auto;
+            }
+            body.intro-kpi-active .intro-kpi-primary,
+            body.intro-kpi-active .intro-kpi-total{
+                font-size:9px;
+            }
+            body.intro-kpi-active .intro-kpi-total{
+                padding:1px 4px;
+            }
+        }
+        @media(max-width:680px){
+            body.intro-kpi-active .intro-kpi-panel{
+                width:100%;
+                grid-template-columns:minmax(76px, 0.82fr) minmax(0, 2.18fr);
+                gap:6px;
+            }
+            body.intro-kpi-active .intro-kpi-title{
+                font-size:clamp(9px, 2.8vw, 12px);
+                line-height:1.02;
+            }
+            body.intro-kpi-active .intro-kpi-grid{
+                display:grid;
+                grid-template-columns:minmax(0, 0.92fr) minmax(0, 1.08fr);
+                grid-template-rows:none;
+                width:100%;
+                gap:5px;
+            }
+            body.intro-kpi-active .intro-kpi-column{
+                display:grid;
+                grid-template-columns:1fr;
+                grid-template-rows:auto 1fr;
+                align-items:center;
+                gap:2px;
+            }
+            body.intro-kpi-active .intro-kpi-column.is-total{
+                border-left:1px solid rgba(255,255,255,0.2);
+                padding-left:5px;
+            }
+            body.intro-kpi-active .intro-kpi-column.is-current .intro-kpi-column-label,
+            body.intro-kpi-active .intro-kpi-column.is-total .intro-kpi-column-label{
+                grid-column:1;
+                grid-row:1;
+                font-size:7px;
+                letter-spacing:0.07em;
+            }
+            body.intro-kpi-active .intro-kpi-values{
+                display:grid;
+                grid-column:1;
+                grid-row:2;
+                grid-template-columns:1fr;
+                gap:1px;
+            }
+            body.intro-kpi-active .intro-kpi-column .intro-kpi-item{
+                grid-column:auto;
+                grid-row:auto;
+            }
+            body.intro-kpi-active .intro-kpi-primary,
+            body.intro-kpi-active .intro-kpi-total{
+                font-size:clamp(7px, 2.15vw, 9px);
+                line-height:1;
+            }
+            body.intro-kpi-active .intro-kpi-total{
+                border-radius:3px;
+                padding:1px 3px;
             }
         }
     </style>
@@ -1873,6 +1997,7 @@
                 <div id="filter-count-chip">0 activities</div>
                 <button id="clear-filters-btn" class="nav-button" type="button">Clear Filters</button>
             </div>
+            <div id="intro-kpi-panel" class="intro-kpi-panel" hidden></div>
         </div>
         <div id="nav-right">
             <div class="nav-palette-control" aria-label="Speed color palette">
@@ -1921,7 +2046,6 @@
         <button id="intro-animation-control" class="intro-animation-control" type="button" hidden>Skip Animation</button>
         <button id="workout-step-next" class="workout-step-button" type="button" aria-label="Next workout">›</button>
     </div>
-    <div id="intro-kpi-panel" class="intro-kpi-panel" hidden></div>
     <div class="map-action-stack">
         <button id="collections-open-btn" class="map-action-fab" type="button">Open Collections</button>
         <button id="map-clear-filters-fab" class="map-action-fab" type="button">Clear Filters</button>
@@ -2019,6 +2143,7 @@
         }());
     </script>
     <script src="js/strava_activity_types.js"></script>
+    <script src="js/activity_kpis.js"></script>
     <script src="js/strava_shared.js"></script>
     <script src="js/strava_animated.js"></script>
     <script>
@@ -2027,6 +2152,7 @@
         const isIntervalsProvider = /\/icu_map(?:\.html)?$/i.test(window.location.pathname);
         const providerKey = isIntervalsProvider ? 'intervals_icu' : 'strava';
         const providerLabel = isIntervalsProvider ? 'Intervals.icu' : 'Strava';
+        const ActivityKpis = window.StravaActivityKpis;
         const providerStoragePrefix = providerKey + '_' + requestedUser;
         const OWNER_SESSION_STORAGE_KEY = providerStoragePrefix + '_owner_session';
         let ownerSessionToken = '';
@@ -2541,8 +2667,14 @@
             introKpiDisplayedValues: new Map(),
             introKpiTickerUpdatedAt: new Map(),
             introKpiTickerElements: new Map(),
-            introKpiDeltaElements: new Map(),
+            introKpiPrimaryElements: new Map(),
+            introKpiMetricKeys: [],
             introKpiLastRenderAt: 0,
+            introCameraSelection: null,
+            introCameraLineStyle: null,
+            introCameraResizeTimer: 0,
+            introKpiActivity: null,
+            introKpiProgress: 0,
             collections: [],
             collectionsById: new Map(),
             activityCollectionsById: new Map(),
@@ -4285,41 +4417,13 @@
         }
 
         function getActivityKpiValues(activity) {
-            return {
-                count: 1,
-                distance_meters: Number(activity && activity.distance || 0),
-                moving_time_seconds: Number(activity && activity.moving_time || 0),
-                elapsed_time_seconds: Number(activity && activity.elapsed_time || 0),
-                elevation_gain_meters: Number(activity && activity.total_elevation_gain || 0)
-            };
+            return ActivityKpis.getActivityKpiValues(activity || {});
         }
 
         function buildActivityKpiSnapshots(activities) {
-            const snapshotsByKey = new Map();
-            (activities || []).forEach(function (activity) {
-                const category = getActivityKpiCategory(activity);
-                if (!snapshotsByKey.has(category.key)) {
-                    snapshotsByKey.set(category.key, {
-                        id: userConfig.slug + ':' + category.key,
-                        user_slug: userConfig.slug,
-                        category_key: category.key,
-                        category_label: category.label,
-                        count: 0,
-                        distance_meters: 0,
-                        moving_time_seconds: 0,
-                        elapsed_time_seconds: 0,
-                        elevation_gain_meters: 0
-                    });
-                }
-                const snapshot = snapshotsByKey.get(category.key);
-                const values = getActivityKpiValues(activity);
-                snapshot.count += values.count;
-                snapshot.distance_meters += values.distance_meters;
-                snapshot.moving_time_seconds += values.moving_time_seconds;
-                snapshot.elapsed_time_seconds += values.elapsed_time_seconds;
-                snapshot.elevation_gain_meters += values.elevation_gain_meters;
-            });
-            return snapshotsByKey;
+            return new Map(ActivityKpis.buildKpiSnapshots(userConfig.slug, activities || []).map(function (snapshot) {
+                return [snapshot.category_key, snapshot];
+            }));
         }
 
         async function loadActivityKpisData(activities) {
@@ -6023,7 +6127,22 @@
         }
 
         function getIntroFitMaxZoom(lineStyle) {
-            return lineStyle && lineStyle.isMobile ? 16 : 15;
+            return isMobileLayout() ? 17 : 16;
+        }
+
+        function getIntroCameraFitOptions(lineStyle) {
+            return {
+                padding: isMobileLayout() ? [12, 12] : [16, 16],
+                maxZoom: getIntroFitMaxZoom(lineStyle)
+            };
+        }
+
+        function refitIntroCamera() {
+            const selection = state.introCameraSelection;
+            if (!state.introAnimationActive || !selection || !selection.bounds || !selection.bounds.isValid()) {
+                return;
+            }
+            state.map.fitBounds(selection.bounds, getIntroCameraFitOptions(state.introCameraLineStyle));
         }
 
         function getFilteredFitMaxZoom() {
@@ -9153,7 +9272,27 @@
                 if (state.playback.currentLayer && state.playback.points.length) {
                     refitCurrentCollectionActivity();
                 }
+                if (state.introAnimationActive && state.introKpiActivity) {
+                    state.introKpiLastRenderAt = 0;
+                    syncIntroNavigation(true);
+                    updateIntroKpiPanel(state.introKpiActivity, state.introKpiProgress);
+                    window.clearTimeout(state.introCameraResizeTimer);
+                    state.introCameraResizeTimer = window.setTimeout(refitIntroCamera, 140);
+                }
             });
+        });
+
+        window.addEventListener('orientationchange', function () {
+            if (!state.introAnimationActive || !state.introKpiActivity) {
+                return;
+            }
+            window.clearTimeout(state.introCameraResizeTimer);
+            state.introCameraResizeTimer = window.setTimeout(function () {
+                state.introKpiLastRenderAt = 0;
+                syncIntroNavigation(true);
+                updateIntroKpiPanel(state.introKpiActivity, state.introKpiProgress);
+                refitIntroCamera();
+            }, 180);
         });
 
         clearFiltersButton.addEventListener('click', function () {
@@ -9262,10 +9401,9 @@
             if (!selection.bounds || !selection.bounds.isValid()) {
                 return Promise.resolve();
             }
-            state.map.fitBounds(selection.bounds, {
-                padding: lineStyle.isMobile ? [12, 12] : [24, 24],
-                maxZoom: getIntroFitMaxZoom(lineStyle)
-            });
+            state.introCameraSelection = selection;
+            state.introCameraLineStyle = lineStyle;
+            state.map.fitBounds(selection.bounds, getIntroCameraFitOptions(lineStyle));
             return StravaApp.wait(400);
         }
 
@@ -9423,77 +9561,74 @@
             syncWorkoutStepperState();
         }
 
-        function formatIntroKpiNumber(value, digits) {
-            return Number(value || 0).toLocaleString(undefined, {
-                minimumFractionDigits: digits,
-                maximumFractionDigits: digits
-            });
-        }
-
-        function formatIntroKpiMinutes(seconds) {
-            return formatIntroKpiNumber(Number(seconds || 0) / 60, 1);
-        }
-
         function formatOrdinalNumber(value) {
-            const number = Math.max(0, Math.round(Number(value || 0)));
-            const lastTwoDigits = number % 100;
-            if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
-                return number.toLocaleString() + 'th';
-            }
-            const lastDigit = number % 10;
-            const suffix = lastDigit === 1 ? 'st' : lastDigit === 2 ? 'nd' : lastDigit === 3 ? 'rd' : 'th';
-            return number.toLocaleString() + suffix;
+            return ActivityKpis.formatOrdinal(value);
         }
 
-        function getIntroTickerCharacterClass(character) {
-            if (character === ' ') {
-                return ' is-space';
-            }
-            if (/[^a-zA-Z0-9]/.test(character)) {
-                return ' is-punct';
-            }
-            if (character === 'W' || character === 'M') {
-                return ' is-wide';
-            }
-            return '';
-        }
-
-        function buildIntroTickerHtml(previousValue, nextValue) {
-            const priorValue = String(previousValue || '');
-            const currentValue = String(nextValue || '');
-            const maxLength = Math.max(priorValue.length, currentValue.length);
-            let html = '';
-            for (let index = 0; index < maxLength; index += 1) {
-                const currentCharacter = currentValue[index] || ' ';
-                const previousCharacter = priorValue[index] || ' ';
-                const isChanging = currentCharacter !== previousCharacter;
-                html += "<span class='intro-ticker-char" + getIntroTickerCharacterClass(currentCharacter) + (isChanging ? " is-changing" : "") + "' aria-hidden='true'>";
-                if (isChanging) {
-                    html += "<span class='intro-ticker-old'>" + escapeHtml(previousCharacter) + "</span>";
-                }
-                html += "<span class='intro-ticker-current'>" + escapeHtml(currentCharacter) + "</span>";
-                html += "</span>";
-            }
-            return html;
-        }
-
-        function ensureIntroKpiPanelStructure() {
-            if (!introKpiPanel || introKpiPanel.dataset.ready === 'true') {
+        function setIntroNavigationElementState(element, hidden) {
+            if (!element) {
                 return;
             }
-            introKpiPanel.innerHTML = ""
-                + "<div class='intro-kpi-title'><span class='intro-ticker-text' data-intro-ticker='title'></span></div>"
+            if (hidden) {
+                element.setAttribute('aria-hidden', 'true');
+                if ('inert' in element) {
+                    element.inert = true;
+                }
+                return;
+            }
+            element.removeAttribute('aria-hidden');
+            if ('inert' in element) {
+                element.inert = false;
+            }
+        }
+
+        function syncIntroNavigation(active) {
+            const shouldActivate = Boolean(active);
+            body.classList.toggle('intro-kpi-active', shouldActivate);
+            setIntroNavigationElementState(titleSlot, shouldActivate);
+            setIntroNavigationElementState(filterBar, shouldActivate);
+            setIntroNavigationElementState(document.querySelector('.nav-palette-control'), shouldActivate);
+        }
+
+        function ensureIntroKpiPanelStructure(activity) {
+            if (!introKpiPanel || !activity) {
+                return;
+            }
+            const metricKeys = ActivityKpis.getDisplayMetricKeys(activity);
+            const signature = metricKeys.join('|');
+            if (introKpiPanel.dataset.ready === 'true' && introKpiPanel.dataset.metricSignature === signature) {
+                return;
+            }
+            introKpiPanel.innerHTML = "<div class='intro-kpi-title' data-intro-title></div>"
                 + "<div class='intro-kpi-grid'>"
-                + "<div class='intro-kpi-item'><div class='intro-kpi-metric'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='miles'></span></div><div class='intro-kpi-delta' data-intro-delta='miles'></div></div><div class='intro-kpi-label'>Miles</div></div>"
-                + "<div class='intro-kpi-item'><div class='intro-kpi-metric'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='elevation'></span></div><div class='intro-kpi-delta' data-intro-delta='elevation'></div></div><div class='intro-kpi-label'>Elevation</div></div>"
-                + "<div class='intro-kpi-item'><div class='intro-kpi-metric'><div class='intro-kpi-value'><span class='intro-ticker-text' data-intro-ticker='minutes'></span></div><div class='intro-kpi-delta' data-intro-delta='minutes'></div></div><div class='intro-kpi-label'>Minutes</div></div>"
+                + "<section class='intro-kpi-column is-current' aria-label='This workout'>"
+                + "<div class='intro-kpi-column-label'>This Workout</div>"
+                + "<div class='intro-kpi-values'>"
+                + metricKeys.map(function (key) {
+                    return "<div class='intro-kpi-item' data-intro-item='" + escapeHtml(key) + "'>"
+                        + "<div class='intro-kpi-primary' data-intro-primary='" + escapeHtml(key) + "'></div>"
+                        + "</div>";
+                }).join('')
+                + "</div></section>"
+                + "<section class='intro-kpi-column is-total' aria-label='Totals'>"
+                + "<div class='intro-kpi-column-label'>Totals</div>"
+                + "<div class='intro-kpi-values'>"
+                + metricKeys.map(function (key) {
+                    return "<div class='intro-kpi-item intro-kpi-total' data-intro-item='" + escapeHtml(key) + "'>"
+                        + "<span class='intro-ticker-text' data-intro-ticker='" + escapeHtml(key) + "'></span>"
+                        + "</div>";
+                }).join('')
+                + "</div></section>"
                 + "</div>";
+            introKpiPanel.style.setProperty('--intro-kpi-count', String(Math.max(1, metricKeys.length)));
+            state.introKpiMetricKeys = metricKeys;
+            state.introKpiPrimaryElements = new Map(Array.from(introKpiPanel.querySelectorAll('[data-intro-primary]')).map(function (element) {
+                return [element.dataset.introPrimary, element];
+            }));
             state.introKpiTickerElements = new Map(Array.from(introKpiPanel.querySelectorAll('[data-intro-ticker]')).map(function (element) {
                 return [element.dataset.introTicker, element];
             }));
-            state.introKpiDeltaElements = new Map(Array.from(introKpiPanel.querySelectorAll('[data-intro-delta]')).map(function (element) {
-                return [element.dataset.introDelta, element];
-            }));
+            introKpiPanel.dataset.metricSignature = signature;
             introKpiPanel.dataset.ready = 'true';
         }
 
@@ -9501,8 +9636,7 @@
             if (!introKpiPanel) {
                 return;
             }
-            ensureIntroKpiPanelStructure();
-            const element = state.introKpiTickerElements.get(key) || introKpiPanel.querySelector("[data-intro-ticker='" + key + "']");
+            const element = state.introKpiTickerElements.get(key);
             if (!element) {
                 return;
             }
@@ -9527,21 +9661,6 @@
             state.introKpiTickerUpdatedAt.set(key, now);
         }
 
-        function updateIntroKpiDeltaElement(key, value) {
-            ensureIntroKpiPanelStructure();
-            const element = state.introKpiDeltaElements.get(key) || introKpiPanel.querySelector("[data-intro-delta='" + key + "']");
-            if (element) {
-                element.textContent = value;
-            }
-        }
-
-        function updateIntroKpiDeltas(activity) {
-            const values = getActivityKpiValues(activity);
-            updateIntroKpiDeltaElement('miles', '+' + formatIntroKpiNumber(StravaApp.getMiles(values.distance_meters), 1));
-            updateIntroKpiDeltaElement('elevation', '+' + formatIntroKpiNumber(values.elevation_gain_meters * 3.28084, 1));
-            updateIntroKpiDeltaElement('minutes', '+' + formatIntroKpiNumber((values.moving_time_seconds || values.elapsed_time_seconds) / 60, 1));
-        }
-
         function getIntroUserFirstName() {
             const displayName = String(userConfig && userConfig.displayName || 'Athlete').trim();
             return displayName.split(/\s+/)[0] || displayName || 'Athlete';
@@ -9560,43 +9679,32 @@
         }
 
         function getIntroKpiTitle(snapshot, activity) {
-            return getIntroUserFirstName() + "'s "
-                + formatOrdinalNumber(snapshot.titleCount)
+            return getIntroUserFirstName() + "’s "
+                + formatOrdinalNumber(Math.max(1, Number(snapshot.count || 0)))
                 + ' '
-                + getIntroWorkoutTypeLabel(activity, snapshot.category);
+                + getIntroWorkoutTypeLabel(activity, getActivityKpiCategory(activity));
         }
 
-        function getIntroKpiProgressSnapshot(activity, progress) {
+        function getIntroKpiSnapshot(activity) {
             const category = getActivityKpiCategory(activity);
-            const total = state.activityKpisByCategory.get(category.key) || {
+            return state.activityKpisByCategory.get(category.key) || {
+                schema_version: ActivityKpis.SNAPSHOT_SCHEMA_VERSION,
                 category_key: category.key,
                 category_label: category.label,
-                count: 0,
-                distance_meters: 0,
-                moving_time_seconds: 0,
-                elapsed_time_seconds: 0,
-                elevation_gain_meters: 0
+                count: 1,
+                distance_meters: Number(activity.distance || 0),
+                moving_time_seconds: Number(activity.moving_time || 0),
+                elapsed_time_seconds: Number(activity.elapsed_time || 0),
+                elevation_gain_meters: Number(activity.total_elevation_gain || 0),
+                metrics: {}
             };
-            const values = getActivityKpiValues(activity);
-            const ratio = clampValue(Number(progress || 0), 0, 1);
-            const before = {
-                count: Math.max(0, Number(total.count || 0) - values.count),
-                distance_meters: Math.max(0, Number(total.distance_meters || 0) - values.distance_meters),
-                moving_time_seconds: Math.max(0, Number(total.moving_time_seconds || 0) - values.moving_time_seconds),
-                elapsed_time_seconds: Math.max(0, Number(total.elapsed_time_seconds || 0) - values.elapsed_time_seconds),
-                elevation_gain_meters: Math.max(0, Number(total.elevation_gain_meters || 0) - values.elevation_gain_meters)
-            };
-            const ordinalCount = Math.max(Number(total.count || 0), before.count + values.count);
-            return {
-                category: category,
-                ordinalCount: ordinalCount,
-                titleCount: ratio > 0 ? ordinalCount : Math.max(1, before.count),
-                count: ratio >= 1 ? Number(total.count || 0) : before.count,
-                distance_meters: before.distance_meters + (values.distance_meters * ratio),
-                moving_time_seconds: before.moving_time_seconds + (values.moving_time_seconds * ratio),
-                elapsed_time_seconds: before.elapsed_time_seconds + (values.elapsed_time_seconds * ratio),
-                elevation_gain_meters: before.elevation_gain_meters + (values.elevation_gain_meters * ratio)
-            };
+        }
+
+        function formatIntroTotalValue(key, value, mobile) {
+            return ActivityKpis.formatMetricValue(key, value, {
+                total: true,
+                mobile: mobile
+            });
         }
 
         function updateIntroKpiPanel(activity, progress) {
@@ -9610,19 +9718,33 @@
                 return;
             }
             state.introKpiLastRenderAt = now;
-            const snapshot = getIntroKpiProgressSnapshot(activity, progress);
+            const snapshot = getIntroKpiSnapshot(activity);
+            const values = getActivityKpiValues(activity);
+            const mobile = isMobileLayout();
             const title = getIntroKpiTitle(snapshot, activity).toUpperCase();
-            const miles = formatIntroKpiNumber(StravaApp.getMiles(snapshot.distance_meters), 1);
-            const elevation = formatIntroKpiNumber(snapshot.elevation_gain_meters * 3.28084, 1);
-            const minutes = formatIntroKpiMinutes(snapshot.moving_time_seconds || snapshot.elapsed_time_seconds);
+            state.introKpiActivity = activity;
+            state.introKpiProgress = clampValue(numericProgress, 0, 1);
             introKpiPanel.hidden = false;
-            ensureIntroKpiPanelStructure();
-            updateIntroKpiDeltas(activity);
+            syncIntroNavigation(true);
+            ensureIntroKpiPanelStructure(activity);
             introKpiPanel.classList.toggle('is-locked', numericProgress >= 1);
-            updateIntroTickerElement('title', title, { force: true });
-            updateIntroTickerElement('miles', miles, { force: forceUpdate });
-            updateIntroTickerElement('elevation', elevation, { force: forceUpdate });
-            updateIntroTickerElement('minutes', minutes, { force: forceUpdate });
+            const titleElement = introKpiPanel.querySelector('[data-intro-title]');
+            if (titleElement) {
+                titleElement.textContent = title;
+            }
+            state.introKpiMetricKeys.forEach(function (key) {
+                const primaryElement = state.introKpiPrimaryElements.get(key);
+                if (primaryElement) {
+                    primaryElement.textContent = ActivityKpis.formatMetricValue(key, values[key], {
+                        current: true,
+                        mobile: mobile
+                    });
+                }
+                const progressiveTotal = ActivityKpis.getProgressiveTotal(snapshot, values, key, progress);
+                updateIntroTickerElement(key, formatIntroTotalValue(key, progressiveTotal, mobile), {
+                    force: forceUpdate
+                });
+            });
         }
 
         function hideIntroKpiPanel() {
@@ -9630,13 +9752,22 @@
                 introKpiPanel.hidden = true;
                 introKpiPanel.innerHTML = '';
                 introKpiPanel.dataset.ready = 'false';
+                introKpiPanel.dataset.metricSignature = '';
                 introKpiPanel.classList.remove('is-locked');
             }
+            syncIntroNavigation(false);
             state.introKpiDisplayedValues.clear();
             state.introKpiTickerUpdatedAt.clear();
             state.introKpiTickerElements.clear();
-            state.introKpiDeltaElements.clear();
+            state.introKpiPrimaryElements.clear();
+            state.introKpiMetricKeys = [];
             state.introKpiLastRenderAt = 0;
+            state.introKpiActivity = null;
+            state.introKpiProgress = 0;
+            state.introCameraSelection = null;
+            state.introCameraLineStyle = null;
+            window.clearTimeout(state.introCameraResizeTimer);
+            state.introCameraResizeTimer = 0;
         }
 
         function renderDescriptorBatch(descriptors) {
@@ -9754,6 +9885,15 @@
 
             let activities = loadResult.activities;
             let latestCenter = loadResult.latestCenter;
+            const latestActivityId = activities[0] ? getActivityId(activities[0]) : '';
+            if (latestActivityId && !activities[0].detail_fetched_at) {
+                try {
+                    const latestDetail = await fetchActivityDetailData(latestActivityId);
+                    activities[0] = StravaApp.normalizeActivityRecord(Object.assign({}, activities[0], latestDetail));
+                } catch (error) {
+                    console.warn('Latest activity detail is unavailable; intro KPIs will use cached metrics.', error);
+                }
+            }
             state.activityKpisByCategory = await loadActivityKpisData(activities);
 
             state.activityItems = activities.map(function (activity) {
@@ -9808,6 +9948,9 @@
                 setIntroAnimationControl('skip');
             }
             await StravaApp.flyIn(state.map, flyCenter);
+            if (animatedSelection.animated.length) {
+                updateIntroKpiPanel(animatedSelection.animated[0].activity, 0);
+            }
             await focusAnimatedArea(animatedSelection, lineStyle);
 
             if (animatedSelection.animated.length) {
@@ -9838,7 +9981,10 @@
                     }
                 });
                 state.introAnimationActive = false;
-                dismissTitle();
+                hideIntroKpiPanel();
+                if (!isMobileLayout()) {
+                    dismissTitle();
+                }
                 refreshFilterSummary();
                 state.introRemainingDescriptors = state.allDescriptors.filter(function (descriptor) {
                     return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
@@ -9854,8 +10000,10 @@
                     hideIntroKpiPanel();
                 }
             } else {
-                dismissTitle();
                 hideIntroKpiPanel();
+                if (!isMobileLayout()) {
+                    dismissTitle();
+                }
                 state.introRemainingDescriptors = state.allDescriptors.filter(function (descriptor) {
                     return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
                 });
@@ -9938,6 +10086,8 @@
 
         bootstrapUserPage().catch(function (error) {
             console.error(error);
+            state.introAnimationActive = false;
+            hideIntroKpiPanel();
             body.dataset.connectionState = 'error';
             splashText.textContent = 'Unable to load cached ' + providerLabel + ' data';
         });

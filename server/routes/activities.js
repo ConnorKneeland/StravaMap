@@ -15,6 +15,7 @@ const {
 } = require('../stream_config');
 const { isMongoConnected } = require('../db');
 const ActivityTypes = require('../../js/strava_activity_types');
+const { SNAPSHOT_SCHEMA_VERSION } = require('../activity_kpis');
 const {
     normalizeSlug,
     isUserConnected,
@@ -346,7 +347,8 @@ router.get('/users/:slug/activity-kpis', async (req, res) => {
     const userSlug = String(req.params.slug || '').toLowerCase();
     const snapshotStore = getActivityKpiSnapshotStore();
     let snapshots = await snapshotStore.find({ user_slug: userSlug }, { sort: { category_label: 1 } });
-    if (!snapshots.length && await getActivityStore().count({ user_slug: userSlug })) {
+    const snapshotsAreStale = snapshots.some((snapshot) => Number(snapshot.schema_version || 0) < SNAPSHOT_SCHEMA_VERSION);
+    if ((!snapshots.length || snapshotsAreStale) && await getActivityStore().count({ user_slug: userSlug })) {
         snapshots = await recomputeActivityKpiSnapshots(userSlug);
     }
     res.json(snapshots);
@@ -416,6 +418,7 @@ router.get('/activities/:id', async (req, res) => {
         }
         try {
             activity = await fetchActivityDetail(user, activityId);
+            await recomputeActivityKpiSnapshots(userSlug);
             res.json(activity);
         } catch (error) {
             console.warn('[Strava Activity Detail Unavailable]', {
@@ -433,6 +436,7 @@ router.get('/activities/:id', async (req, res) => {
         if (user) {
             try {
                 activity = await fetchActivityDetail(user, activityId);
+                await recomputeActivityKpiSnapshots(userSlug);
             } catch (error) {
                 console.warn('[Strava Activity Hydration Skipped]', {
                     activityId: activityId,
@@ -532,6 +536,9 @@ router.patch('/activities/:id', async (req, res) => {
     }
 
     const updated = await getActivityStore().updateOne(filter, updates);
+    if (hasActivityTypeOverride) {
+        await recomputeActivityKpiSnapshots(userSlug);
+    }
     res.json(updated);
 });
 

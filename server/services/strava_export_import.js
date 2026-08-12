@@ -7,6 +7,7 @@ const { pipeline } = require('stream/promises');
 const zlib = require('zlib');
 const unzipper = require('unzipper');
 const ActivityTypes = require('../../js/strava_activity_types');
+const ActivityKpis = require('../../js/activity_kpis');
 const { normalizeSlug } = require('./connection');
 const {
     PROVIDER,
@@ -233,6 +234,7 @@ function normalizeFitIntervals(laps) {
     return (laps || []).map((lap, index) => compactObject({
         id: String(index + 1),
         name: `Lap ${index + 1}`,
+        sport_metric_type: 'lap',
         start_date: lap.startTime instanceof Date ? lap.startTime.toISOString() : undefined,
         elapsed_time: toFiniteNumber(lap.totalElapsedTime),
         moving_time: toFiniteNumber(lap.totalTimerTime),
@@ -280,10 +282,34 @@ async function decodeFitActivity(buffer) {
     const session = (messages.sessionMesgs || [])[0] || {};
     const activity = (messages.activityMesgs || [])[0] || {};
     const fileId = (messages.fileIdMesgs || [])[0] || {};
+    const lapMessages = messages.lapMesgs || [];
+    const lengthMessages = messages.lengthMesgs || [];
+    const setMessages = messages.setMesgs || [];
+    const totalStrokes = lengthMessages.reduce((sum, length) => {
+        const value = toFiniteNumber(length && length.totalStrokes);
+        return sum + (value === undefined ? 0 : value);
+    }, 0);
+    const totalRepetitions = setMessages.reduce((sum, set) => {
+        const value = toFiniteNumber(set && set.repetitions);
+        return sum + (value === undefined ? 0 : value);
+    }, 0);
+    const sportMetrics = compactObject({
+        calories: toFiniteNumber(session.totalCalories),
+        lap_count: lapMessages.length || undefined,
+        length_count: lengthMessages.length || undefined,
+        stroke_count: lengthMessages.some((length) => toFiniteNumber(length && length.totalStrokes) !== undefined)
+            ? totalStrokes
+            : undefined,
+        set_count: setMessages.length || undefined,
+        repetition_count: setMessages.some((set) => toFiniteNumber(set && set.repetitions) !== undefined)
+            ? totalRepetitions
+            : undefined
+    });
     return Object.assign({}, streams, {
         file_type: 'fit',
         warnings: (decoded.errors || []).map(String),
-        intervals: normalizeFitIntervals(messages.lapMesgs),
+        intervals: normalizeFitIntervals(lapMessages),
+        sport_metrics: sportMetrics,
         details: compactObject({
             start_date: session.startTime instanceof Date ? session.startTime
                 : (activity.timestamp instanceof Date ? activity.timestamp : streams.start_date),
@@ -431,7 +457,7 @@ function transformStravaExportRow(slug, providerAthleteId, row, columns, decoded
     const distance = toFiniteNumber(getCsvField(row, columns, 'Distance'));
     const elapsedTime = toFiniteNumber(getCsvField(row, columns, 'Elapsed Time'));
     const movingTime = toFiniteNumber(getCsvField(row, columns, 'Moving Time'));
-    return compactObject({
+    const transformed = compactObject({
         schema_version: 1,
         activity_key: id,
         intervals_activity_id: id,
@@ -502,6 +528,7 @@ function transformStravaExportRow(slug, providerAthleteId, row, columns, decoded
         map_fetched_at: streamLatlng.length ? importedAt : undefined,
         detail_fetched_at: decodedFile ? importedAt : undefined,
         intervals: streams.intervals || [],
+        sport_metrics: streams.sport_metrics,
         intervals_metrics: compactObject({
             strava_relative_effort: toFiniteNumber(getCsvField(row, columns, 'Relative Effort')),
             strava_training_load: toFiniteNumber(getCsvField(row, columns, 'Training Load')),
@@ -509,6 +536,11 @@ function transformStravaExportRow(slug, providerAthleteId, row, columns, decoded
         }),
         last_synced_at: importedAt
     });
+    const sportMetrics = ActivityKpis.extractSportMetrics(transformed);
+    if (Object.keys(sportMetrics).length) {
+        transformed.sport_metrics = sportMetrics;
+    }
+    return transformed;
 }
 
 function preserveRicherStoredData(existing, incoming) {
@@ -529,7 +561,8 @@ function preserveRicherStoredData(existing, incoming) {
         detail_fetched_at: existing.detail_fetched_at,
         start_latlng: existing.start_latlng,
         end_latlng: existing.end_latlng,
-        intervals: existing.intervals
+        intervals: existing.intervals,
+        sport_metrics: existing.sport_metrics
     });
 }
 

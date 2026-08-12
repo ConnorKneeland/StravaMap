@@ -10,7 +10,7 @@ const {
     normalizeSlug
 } = require('./connection');
 const { enrichActivityLocation } = require('./location_geocode');
-const { buildKpiSnapshots } = require('../activity_kpis');
+const { buildKpiSnapshots, extractSportMetrics } = require('../activity_kpis');
 const {
     STRAVA_STREAM_REGISTRY,
     normalizeStreamRequest
@@ -209,7 +209,7 @@ function normalizeLap(lap) {
 
 function transformSummaryActivity(user, activity) {
     const mapFields = normalizeMapFields(activity.map);
-    return compactObject({
+    const transformed = compactObject({
         strava_id: normalizeNumber(activity.id),
         user_id: user._id || user.slug,
         user_slug: user.slug,
@@ -265,10 +265,15 @@ function transformSummaryActivity(user, activity) {
         hide_from_home: normalizeBoolean(activity.hide_from_home),
         ...mapFields
     });
+    const sportMetrics = extractSportMetrics(Object.assign({}, activity, transformed));
+    if (Object.keys(sportMetrics).length) {
+        transformed.sport_metrics = sportMetrics;
+    }
+    return transformed;
 }
 
 function transformDetailedActivity(user, activity) {
-    return Object.assign(transformSummaryActivity(user, activity), {
+    const transformed = Object.assign(transformSummaryActivity(user, activity), {
         segment_efforts: normalizeArray(activity.segment_efforts, normalizeSegmentEffort),
         laps: normalizeArray(activity.laps, normalizeLap),
         splits_metric: normalizeArray(activity.splits_metric, normalizeSplit),
@@ -276,6 +281,11 @@ function transformDetailedActivity(user, activity) {
         best_efforts: normalizeArray(activity.best_efforts, normalizeSegmentEffort),
         detail_fetched_at: new Date()
     });
+    const sportMetrics = extractSportMetrics(Object.assign({}, activity, transformed));
+    if (Object.keys(sportMetrics).length) {
+        transformed.sport_metrics = sportMetrics;
+    }
+    return transformed;
 }
 
 function getTokenUpdate(tokenData) {

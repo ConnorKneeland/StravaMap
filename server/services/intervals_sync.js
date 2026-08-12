@@ -1,7 +1,7 @@
 const { isMongoConnected, memoryStore, wrapModel } = require('../db');
 const getIntervalsActivityModel = require('../models/intervals_activity');
 const getIntervalsActivityKpiSnapshotModel = require('../models/intervals_activity_kpi_snapshot');
-const { buildKpiSnapshots } = require('../activity_kpis');
+const { buildKpiSnapshots, extractSportMetrics } = require('../activity_kpis');
 const ActivityTypes = require('../../js/strava_activity_types');
 const { getIntervalsConfig, isIntervalsSlugEnabled } = require('../config/intervals');
 const {
@@ -147,7 +147,7 @@ function transformIntervalsActivity(slugValue, athleteId, activity, options) {
     const startDate = validDate(activity.start_date) || validDate(activity.start_date_local);
     const detail = options && options.detail;
     const intervalsMetrics = extractIntervalsMetrics(activity);
-    return compactObject({
+    const transformed = compactObject({
         schema_version: 1,
         activity_key: `${PROVIDER}:${id}`,
         intervals_activity_id: id,
@@ -201,6 +201,11 @@ function transformIntervalsActivity(slugValue, athleteId, activity, options) {
         detail_fetched_at: detail ? new Date() : undefined,
         last_synced_at: new Date()
     });
+    const sportMetrics = extractSportMetrics(Object.assign({}, activity, transformed));
+    if (Object.keys(sportMetrics).length) {
+        transformed.sport_metrics = sportMetrics;
+    }
+    return transformed;
 }
 
 function transformIntervalsMap(mapPayload) {

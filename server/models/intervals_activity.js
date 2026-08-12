@@ -48,6 +48,7 @@ const intervalsActivitySchema = new mongoose.Schema({
     device_watts: { type: Boolean },
     has_heartrate: { type: Boolean },
     calories: { type: Number },
+    sport_metrics: { type: Mixed },
     average_temp: { type: Number },
     device_name: { type: String },
     trainer: { type: Boolean },
