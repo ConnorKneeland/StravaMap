@@ -7,6 +7,9 @@
     <title>Strava Comparison Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
         integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <style>
         :root{
             --panel:#0f1722;
@@ -19,7 +22,16 @@
         }
         *{ box-sizing:border-box; }
         html, body{ height:100%; margin:0; }
-        body{ overflow:hidden; background:#05080d; color:var(--text); font-family:"Aptos", "Segoe UI", Arial, sans-serif; }
+        body{ overflow:hidden; background:#05080d; color:var(--text); font-family:"Archivo", sans-serif; }
+        button,
+        input,
+        select{ font-family:"Archivo", sans-serif; }
+        .panel-title,
+        .details-title,
+        .details-card-title{
+            font-family:"Aptos Narrow", "Arial Narrow", sans-serif;
+            font-weight:400;
+        }
         #map{ width:100vw; height:100vh; }
         .setup-panel,
         .filter-panel,

@@ -26,7 +26,7 @@
         lap_count: { label: 'Laps', totalLabel: 'Laps', singular: 'Lap', plural: 'Laps', kind: 'count' },
         length_count: { label: 'Lengths', totalLabel: 'Lengths', singular: 'Length', plural: 'Lengths', kind: 'count' },
         stroke_count: { label: 'Strokes', totalLabel: 'Strokes', singular: 'Stroke', plural: 'Strokes', kind: 'count' },
-        ski_run_count: { label: 'Ski Runs', totalLabel: 'Ski Runs', singular: 'Ski Run', plural: 'Ski Runs', kind: 'count' },
+        ski_run_count: { label: 'Runs', totalLabel: 'Runs', singular: 'Run', plural: 'Runs', kind: 'count' },
         set_count: { label: 'Sets', totalLabel: 'Sets', singular: 'Set', plural: 'Sets', kind: 'count' },
         repetition_count: { label: 'Reps', totalLabel: 'Reps', singular: 'Rep', plural: 'Reps', kind: 'count' },
         floor_count: { label: 'Floors', totalLabel: 'Floors', singular: 'Floor', plural: 'Floors', kind: 'count' },
@@ -67,7 +67,7 @@
         tack_count: ['tack', 'tacks']
     });
     const OTHER_ADDITIVE_COUNT_KEYS = [
-        'lap_count', 'length_count', 'stroke_count', 'ski_run_count', 'set_count',
+        'length_count', 'stroke_count', 'ski_run_count', 'set_count',
         'repetition_count', 'floor_count', 'hole_count', 'game_count', 'wave_count', 'tack_count'
     ];
 
@@ -275,6 +275,33 @@
         return '';
     }
 
+    function isIndoorSwimmingActivity(activity) {
+        const normalized = activity || {};
+        if (ActivityTypes.normalizeActivityTypeKey(normalized) !== 'swim') {
+            return false;
+        }
+        if (normalized.indoor === true || normalized.is_indoor === true || normalized.pool_swim === true
+            || normalized.trainer === true) {
+            return true;
+        }
+        if (hasValue(normalized.pool_length) || hasValue(normalized.pool_length_meters)) {
+            return true;
+        }
+        const descriptors = [
+            normalized.sub_sport,
+            normalized.subSport,
+            normalized.sub_type,
+            normalized.workout_type_name,
+            normalized.activity_subtype,
+            normalized.sport_type,
+            normalized.type
+        ].map(normalizedKind);
+        return descriptors.some(function (descriptor) {
+            return descriptor === 'pool_swim' || descriptor === 'lap_swimming'
+                || descriptor === 'indoor_swim' || descriptor === 'indoor_swimming';
+        });
+    }
+
     function getSportMetricSlots(activity, values) {
         const type = ActivityTypes.normalizeActivityTypeKey(activity || {});
         if (DOWNHILL_SNOW_TYPES.has(type)) {
@@ -284,10 +311,15 @@
             return [['elevation_gain_meters'], ['calories']];
         }
         if (type === 'swim') {
-            return [['length_count', 'lap_count', 'calories'], ['stroke_count', 'calories']];
+            return [
+                isIndoorSwimmingActivity(activity)
+                    ? ['length_count', 'lap_count', 'calories']
+                    : ['length_count', 'calories'],
+                ['stroke_count', 'calories']
+            ];
         }
         if (PADDLE_TYPES.has(type)) {
-            return [['stroke_count', 'calories'], ['lap_count', 'calories']];
+            return [['stroke_count', 'calories'], ['calories']];
         }
         if (STRENGTH_TYPES.has(type)) {
             return [['repetition_count', 'set_count', 'calories'], ['set_count', 'calories']];
@@ -298,7 +330,7 @@
         if (TEAM_RACKET_TYPES.has(type)) {
             return [
                 ['game_count', 'set_count', 'calories'],
-                ['repetition_count', 'lap_count', 'stroke_count', 'floor_count', 'calories']
+                ['repetition_count', 'stroke_count', 'floor_count', 'calories']
             ];
         }
         if (type === 'golf') {
@@ -317,7 +349,7 @@
             return [['elevation_gain_meters'], ['calories']];
         }
         if (ELEVATION_TYPES.has(type)) {
-            return [['elevation_gain_meters'], ['lap_count', 'calories']];
+            return [['elevation_gain_meters'], ['calories']];
         }
         if (Number(values.elevation_gain_meters || 0) > 0) {
             return [['elevation_gain_meters'], ['calories'].concat(OTHER_ADDITIVE_COUNT_KEYS)];
@@ -430,15 +462,109 @@
         return kind === 'time' ? Math.round(value) : value;
     }
 
+    function buildRollingDigitSequence(previousDigit, nextDigit) {
+        const previous = Number(previousDigit);
+        const next = Number(nextDigit);
+        if (!/^\d$/.test(String(previousDigit)) || !/^\d$/.test(String(nextDigit)) || previous === next) {
+            return [];
+        }
+        const sequence = [String(previous)];
+        let cursor = previous;
+        while (cursor !== next && sequence.length <= 10) {
+            cursor = (cursor + 1) % 10;
+            sequence.push(String(cursor));
+        }
+        return sequence;
+    }
+
+    function getOdometerGlyphLayout(value) {
+        const text = String(value === undefined || value === null ? '' : value);
+        const tokenValues = text.match(/[\d,.]+|[^\d,.]+/g) || [];
+        let numberOrdinal = 0;
+        let textOrdinal = 0;
+        const glyphs = [];
+        tokenValues.forEach(function (tokenValue) {
+            const numeric = /\d/.test(tokenValue);
+            if (numeric) {
+                const ordinal = numberOrdinal;
+                numberOrdinal += 1;
+                const characters = Array.from(tokenValue);
+                const digitCount = characters.filter(function (character) { return /\d/.test(character); }).length;
+                let digitIndex = 0;
+                characters.forEach(function (character, index) {
+                    if (/\d/.test(character)) {
+                        const placeFromRight = digitCount - digitIndex - 1;
+                        digitIndex += 1;
+                        glyphs.push({
+                            key: 'number-' + ordinal + '-digit-' + placeFromRight,
+                            character: character,
+                            type: 'digit'
+                        });
+                        return;
+                    }
+                    const digitsToRight = characters.slice(index + 1).filter(function (nextCharacter) {
+                        return /\d/.test(nextCharacter);
+                    }).length;
+                    glyphs.push({
+                        key: 'number-' + ordinal + '-mark-' + character.charCodeAt(0) + '-' + digitsToRight,
+                        character: character,
+                        type: 'separator'
+                    });
+                });
+                return;
+            }
+            const ordinal = textOrdinal;
+            textOrdinal += 1;
+            Array.from(tokenValue).forEach(function (character, index) {
+                glyphs.push({
+                    key: 'text-' + ordinal + '-' + index,
+                    character: character,
+                    type: /\s/.test(character) ? 'space' : 'text'
+                });
+            });
+        });
+        return glyphs;
+    }
+
+    function buildOdometerTransition(previousValue, nextValue) {
+        const previousGlyphs = getOdometerGlyphLayout(previousValue);
+        const nextGlyphs = getOdometerGlyphLayout(nextValue);
+        const previousByKey = new Map(previousGlyphs.map(function (glyph) {
+            return [glyph.key, glyph];
+        }));
+        const nextKeys = new Set(nextGlyphs.map(function (glyph) { return glyph.key; }));
+        return {
+            glyphs: nextGlyphs.map(function (glyph) {
+                const previousGlyph = previousByKey.get(glyph.key);
+                const previousCharacter = previousGlyph ? previousGlyph.character : '';
+                return Object.assign({}, glyph, {
+                    previousCharacter: previousCharacter,
+                    entering: !previousGlyph,
+                    changed: Boolean(previousGlyph && previousCharacter !== glyph.character),
+                    digitSequence: glyph.type === 'digit'
+                        ? buildRollingDigitSequence(previousCharacter, glyph.character)
+                        : []
+                });
+            }),
+            leavingKeys: previousGlyphs.filter(function (glyph) {
+                return !nextKeys.has(glyph.key);
+            }).map(function (glyph) { return glyph.key; })
+        };
+    }
+
     return {
         SNAPSHOT_SCHEMA_VERSION: SNAPSHOT_SCHEMA_VERSION,
         METRIC_DEFINITIONS: METRIC_DEFINITIONS,
         extractSportMetrics: extractSportMetrics,
         getActivityKpiValues: getActivityKpiValues,
         buildKpiSnapshots: buildKpiSnapshots,
+        isIndoorSwimmingActivity: isIndoorSwimmingActivity,
         getDisplayMetricKeys: getDisplayMetricKeys,
         getSnapshotMetricTotal: getSnapshotMetricTotal,
         getProgressiveTotal: getProgressiveTotal,
+        buildRollingDigitSequence: buildRollingDigitSequence,
+        getOdometerGlyphLayout: getOdometerGlyphLayout,
+        buildOdometerTransition: buildOdometerTransition,
         formatNumber: formatNumber,
         formatElapsed: formatElapsed,
         formatElevationMeters: formatElevationMeters,

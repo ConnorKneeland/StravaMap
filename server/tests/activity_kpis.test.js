@@ -46,6 +46,27 @@ test('sport profiles choose additive metrics and omit missing optional values', 
         ['distance_meters', 'elapsed_time_seconds', 'length_count', 'stroke_count']
     );
     assert.deepEqual(
+        ActivityKpis.getDisplayMetricKeys({
+            type: 'Swim', distance: 1000, elapsed_time: 900,
+            sport_metrics: { lap_count: 20, calories: 300 }
+        }),
+        ['distance_meters', 'elapsed_time_seconds', 'calories']
+    );
+    assert.deepEqual(
+        ActivityKpis.getDisplayMetricKeys({
+            type: 'Swim', indoor: true, distance: 1000, elapsed_time: 900,
+            sport_metrics: { lap_count: 20, calories: 300 }
+        }),
+        ['distance_meters', 'elapsed_time_seconds', 'lap_count', 'calories']
+    );
+    assert.deepEqual(
+        ActivityKpis.getDisplayMetricKeys({
+            type: 'Ride', distance: 1000, elapsed_time: 900, total_elevation_gain: 20,
+            sport_metrics: { lap_count: 3, calories: 160 }
+        }),
+        ['distance_meters', 'elapsed_time_seconds', 'elevation_gain_meters', 'calories']
+    );
+    assert.deepEqual(
         ActivityKpis.getDisplayMetricKeys({ type: 'Yoga', elapsed_time: 1200 }),
         ['distance_meters', 'elapsed_time_seconds']
     );
@@ -56,6 +77,8 @@ test('sport profiles choose additive metrics and omit missing optional values', 
         }),
         ['distance_meters', 'elapsed_time_seconds', 'elevation_gain_meters', 'ski_run_count']
     );
+    assert.equal(ActivityKpis.formatMetricValue('ski_run_count', 1, { current: true }), '+1 Run');
+    assert.equal(ActivityKpis.formatMetricValue('ski_run_count', 8, { total: true }), '8 Runs');
     assert.deepEqual(
         ActivityKpis.getDisplayMetricKeys({
             type: 'CustomAdventure', elapsed_time: 1800,
@@ -140,4 +163,39 @@ test('count totals advance in whole units on the route progress frame', () => {
         ),
         103
     );
+});
+
+test('odometer transitions roll increasing digits and fade new width characters', () => {
+    const zeroTo248 = ActivityKpis.buildOdometerTransition('0', '248');
+    assert.deepEqual(
+        zeroTo248.glyphs.find((glyph) => glyph.key === 'number-0-digit-0').digitSequence,
+        ['0', '1', '2', '3', '4', '5', '6', '7', '8']
+    );
+    assert.equal(zeroTo248.glyphs.find((glyph) => glyph.key === 'number-0-digit-2').entering, true);
+
+    const ninetyNineTo100 = ActivityKpis.buildOdometerTransition('99', '100');
+    assert.equal(ninetyNineTo100.glyphs.find((glyph) => glyph.key === 'number-0-digit-2').entering, true);
+    assert.deepEqual(
+        ninetyNineTo100.glyphs.find((glyph) => glyph.key === 'number-0-digit-0').digitSequence,
+        ['9', '0']
+    );
+
+    const nineNineNineTo1000 = ActivityKpis.buildOdometerTransition('999', '1,000');
+    assert.equal(nineNineNineTo1000.glyphs.find((glyph) => glyph.character === ',').entering, true);
+    assert.equal(nineNineNineTo1000.glyphs.find((glyph) => glyph.key === 'number-0-digit-3').entering, true);
+
+    const nineThousandTo10000 = ActivityKpis.buildOdometerTransition('9,999', '10,000');
+    assert.equal(nineThousandTo10000.glyphs.find((glyph) => glyph.character === ',').entering, false);
+    assert.equal(nineThousandTo10000.glyphs.find((glyph) => glyph.key === 'number-0-digit-4').entering, true);
+
+    const decimalBoundary = ActivityKpis.buildOdometerTransition('12.9', '13.0');
+    assert.deepEqual(
+        decimalBoundary.glyphs.find((glyph) => glyph.key === 'number-0-digit-1').digitSequence,
+        ['2', '3']
+    );
+    assert.deepEqual(
+        decimalBoundary.glyphs.find((glyph) => glyph.key === 'number-0-digit-0').digitSequence,
+        ['9', '0']
+    );
+    assert.equal(decimalBoundary.glyphs.find((glyph) => glyph.character === '.').changed, false);
 });

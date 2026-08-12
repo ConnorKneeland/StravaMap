@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
         integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <style>
         :root{
             --nav-height:72px;
@@ -20,9 +23,38 @@
             --text:#f5f7fb;
             --muted:#aeb7c4;
             --shadow:0 14px 34px rgba(0,0,0,0.35);
+            --font-body:'Archivo', sans-serif;
+            --font-heading:'Aptos Narrow', 'Arial Narrow', sans-serif;
         }
         *{ box-sizing:border-box; }
-        body{ margin:0; font-family:'Aptos Narrow', sans-serif; padding:0; overflow:hidden; background:var(--bg); color:var(--text); }
+        body{ margin:0; font-family:var(--font-body); padding:0; overflow:hidden; background:var(--bg); color:var(--text); }
+        button,
+        input,
+        select,
+        textarea{ font-family:var(--font-body); }
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6,
+        #page-title,
+        .nav-palette-title,
+        .menu-title,
+        .menu-toggle-title,
+        #details-title,
+        .details-card-title,
+        .collections-panel-title,
+        .collection-list-title,
+        .collection-activity-title,
+        .collection-playback-title,
+        .intro-kpi-title,
+        .intro-kpi-column-label,
+        .strava-tooltip-title,
+        .splash-text{
+            font-family:var(--font-heading);
+            font-weight:400;
+        }
         #top-nav{
             position:fixed;
             top:0;
@@ -101,7 +133,7 @@
             background:var(--panel);
             color:var(--text);
             border-radius:12px;
-            font-family:'Aptos Narrow', sans-serif;
+            font-family:var(--font-body);
         }
         .filter-trigger{
             width:100%;
@@ -1138,26 +1170,28 @@
             min-width:0;
             color:#f8fafc;
             display:grid;
-            grid-template-columns:clamp(160px, 10vw, 195px) max-content;
+            grid-template-columns:fit-content(235px) max-content;
             align-items:center;
-            gap:clamp(16px, 1.15vw, 22px);
+            gap:clamp(10px, 0.85vw, 16px);
             pointer-events:none;
-            font-family:"Segoe UI Variable Display", "Segoe UI", "Aptos", "Helvetica Neue", Arial, system-ui, sans-serif;
+            font-family:var(--font-body);
             text-shadow:none;
         }
         .intro-kpi-panel[hidden]{
             display:none;
         }
         .intro-kpi-title{
-            width:100%;
+            width:max-content;
+            min-width:185px;
+            max-width:235px;
             color:#ffffff;
-            font-size:clamp(16px, 1.45vw, 24px);
-            font-weight:850;
-            line-height:1.02;
+            font-size:clamp(17px, 1.3vw, 22px);
+            font-weight:900;
+            line-height:0.98;
             text-align:left;
             text-transform:uppercase;
             text-wrap:balance;
-            letter-spacing:0.015em;
+            letter-spacing:0.025em;
             transition:color 260ms ease, text-shadow 260ms ease, transform 260ms ease;
         }
         .intro-kpi-grid{
@@ -1165,7 +1199,7 @@
             grid-template-columns:max-content repeat(var(--intro-kpi-count, 3), max-content);
             grid-template-rows:repeat(2, minmax(22px, auto));
             align-items:center;
-            column-gap:clamp(15px, 1.15vw, 23px);
+            column-gap:clamp(8px, 0.75vw, 14px);
             row-gap:6px;
             width:max-content;
             max-width:100%;
@@ -1190,13 +1224,24 @@
         .intro-kpi-column.is-current .intro-kpi-column-label{
             grid-column:1;
             grid-row:1;
+            color:#4ade80;
+            font-family:var(--font-body);
+            font-size:clamp(15px, 1vw, 18px);
+            font-weight:850;
+            line-height:1;
+            letter-spacing:0;
+            text-transform:none;
         }
         .intro-kpi-column.is-total .intro-kpi-column-label{
             grid-column:1;
             grid-row:2;
-        }
-        .intro-kpi-column.is-total .intro-kpi-column-label{
             color:#ffffff;
+            font-family:var(--font-body);
+            font-size:clamp(14px, 0.94vw, 17px);
+            font-weight:800;
+            line-height:1;
+            letter-spacing:0;
+            text-transform:none;
         }
         .intro-kpi-values{
             display:contents;
@@ -1233,13 +1278,14 @@
             text-shadow:none;
         }
         .intro-kpi-total{
+            width:auto;
             max-width:100%;
             overflow:hidden;
             color:#ffffff;
-            background:#1d2a3a;
-            border:1px solid rgba(255,255,255,0.16);
-            border-radius:6px;
-            padding:3px 7px;
+            background:transparent;
+            border:0;
+            border-radius:0;
+            padding:0;
             font-size:clamp(14px, 0.94vw, 17px);
             font-weight:800;
             line-height:1;
@@ -1247,89 +1293,99 @@
             text-overflow:ellipsis;
             font-variant-numeric:tabular-nums lining-nums;
             font-feature-settings:"tnum" 1, "lnum" 1;
-            transition:color 260ms ease, text-shadow 260ms ease;
+            transition:width 240ms cubic-bezier(.2,.72,.24,1), color 260ms ease, text-shadow 260ms ease;
         }
         .intro-kpi-panel.is-locked .intro-kpi-title,
         .intro-kpi-panel.is-locked .intro-kpi-primary{
             animation:introKpiLockIn 420ms cubic-bezier(.18,.84,.24,1) both;
         }
         .intro-ticker-text{
-            display:block;
+            position:relative;
+            display:inline-flex;
             align-items:center;
             justify-content:flex-start;
             max-width:100%;
+            width:max-content;
             min-height:1.08em;
-            overflow:hidden;
-            text-overflow:ellipsis;
+            overflow:visible;
             white-space:nowrap;
-            transition:transform 160ms ease, opacity 160ms ease;
-        }
-        .intro-ticker-text.is-updating{
-            animation:introKpiSmoothTick 180ms ease-out both;
+            transition:width 240ms cubic-bezier(.2,.72,.24,1), opacity 180ms ease;
         }
         .intro-ticker-char{
             position:relative;
-            display:inline-block;
-            min-width:0.56em;
+            display:inline-flex;
+            flex:0 0 auto;
+            align-items:flex-start;
+            justify-content:center;
+            min-width:0;
             height:1em;
             overflow:hidden;
             line-height:1;
             text-align:center;
             vertical-align:top;
-            perspective:420px;
-            transform-style:preserve-3d;
+            opacity:1;
+            transform:translate3d(0,0,0);
+            transition:transform 240ms cubic-bezier(.2,.72,.24,1), opacity 180ms ease;
         }
         .intro-ticker-char.is-space{
-            min-width:0.34em;
+            width:0.32em;
         }
-        .intro-ticker-char.is-punct{
-            min-width:0.34em;
+        .intro-ticker-char.is-separator{
+            min-width:0.28em;
         }
-        .intro-ticker-char.is-wide{
-            min-width:0.72em;
+        .intro-ticker-char.is-digit{
+            width:0.62em;
         }
-        .intro-ticker-current,
-        .intro-ticker-old{
+        .intro-ticker-reel{
             display:flex;
+            flex:0 0 auto;
+            flex-direction:column;
+            align-items:center;
+            width:100%;
+            min-height:1em;
+            line-height:1;
+            transform:translate3d(0,0,0);
+            will-change:transform;
+        }
+        .intro-ticker-reel > span{
+            display:flex;
+            flex:0 0 1em;
             align-items:center;
             justify-content:center;
             width:100%;
             height:1em;
             line-height:1;
-            backface-visibility:hidden;
-            transform-origin:center center;
         }
-        .intro-ticker-char.is-changing .intro-ticker-current,
-        .intro-ticker-char.is-changing .intro-ticker-old{
+        .intro-ticker-char.is-entering{
+            animation:introTickerGlyphIn 220ms cubic-bezier(.2,.72,.24,1) both;
+        }
+        .intro-ticker-char.is-leaving{
             position:absolute;
-            left:0;
             top:0;
+            pointer-events:none;
+            animation:introTickerGlyphOut 180ms ease both;
         }
-        .intro-ticker-char.is-changing .intro-ticker-current{
-            animation:introTickerIn 540ms cubic-bezier(.16,.82,.2,1) both;
+        @keyframes introTickerGlyphIn{
+            0%{ transform:translateY(0.12em); opacity:0; }
+            100%{ transform:translateY(0); opacity:1; }
         }
-        .intro-ticker-char.is-changing .intro-ticker-old{
-            color:rgba(248,247,236,0.38);
-            animation:introTickerOut 540ms cubic-bezier(.16,.82,.2,1) both;
-        }
-        @keyframes introTickerIn{
-            0%{ transform:rotateX(-88deg) translateY(0.04em); opacity:0.34; }
-            52%{ opacity:0.92; }
-            100%{ transform:rotateX(0deg) translateY(0); opacity:1; }
-        }
-        @keyframes introTickerOut{
-            0%{ transform:rotateX(0deg) translateY(0); opacity:0.72; }
-            48%{ opacity:0.44; }
-            100%{ transform:rotateX(88deg) translateY(-0.04em); opacity:0; }
+        @keyframes introTickerGlyphOut{
+            0%{ transform:translateY(0); opacity:0.72; }
+            100%{ transform:translateY(-0.1em); opacity:0; }
         }
         @keyframes introKpiLockIn{
             0%{ transform:scale(1); }
             42%{ transform:scale(1.035); }
             100%{ transform:scale(1); }
         }
-        @keyframes introKpiSmoothTick{
-            0%{ transform:translateY(0.035em); opacity:0.76; }
-            100%{ transform:translateY(0); opacity:1; }
+        @media(prefers-reduced-motion:reduce){
+            .intro-kpi-total,
+            .intro-ticker-text,
+            .intro-ticker-char,
+            .intro-ticker-reel{
+                animation:none!important;
+                transition:none!important;
+            }
         }
         .collection-playback{
             position:fixed;
@@ -1522,7 +1578,7 @@
             color:var(--text);
             box-shadow:0 18px 36px rgba(0,0,0,0.32);
             padding:10px 12px;
-            font-family:'Aptos Narrow', sans-serif;
+            font-family:var(--font-body);
         }
         .leaflet-tooltip-top.strava-tooltip:before{
             border-top-color:rgba(11,16,24,0.98);
@@ -1544,11 +1600,12 @@
         }
         .leaflet-tooltip .strava-tooltip-title{
             font-size:18px;
+            font-weight:800;
             color:#fff;
             line-height:1.2;
         }
         .mapboxgl-map{
-            font-family:'Aptos Narrow', sans-serif;
+            font-family:var(--font-body);
         }
         .mapboxgl-popup.strava-mapbox-tooltip{
             z-index:1350;
@@ -1560,7 +1617,7 @@
             color:var(--text);
             box-shadow:0 18px 36px rgba(0,0,0,0.32);
             padding:10px 12px;
-            font-family:'Aptos Narrow', sans-serif;
+            font-family:var(--font-body);
         }
         .mapboxgl-popup.strava-mapbox-tooltip .mapboxgl-popup-tip{
             border-top-color:rgba(11,16,24,0.98);
@@ -1583,6 +1640,7 @@
         }
         .mapboxgl-popup.strava-mapbox-tooltip .strava-tooltip-title{
             font-size:18px;
+            font-weight:800;
             color:#fff;
             line-height:1.2;
         }
@@ -1609,7 +1667,19 @@
         #splash{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.84); z-index:1800; pointer-events:none; opacity:1; }
         #splash.fade-out{ animation:splashFade 2s forwards ease; }
         @keyframes splashFade{ to{ opacity:0; visibility:hidden; } }
-        .splash-text{ font-family:'Aptos Narrow', sans-serif; font-size:clamp(32px,8vw,96px); font-weight:700; color:#fff; text-align:center; text-shadow:0 4px 12px rgba(0,0,0,0.3); padding:0 6vw; line-height:1.2; }
+        .splash-text{
+            width:min(1180px, 88vw);
+            padding:0;
+            color:#fff;
+            font-family:var(--font-heading);
+            font-size:clamp(36px, 6.25vw, 84px);
+            font-weight:700;
+            line-height:1.06;
+            letter-spacing:0.015em;
+            text-align:center;
+            text-wrap:balance;
+            text-shadow:0 3px 18px rgba(0,0,0,0.48);
+        }
         #connection-gate{
             position:fixed;
             inset:0;
@@ -1838,11 +1908,15 @@
                 font-size:13px;
             }
         }
+        body.intro-kpi-pending #title-slot,
+        body.intro-kpi-pending #filter-bar,
+        body.intro-kpi-pending .nav-palette-control,
         body.intro-kpi-active #title-slot,
         body.intro-kpi-active #filter-bar,
         body.intro-kpi-active .nav-palette-control{
             display:none;
         }
+        body.intro-kpi-pending #nav-left,
         body.intro-kpi-active #nav-left{
             flex:1 1 auto;
             overflow:hidden;
@@ -1860,6 +1934,9 @@
                 gap:10px;
             }
             body.intro-kpi-active .intro-kpi-title{
+                width:100%;
+                min-width:0;
+                max-width:none;
                 font-size:13px;
             }
             body.intro-kpi-active .intro-kpi-grid{
@@ -1884,7 +1961,7 @@
             body.intro-kpi-active .intro-kpi-column.is-total .intro-kpi-column-label{
                 grid-column:1;
                 grid-row:1;
-                font-size:8px;
+                font-size:9px;
             }
             body.intro-kpi-active .intro-kpi-values{
                 display:grid;
@@ -1903,7 +1980,8 @@
                 font-size:9px;
             }
             body.intro-kpi-active .intro-kpi-total{
-                padding:1px 4px;
+                width:100%;
+                padding:0;
             }
         }
         @media(max-width:680px){
@@ -1913,6 +1991,9 @@
                 gap:6px;
             }
             body.intro-kpi-active .intro-kpi-title{
+                width:100%;
+                min-width:0;
+                max-width:none;
                 font-size:clamp(9px, 2.8vw, 12px);
                 line-height:1.02;
             }
@@ -1938,8 +2019,8 @@
             body.intro-kpi-active .intro-kpi-column.is-total .intro-kpi-column-label{
                 grid-column:1;
                 grid-row:1;
-                font-size:7px;
-                letter-spacing:0.07em;
+                font-size:clamp(7px, 2.15vw, 9px);
+                letter-spacing:0;
             }
             body.intro-kpi-active .intro-kpi-values{
                 display:grid;
@@ -1958,14 +2039,15 @@
                 line-height:1;
             }
             body.intro-kpi-active .intro-kpi-total{
-                border-radius:3px;
-                padding:1px 3px;
+                width:100%;
+                border-radius:0;
+                padding:0;
             }
         }
     </style>
 </head>
 
-<body id="body">
+<body id="body" class="intro-kpi-pending">
     <div id="preload"></div>
     <div id="splash"><div class="splash-text" id="splash-text"></div></div>
     <section id="connection-gate" hidden aria-live="polite">
@@ -2544,6 +2626,7 @@
         }
 
         function showConnectionGate(status, error) {
+            body.classList.remove('intro-kpi-pending', 'intro-kpi-active');
             const needsReconnect = Boolean(status && status.needsReconnect);
             const interactiveConnectAvailable = !isIntervalsProvider
                 || Boolean(status && status.interactiveConnectAvailable);
@@ -2665,6 +2748,7 @@
             workoutNavigatorActive: false,
             workoutNavigatorFocusKey: '',
             introKpiDisplayedValues: new Map(),
+            introKpiDisplayedNumericValues: new Map(),
             introKpiTickerUpdatedAt: new Map(),
             introKpiTickerElements: new Map(),
             introKpiPrimaryElements: new Map(),
@@ -6304,7 +6388,7 @@
                     text: 'Avg ' + formatStreamMetricValue(metricId, series.stats.average),
                     showarrow: false,
                     font: {
-                        family: 'Aptos Narrow, sans-serif',
+                        family: 'Archivo, sans-serif',
                         size: 12,
                         color: '#d6dee9'
                     },
@@ -9272,18 +9356,20 @@
                 if (state.playback.currentLayer && state.playback.points.length) {
                     refitCurrentCollectionActivity();
                 }
-                if (state.introAnimationActive && state.introKpiActivity) {
+                if (state.introKpiActivity && !state.introAllWorkoutsRendered) {
                     state.introKpiLastRenderAt = 0;
                     syncIntroNavigation(true);
                     updateIntroKpiPanel(state.introKpiActivity, state.introKpiProgress);
-                    window.clearTimeout(state.introCameraResizeTimer);
-                    state.introCameraResizeTimer = window.setTimeout(refitIntroCamera, 140);
+                    if (state.introAnimationActive) {
+                        window.clearTimeout(state.introCameraResizeTimer);
+                        state.introCameraResizeTimer = window.setTimeout(refitIntroCamera, 140);
+                    }
                 }
             });
         });
 
         window.addEventListener('orientationchange', function () {
-            if (!state.introAnimationActive || !state.introKpiActivity) {
+            if (!state.introKpiActivity || state.introAllWorkoutsRendered) {
                 return;
             }
             window.clearTimeout(state.introCameraResizeTimer);
@@ -9291,7 +9377,9 @@
                 state.introKpiLastRenderAt = 0;
                 syncIntroNavigation(true);
                 updateIntroKpiPanel(state.introKpiActivity, state.introKpiProgress);
-                refitIntroCamera();
+                if (state.introAnimationActive) {
+                    refitIntroCamera();
+                }
             }, 180);
         });
 
@@ -9584,6 +9672,7 @@
 
         function syncIntroNavigation(active) {
             const shouldActivate = Boolean(active);
+            body.classList.remove('intro-kpi-pending');
             body.classList.toggle('intro-kpi-active', shouldActivate);
             setIntroNavigationElementState(titleSlot, shouldActivate);
             setIntroNavigationElementState(filterBar, shouldActivate);
@@ -9629,7 +9718,141 @@
                 return [element.dataset.introTicker, element];
             }));
             introKpiPanel.dataset.metricSignature = signature;
+            introKpiPanel.dataset.widthSignature = '';
             introKpiPanel.dataset.ready = 'true';
+        }
+
+        function prefersReducedIntroMotion() {
+            return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        }
+
+        function createIntroTickerReel(characters) {
+            const reel = document.createElement('span');
+            reel.className = 'intro-ticker-reel';
+            (characters.length ? characters : ['']).forEach(function (character) {
+                const row = document.createElement('span');
+                row.textContent = character === ' ' ? '\u00a0' : character;
+                reel.appendChild(row);
+            });
+            return reel;
+        }
+
+        function configureIntroTickerGlyph(element, glyph, animateIncrease) {
+            element.className = 'intro-ticker-char is-' + glyph.type;
+            element.dataset.odometerKey = glyph.key;
+            element.dataset.odometerCharacter = glyph.character;
+            element.style.left = '';
+            element.style.top = '';
+            element.style.width = '';
+            element.style.transform = '';
+            element.style.opacity = '';
+            element.style.transition = '';
+            element.innerHTML = '';
+            const shouldRoll = animateIncrease && glyph.type === 'digit' && glyph.digitSequence.length > 1;
+            const reel = createIntroTickerReel(shouldRoll ? glyph.digitSequence : [glyph.character]);
+            element.appendChild(reel);
+            if ((glyph.entering || (glyph.changed && glyph.type !== 'digit')) && animateIncrease) {
+                element.classList.add('is-entering');
+            }
+            return shouldRoll ? {
+                reel: reel,
+                stepCount: glyph.digitSequence.length - 1
+            } : null;
+        }
+
+        function renderIntroOdometerValue(element, previousValue, nextValue, animateIncrease) {
+            const previousElementRect = element.getBoundingClientRect();
+            const previousWidth = previousElementRect.width;
+            const previousGlyphElements = new Map();
+            const previousRects = new Map();
+            Array.from(element.querySelectorAll('.intro-ticker-char:not(.is-leaving)')).forEach(function (glyphElement) {
+                const key = glyphElement.dataset.odometerKey || '';
+                if (!key) {
+                    return;
+                }
+                previousGlyphElements.set(key, glyphElement);
+                previousRects.set(key, glyphElement.getBoundingClientRect());
+            });
+            Array.from(element.querySelectorAll('.intro-ticker-char.is-leaving')).forEach(function (glyphElement) {
+                glyphElement.remove();
+            });
+
+            const transition = ActivityKpis.buildOdometerTransition(previousValue, nextValue);
+            const nextKeys = new Set(transition.glyphs.map(function (glyph) { return glyph.key; }));
+            const fragment = document.createDocumentFragment();
+            const rollingReels = [];
+            transition.glyphs.forEach(function (glyph) {
+                const glyphElement = previousGlyphElements.get(glyph.key) || document.createElement('span');
+                const rollingReel = configureIntroTickerGlyph(glyphElement, glyph, animateIncrease);
+                if (rollingReel) {
+                    rollingReels.push(rollingReel);
+                }
+                fragment.appendChild(glyphElement);
+            });
+
+            const leavingGlyphs = [];
+            if (animateIncrease) {
+                previousGlyphElements.forEach(function (glyphElement, key) {
+                    if (nextKeys.has(key)) {
+                        return;
+                    }
+                    const previousRect = previousRects.get(key);
+                    if (!previousRect) {
+                        return;
+                    }
+                    const clone = glyphElement.cloneNode(true);
+                    clone.classList.add('is-leaving');
+                    clone.style.left = (previousRect.left - previousElementRect.left) + 'px';
+                    clone.style.width = previousRect.width + 'px';
+                    leavingGlyphs.push(clone);
+                });
+            }
+
+            element.style.width = 'auto';
+            element.replaceChildren(fragment);
+            leavingGlyphs.forEach(function (glyphElement) {
+                element.appendChild(glyphElement);
+                window.setTimeout(function () { glyphElement.remove(); }, 260);
+            });
+            const nextWidth = Math.ceil(element.scrollWidth);
+            if (animateIncrease && previousWidth > 0 && Math.abs(nextWidth - previousWidth) > 0.5) {
+                element.style.width = previousWidth + 'px';
+            } else {
+                element.style.width = nextWidth + 'px';
+            }
+
+            const flipElements = [];
+            transition.glyphs.forEach(function (glyph) {
+                const glyphElement = element.querySelector('[data-odometer-key="' + glyph.key + '"]');
+                const previousRect = previousRects.get(glyph.key);
+                if (!glyphElement || !previousRect || !animateIncrease) {
+                    return;
+                }
+                const nextRect = glyphElement.getBoundingClientRect();
+                const deltaX = previousRect.left - nextRect.left;
+                if (Math.abs(deltaX) < 0.5) {
+                    return;
+                }
+                glyphElement.style.transition = 'none';
+                glyphElement.style.transform = 'translate3d(' + deltaX + 'px,0,0)';
+                flipElements.push(glyphElement);
+            });
+
+            if (!animateIncrease) {
+                element.style.width = 'auto';
+                return;
+            }
+            window.requestAnimationFrame(function () {
+                element.style.width = nextWidth + 'px';
+                flipElements.forEach(function (glyphElement) {
+                    glyphElement.style.transition = '';
+                    glyphElement.style.transform = 'translate3d(0,0,0)';
+                });
+                rollingReels.forEach(function (rollingReel) {
+                    rollingReel.reel.style.transition = 'transform 240ms cubic-bezier(.2,.72,.24,1)';
+                    rollingReel.reel.style.transform = 'translate3d(0,-' + rollingReel.stepCount + 'em,0)';
+                });
+            });
         }
 
         function updateIntroTickerElement(key, value, options) {
@@ -9644,7 +9867,12 @@
             const previousValue = state.introKpiDisplayedValues.has(key)
                 ? String(state.introKpiDisplayedValues.get(key))
                 : nextValue;
+            const numericValue = Number(options && options.numericValue);
+            const previousNumericValue = Number(state.introKpiDisplayedNumericValues.get(key));
             if (previousValue === nextValue && element.childNodes.length) {
+                if (Number.isFinite(numericValue)) {
+                    state.introKpiDisplayedNumericValues.set(key, numericValue);
+                }
                 return;
             }
             const now = window.performance && typeof window.performance.now === 'function' ? window.performance.now() : Date.now();
@@ -9652,13 +9880,65 @@
             if (!(options && options.force) && element.childNodes.length && now - lastUpdatedAt < 110) {
                 return;
             }
+            const animateIncrease = element.childNodes.length > 0
+                && Number.isFinite(previousNumericValue)
+                && Number.isFinite(numericValue)
+                && numericValue > previousNumericValue
+                && !prefersReducedIntroMotion();
             element.setAttribute('aria-label', nextValue);
-            element.textContent = nextValue;
-            element.classList.remove('is-updating');
-            void element.offsetWidth;
-            element.classList.add('is-updating');
+            renderIntroOdometerValue(element, previousValue, nextValue, animateIncrease);
             state.introKpiDisplayedValues.set(key, nextValue);
+            if (Number.isFinite(numericValue)) {
+                state.introKpiDisplayedNumericValues.set(key, numericValue);
+            }
             state.introKpiTickerUpdatedAt.set(key, now);
+        }
+
+        function getIntroTotalCharacterWidth(snapshot, values, key, mobile) {
+            const currentValue = Math.abs(Number(values && values[key] || 0));
+            const definition = ActivityKpis.METRIC_DEFINITIONS[key] || {};
+            let displayedStepCount = Math.ceil(currentValue);
+            if (definition.kind === 'distance') {
+                displayedStepCount = Math.ceil(currentValue * 0.000621371192237334 * 100);
+            } else if (definition.kind === 'elevation') {
+                displayedStepCount = Math.ceil(currentValue * 3.28083989501312);
+            }
+            // Sample at least once per displayable unit so the box is sized from the
+            // longest value it will actually show, not from a hard-coded pixel width.
+            const sampleCount = Math.max(1, displayedStepCount + 2);
+            let maxLength = 0;
+            for (let index = 0; index <= sampleCount; index += 1) {
+                const progress = sampleCount ? index / sampleCount : 0;
+                const progressiveTotal = ActivityKpis.getProgressiveTotal(snapshot, values, key, progress);
+                const formattedValue = formatIntroTotalValue(key, progressiveTotal, mobile);
+                maxLength = Math.max(maxLength, Array.from(formattedValue).length);
+            }
+            return Math.max(4, maxLength + 2);
+        }
+
+        function syncIntroKpiTotalWidths(snapshot, values, mobile) {
+            if (!introKpiPanel) {
+                return;
+            }
+            const compactLayout = window.innerWidth <= 1100;
+            const signature = (compactLayout ? 'compact' : 'desktop') + ':' + (mobile ? 'mobile' : 'full') + ':'
+                + state.introKpiMetricKeys.map(function (key) {
+                    return key + ':' + ActivityKpis.getSnapshotMetricTotal(snapshot, key) + ':' + Number(values[key] || 0);
+                }).join('|');
+            if (introKpiPanel.dataset.widthSignature === signature) {
+                return;
+            }
+            state.introKpiMetricKeys.forEach(function (key) {
+                const totalElement = introKpiPanel.querySelector('.intro-kpi-total[data-intro-item="' + key + '"]');
+                if (!totalElement) {
+                    return;
+                }
+                const characterWidth = getIntroTotalCharacterWidth(snapshot, values, key, mobile);
+                totalElement.style.width = compactLayout
+                    ? 'min(100%, ' + characterWidth + 'ch)'
+                    : characterWidth + 'ch';
+            });
+            introKpiPanel.dataset.widthSignature = signature;
         }
 
         function getIntroUserFirstName() {
@@ -9727,6 +10007,7 @@
             introKpiPanel.hidden = false;
             syncIntroNavigation(true);
             ensureIntroKpiPanelStructure(activity);
+            syncIntroKpiTotalWidths(snapshot, values, mobile);
             introKpiPanel.classList.toggle('is-locked', numericProgress >= 1);
             const titleElement = introKpiPanel.querySelector('[data-intro-title]');
             if (titleElement) {
@@ -9742,7 +10023,8 @@
                 }
                 const progressiveTotal = ActivityKpis.getProgressiveTotal(snapshot, values, key, progress);
                 updateIntroTickerElement(key, formatIntroTotalValue(key, progressiveTotal, mobile), {
-                    force: forceUpdate
+                    force: forceUpdate,
+                    numericValue: progressiveTotal
                 });
             });
         }
@@ -9753,10 +10035,12 @@
                 introKpiPanel.innerHTML = '';
                 introKpiPanel.dataset.ready = 'false';
                 introKpiPanel.dataset.metricSignature = '';
+                introKpiPanel.dataset.widthSignature = '';
                 introKpiPanel.classList.remove('is-locked');
             }
             syncIntroNavigation(false);
             state.introKpiDisplayedValues.clear();
+            state.introKpiDisplayedNumericValues.clear();
             state.introKpiTickerUpdatedAt.clear();
             state.introKpiTickerElements.clear();
             state.introKpiPrimaryElements.clear();
@@ -9790,6 +10074,7 @@
 
         function renderRemainingIntroWorkouts(options) {
             if (state.introAllWorkoutsRendered) {
+                hideIntroKpiPanel();
                 if (!options || options.hideControl !== false) {
                     setIntroAnimationControl('');
                 }
@@ -9946,11 +10231,11 @@
                 state.introAnimationActive = true;
                 state.introSkipRequested = false;
                 setIntroAnimationControl('skip');
+                updateIntroKpiPanel(animatedSelection.animated[0].activity, 0);
+            } else {
+                hideIntroKpiPanel();
             }
             await StravaApp.flyIn(state.map, flyCenter);
-            if (animatedSelection.animated.length) {
-                updateIntroKpiPanel(animatedSelection.animated[0].activity, 0);
-            }
             await focusAnimatedArea(animatedSelection, lineStyle);
 
             if (animatedSelection.animated.length) {
@@ -9980,30 +10265,21 @@
                         state.renderedKeys.add(layer._stravaMeta.activityKey);
                     }
                 });
+                updateIntroKpiPanel(animatedSelection.animated[0].activity, 1);
                 state.introAnimationActive = false;
-                hideIntroKpiPanel();
-                if (!isMobileLayout()) {
-                    dismissTitle();
-                }
                 refreshFilterSummary();
                 state.introRemainingDescriptors = state.allDescriptors.filter(function (descriptor) {
                     return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
                 });
                 state.workoutNavigatorIndex = 0;
                 state.workoutNavigatorActive = true;
-                if (!sharedCollection && state.introRemainingDescriptors.length) {
+                if (!sharedCollection) {
                     setIntroAnimationControl('showAll');
                 } else {
                     setIntroAnimationControl('');
                 }
-                if (!state.introRemainingDescriptors.length || sharedCollection) {
-                    hideIntroKpiPanel();
-                }
             } else {
                 hideIntroKpiPanel();
-                if (!isMobileLayout()) {
-                    dismissTitle();
-                }
                 state.introRemainingDescriptors = state.allDescriptors.filter(function (descriptor) {
                     return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
                 });
