@@ -12,7 +12,7 @@ process.env.INTERVALS_CLIENT_ID = 'icu-client-id';
 process.env.INTERVALS_CLIENT_SECRET = 'icu-client-secret';
 process.env.INTERVALS_REDIRECT_URI = 'http://localhost:3000/api/intervals/callback';
 process.env.INTERVALS_CONNOR_ATHLETE_ID = 'a1001';
-process.env.INTERVALS_ENABLED_SLUGS = 'connor,matthew';
+process.env.INTERVALS_ENABLED_SLUGS = 'connor';
 process.env.INTERVALS_WEBHOOK_SECRET = 'icu-webhook-secret';
 process.env.PROVIDER_TOKEN_ENCRYPTION_KEY = 'test-provider-encryption-secret-with-32-characters';
 process.env.OWNER_SESSION_SECRET = 'test-owner-session-secret-with-at-least-thirty-two-characters';
@@ -288,7 +288,7 @@ test('OAuth state requests only ACTIVITY:READ and credentials are encrypted and 
     }), /does not match Connor/);
 });
 
-test('personal API keys are verified, encrypted, and bound to any enabled slug using Basic authentication', async () => {
+test('personal API keys are verified, encrypted, and bound without a static slug allowlist', async () => {
     const originalFetch = global.fetch;
     let authorization = '';
     global.fetch = async (url, options) => {
@@ -319,6 +319,246 @@ test('personal API keys are verified, encrypted, and bound to any enabled slug u
     } finally {
         global.fetch = originalFetch;
     }
+});
+
+test('existing-map onboarding preserves Strava data, returns an owner URL, and rotates the same athlete key', async (t) => {
+    const app = await createApp();
+    await memoryStore.users.updateOne({ slug: 'tim' }, {
+        refresh_token: 'tim-existing-strava-refresh',
+        connection_status: 'connected',
+        color: '#123456'
+    });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => server.once('listening', resolve));
+    t.after(() => new Promise((resolve) => server.close(resolve)));
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => Response.json({ id: 'i-tim', name: 'Tim Example' });
+    t.after(() => { global.fetch = originalFetch; });
+
+    const firstResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'existing',
+            confirmed: true,
+            slug: 'tim',
+            athlete_id: 'i-tim',
+            api_key: 'first-personal-key',
+            return_url: 'http://localhost:3000/icu_map.html'
+        }
+    });
+    const firstPayload = JSON.parse(firstResponse.body);
+    assert.equal(firstResponse.status, 200);
+    assert.equal(firstPayload.slug, 'tim');
+    assert.equal(firstResponse.body.includes('first-personal-key'), false);
+
+    const ownerUrl = new URL(firstPayload.map_url);
+    const ownerToken = new URLSearchParams(ownerUrl.hash.slice(1)).get('owner_token');
+    assert.equal(ownerUrl.pathname, '/icu_map.html');
+    assert.equal(ownerUrl.searchParams.get('user'), 'tim');
+    assert.equal(ownerUrl.searchParams.get('connected'), '1');
+    assert.equal(verifyOwnerToken(ownerToken, 'tim').athlete_id, 'i-tim');
+
+    let storedUser = await memoryStore.users.findOne({ slug: 'tim' });
+    let connection = await memoryStore.providerConnections.findOne({ connection_key: 'intervals_icu:tim' });
+    assert.equal(storedUser.refresh_token, 'tim-existing-strava-refresh');
+    assert.equal(storedUser.color, '#123456');
+    assert.equal(decryptAccessToken(connection), 'first-personal-key');
+    assert.equal(JSON.stringify(connection).includes('first-personal-key'), false);
+
+    const rotationResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'existing', confirmed: true, slug: 'tim', athlete_id: 'i-tim', api_key: 'rotated-personal-key',
+            return_url: 'http://localhost:3000/icu_map.html'
+        }
+    });
+    assert.equal(rotationResponse.status, 200);
+    connection = await memoryStore.providerConnections.findOne({ connection_key: 'intervals_icu:tim' });
+    storedUser = await memoryStore.users.findOne({ slug: 'tim' });
+    assert.equal(decryptAccessToken(connection), 'rotated-personal-key');
+    assert.equal(storedUser.refresh_token, 'tim-existing-strava-refresh');
+
+    const statusResponse = await request(server, '/api/intervals/user/tim/status');
+    assert.equal(statusResponse.status, 200);
+    assert.equal(JSON.parse(statusResponse.body).enabled, true);
+});
+
+test('new-map onboarding validates before creating and enables the stored connection', async (t) => {
+    const app = await createApp();
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => server.once('listening', resolve));
+    t.after(() => new Promise((resolve) => server.close(resolve)));
+
+    const originalFetch = global.fetch;
+    global.fetch = async (url, options) => {
+        const credentials = Buffer.from(String(options.headers.Authorization).replace(/^Basic /, ''), 'base64')
+            .toString('utf8');
+        if (credentials === 'API_KEY:bad-key') {
+            return new Response('{}', { status: 401 });
+        }
+        return Response.json({ id: 'i-avery', name: 'Avery Example' });
+    };
+    t.after(() => { global.fetch = originalFetch; });
+
+    const invalidNameResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'Avery2', last_name: 'Onboard',
+            athlete_id: 'i-avery', api_key: 'good-key'
+        }
+    });
+    assert.equal(invalidNameResponse.status, 400);
+    assert.equal(JSON.parse(invalidNameResponse.body).code, 'invalid_name');
+
+    const invalidKeyResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'Avery', last_name: 'Onboard',
+            athlete_id: 'i-avery', api_key: 'bad-key',
+            return_url: 'http://localhost:3000/icu_map.html'
+        }
+    });
+    assert.equal(invalidKeyResponse.status, 401);
+    assert.equal(await memoryStore.users.findOne({ slug: 'averyonboard' }), null);
+    assert.equal(await memoryStore.providerConnections.findOne({ connection_key: 'intervals_icu:averyonboard' }), null);
+
+    const mismatchResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'Mismatch', last_name: 'Friend',
+            athlete_id: 'i-someone-else', api_key: 'good-key',
+            return_url: 'http://localhost:3000/icu_map.html'
+        }
+    });
+    assert.equal(mismatchResponse.status, 409);
+    assert.equal(JSON.parse(mismatchResponse.body).code, 'athlete_mismatch');
+    assert.equal(await memoryStore.users.findOne({ slug: 'mismatchfriend' }), null);
+
+    const response = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'Avery', last_name: 'Onboard',
+            athlete_id: 'i-avery', api_key: 'good-key',
+            return_url: 'http://localhost:3000/icu_map.html'
+        }
+    });
+    const payload = JSON.parse(response.body);
+    assert.equal(response.status, 201);
+    assert.equal(payload.slug, 'averyonboard');
+    assert.equal(response.body.includes('good-key'), false);
+
+    const user = await memoryStore.users.findOne({ slug: 'averyonboard' });
+    const connection = await memoryStore.providerConnections.findOne({ connection_key: 'intervals_icu:averyonboard' });
+    assert.equal(user.display_name, 'Avery');
+    assert.equal(user.connection_status, 'not_connected');
+    assert.equal(connection.provider_athlete_id, 'i-avery');
+    assert.equal(decryptAccessToken(connection), 'good-key');
+
+    const statusResponse = await request(server, '/api/intervals/user/averyonboard/status');
+    assert.equal(statusResponse.status, 200);
+    assert.equal(JSON.parse(statusResponse.body).connected, true);
+
+    const duplicateResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'Avery', last_name: 'Onboard',
+            athlete_id: 'i-avery', api_key: 'good-key'
+        }
+    });
+    assert.equal(duplicateResponse.status, 409);
+    assert.equal(JSON.parse(duplicateResponse.body).code, 'slug_taken');
+});
+
+test('onboarding rejects unknown and conflicting ownership and rolls back a failed credential write', async (t) => {
+    const app = await createApp();
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => server.once('listening', resolve));
+    t.after(() => new Promise((resolve) => server.close(resolve)));
+
+    const profiles = {
+        'shared-key': { id: 'i-shared', name: 'Shared Athlete' },
+        'second-shared-key': { id: 'i-shared', name: 'Shared Athlete' },
+        'tim-first-key': { id: 'i-tim-one', name: 'Tim One' },
+        'tim-second-key': { id: 'i-tim-two', name: 'Tim Two' },
+        'rollback-key': { id: 'i-rollback', name: 'Rollback Friend' }
+    };
+    const originalFetch = global.fetch;
+    const originalEncryptionKey = process.env.PROVIDER_TOKEN_ENCRYPTION_KEY;
+    global.fetch = async (url, options) => {
+        const credentials = Buffer.from(String(options.headers.Authorization).replace(/^Basic /, ''), 'base64')
+            .toString('utf8');
+        return Response.json(profiles[credentials.replace(/^API_KEY:/, '')]);
+    };
+    t.after(() => {
+        global.fetch = originalFetch;
+        process.env.PROVIDER_TOKEN_ENCRYPTION_KEY = originalEncryptionKey;
+    });
+
+    const confirmationResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: { mode: 'existing', slug: 'tim', athlete_id: 'i-shared', api_key: 'shared-key' }
+    });
+    assert.equal(confirmationResponse.status, 400);
+    assert.equal(JSON.parse(confirmationResponse.body).code, 'confirmation_required');
+
+    const invalidSlugResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: { mode: 'existing', confirmed: true, slug: 'not a valid slug!', athlete_id: 'i-shared', api_key: 'shared-key' }
+    });
+    assert.equal(invalidSlugResponse.status, 400);
+    assert.equal(JSON.parse(invalidSlugResponse.body).code, 'invalid_slug');
+
+    const missingResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: { mode: 'existing', confirmed: true, slug: 'not-a-real-map', athlete_id: 'i-shared', api_key: 'shared-key' }
+    });
+    assert.equal(missingResponse.status, 404);
+    assert.equal(JSON.parse(missingResponse.body).code, 'user_not_found');
+
+    const firstResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'First', last_name: 'Friend',
+            athlete_id: 'i-shared', api_key: 'shared-key'
+        }
+    });
+    assert.equal(firstResponse.status, 201);
+    const secondResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'Second', last_name: 'Friend',
+            athlete_id: 'i-shared', api_key: 'second-shared-key'
+        }
+    });
+    assert.equal(secondResponse.status, 409);
+    assert.equal(JSON.parse(secondResponse.body).code, 'athlete_already_connected');
+    assert.equal(await memoryStore.users.findOne({ slug: 'secondfriend' }), null);
+
+    const timFirstResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: { mode: 'existing', confirmed: true, slug: 'tim', athlete_id: 'i-tim-one', api_key: 'tim-first-key' }
+    });
+    assert.equal(timFirstResponse.status, 200);
+    const timSecondResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: { mode: 'existing', confirmed: true, slug: 'tim', athlete_id: 'i-tim-two', api_key: 'tim-second-key' }
+    });
+    assert.equal(timSecondResponse.status, 409);
+    assert.equal(JSON.parse(timSecondResponse.body).code, 'slug_already_connected');
+
+    process.env.PROVIDER_TOKEN_ENCRYPTION_KEY = '';
+    const rollbackResponse = await request(server, '/api/intervals/register', {
+        method: 'POST',
+        body: {
+            mode: 'new', confirmed: true, first_name: 'Rollback', last_name: 'Friend',
+            athlete_id: 'i-rollback', api_key: 'rollback-key'
+        }
+    });
+    process.env.PROVIDER_TOKEN_ENCRYPTION_KEY = originalEncryptionKey;
+    assert.equal(rollbackResponse.status, 503);
+    assert.equal(await memoryStore.users.findOne({ slug: 'rollbackfriend' }), null);
+    assert.equal(await memoryStore.providerConnections.findOne({ connection_key: 'intervals_icu:rollbackfriend' }), null);
 });
 
 test('owner sessions reject expiry and mismatch', () => {

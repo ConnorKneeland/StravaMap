@@ -1,7 +1,6 @@
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const { connectDb, isMongoConnected } = require('./db');
-const { isIntervalsSlugEnabled } = require('./config/intervals');
 const { normalizeSlug } = require('./services/connection');
 const {
     PROVIDER,
@@ -39,9 +38,6 @@ async function provisionFromEnvironment() {
             'INTERVALS_SETUP_SLUG, INTERVALS_SETUP_ATHLETE_ID, and INTERVALS_SETUP_API_KEY are required'
         );
     }
-    if (!isIntervalsSlugEnabled(slug)) {
-        throw new Error(`Add ${slug} to INTERVALS_ENABLED_SLUGS before provisioning it`);
-    }
     const connection = await bindIntervalsApiKeyConnection(slug, athleteId, apiKey);
     return {
         slug: connection.user_slug,
@@ -54,8 +50,8 @@ async function provisionFromEnvironment() {
 
 async function createOwnerLinkForSlug(slugValue) {
     const slug = normalizeSlug(slugValue);
-    if (!slug || !isIntervalsSlugEnabled(slug)) {
-        throw new Error('Provide an enabled Intervals.icu slug');
+    if (!slug) {
+        throw new Error('Provide a valid Intervals.icu slug');
     }
     const connection = await getConnectionStore().findOne({ connection_key: `${PROVIDER}:${slug}` });
     if (!connection || connection.connection_status !== 'connected' || connection.needs_reconnect) {

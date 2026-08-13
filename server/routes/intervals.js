@@ -3,10 +3,11 @@ const express = require('express');
 const ActivityTypes = require('../../js/strava_activity_types');
 const { SNAPSHOT_SCHEMA_VERSION } = require('../activity_kpis');
 const { normalizeSlug } = require('../services/connection');
-const { getIntervalsConfig, isIntervalsSlugEnabled } = require('../config/intervals');
+const { getIntervalsConfig } = require('../config/intervals');
 const {
     PROVIDER,
     getConnectionStore,
+    isIntervalsSlugAccessible,
     createIntervalsOAuthState,
     claimIntervalsOAuthState,
     consumeIntervalsOAuthState,
@@ -19,6 +20,7 @@ const {
     requireIntervalsOwner,
     buildIntervalsConnectionStatus
 } = require('../services/intervals_auth');
+const { registerIntervalsAccount } = require('../services/intervals_registration');
 const {
     getIntervalsActivityStore,
     getIntervalsKpiStore,
@@ -143,9 +145,30 @@ router.get('/intervals/callback', async (req, res) => {
     }
 });
 
+router.post('/intervals/register', async (req, res) => {
+    try {
+        const result = await registerIntervalsAccount(req.body || {});
+        res.status(result.created ? 201 : 200).json({
+            slug: result.slug,
+            map_url: result.map_url
+        });
+    } catch (error) {
+        const status = Number(error && error.statusCode || 500);
+        if (status >= 500) {
+            console.error('[Intervals.icu Registration Failed]', error && error.message ? error.message : error);
+        }
+        res.status(status).json(Object.assign({
+            error: error && error.message
+                ? error.message
+                : 'Your Intervals.icu map could not be created. Please try again.',
+            code: error && error.code ? error.code : 'intervals_registration_failed'
+        }, error && error.details || {}));
+    }
+});
+
 router.get('/intervals/user/:slug/status', async (req, res) => {
     const slug = normalizeSlug(req.params.slug);
-    if (!slug || !isIntervalsSlugEnabled(slug)) {
+    if (!slug || !(await isIntervalsSlugAccessible(slug))) {
         res.status(404).json({ error: 'Intervals.icu is not enabled for this user' });
         return;
     }
@@ -168,7 +191,7 @@ router.post('/intervals/sync/:slug', requireIntervalsOwner, async (req, res) => 
 
 router.get('/intervals/activities', async (req, res) => {
     const slug = normalizeSlug(req.query.user);
-    if (!slug || !isIntervalsSlugEnabled(slug)) {
+    if (!slug || !(await isIntervalsSlugAccessible(slug))) {
         res.status(400).json({ error: 'A valid Intervals.icu user slug is required' });
         return;
     }
@@ -193,7 +216,7 @@ router.get('/intervals/activities', async (req, res) => {
 
 router.post('/intervals/import/strava-export/:slug', requireIntervalsOwner, async (req, res) => {
     const slug = normalizeSlug(req.params.slug);
-    if (!slug || !isIntervalsSlugEnabled(slug)) {
+    if (!slug || !(await isIntervalsSlugAccessible(slug))) {
         req.resume();
         res.status(404).json({ error: 'Intervals.icu is not enabled for this user' });
         return;
@@ -223,7 +246,7 @@ router.post('/intervals/import/strava-export/:slug', requireIntervalsOwner, asyn
 
 router.get('/intervals/users/:slug/activity-kpis', async (req, res) => {
     const slug = normalizeSlug(req.params.slug);
-    if (!slug || !isIntervalsSlugEnabled(slug)) {
+    if (!slug || !(await isIntervalsSlugAccessible(slug))) {
         res.status(404).json({ error: 'Intervals.icu is not enabled for this user' });
         return;
     }
@@ -238,7 +261,7 @@ router.get('/intervals/users/:slug/activity-kpis', async (req, res) => {
 router.get('/intervals/activities/:id', async (req, res) => {
     const id = getIntervalsActivityId(req);
     const slug = normalizeSlug(req.query.user);
-    if (!id || !slug || !isIntervalsSlugEnabled(slug)) {
+    if (!id || !slug || !(await isIntervalsSlugAccessible(slug))) {
         res.status(400).json({ error: 'A valid activity id and user slug are required' });
         return;
     }
@@ -332,7 +355,7 @@ function buildStreamResponse(activity, cached) {
 router.get('/intervals/activities/:id/streams', async (req, res) => {
     const id = getIntervalsActivityId(req);
     const slug = normalizeSlug(req.query.user);
-    if (!id || !slug || !isIntervalsSlugEnabled(slug)) {
+    if (!id || !slug || !(await isIntervalsSlugAccessible(slug))) {
         res.status(400).json({ error: 'A valid activity id and user slug are required' });
         return;
     }
@@ -385,7 +408,7 @@ router.post('/intervals/webhook', async (req, res) => {
             sendIntervalsError(res, error, 503);
             return;
         }
-        if (!connection || !isIntervalsSlugEnabled(connection.user_slug)) {
+        if (!connection || !(await isIntervalsSlugAccessible(connection.user_slug))) {
             res.status(403).json({ error: 'Webhook athlete is not connected' });
             return;
         }

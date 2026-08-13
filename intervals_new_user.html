@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create your Intervals.icu map</title>
+    <link rel="icon" href="img/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            color-scheme: dark;
+            --background: #07090d;
+            --panel: #11151c;
+            --panel-soft: #171c25;
+            --border: rgba(255, 255, 255, 0.12);
+            --text: #f8fafc;
+            --muted: #aab3c2;
+            --accent: #2f6fed;
+            --accent-hover: #4a82f0;
+            --accent-soft: rgba(47, 111, 237, 0.1);
+            --danger: #ff8f84;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 18px;
+            overflow-x: hidden;
+            background:
+                radial-gradient(circle at 12% 15%, rgba(47, 111, 237, 0.2), transparent 34rem),
+                radial-gradient(circle at 88% 86%, rgba(8, 145, 178, 0.13), transparent 30rem),
+                var(--background);
+            color: var(--text);
+            font-family: "Archivo", sans-serif;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: "Aptos Narrow", "Arial Narrow", sans-serif;
+            font-weight: 700;
+        }
+
+        main {
+            width: 100%;
+            max-width: 620px;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 18px;
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .brand-mark {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+            background: var(--accent);
+            box-shadow: 0 0 22px rgba(47, 111, 237, 0.72);
+            transform: rotate(45deg);
+        }
+
+        .card {
+            padding: clamp(26px, 6vw, 44px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            background: rgba(17, 21, 28, 0.94);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+            backdrop-filter: blur(16px);
+        }
+
+        .eyebrow {
+            margin: 0 0 8px;
+            color: #76a1ff;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(34px, 8vw, 52px);
+            line-height: 0.98;
+            letter-spacing: -0.045em;
+        }
+
+        .intro {
+            margin: 18px 0 24px;
+            color: var(--muted);
+            font-size: 17px;
+            line-height: 1.55;
+        }
+
+        .choice-grid {
+            display: grid;
+            gap: 14px;
+            margin-top: 28px;
+        }
+
+        .intervals-wordmark {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 0;
+            font-family: "Aptos Narrow", "Arial Narrow", sans-serif;
+            font-size: clamp(42px, 10vw, 64px);
+            font-weight: 800;
+            line-height: 0.95;
+            letter-spacing: -0.035em;
+        }
+
+        .intervals-wordmark::before {
+            width: 16px;
+            height: 16px;
+            border-radius: 5px;
+            background: var(--accent);
+            box-shadow: 0 0 24px rgba(47, 111, 237, 0.72);
+            content: "";
+            transform: rotate(45deg);
+        }
+
+        .choice-button {
+            width: 100%;
+            min-height: 0;
+            margin: 0;
+            padding: 19px 20px;
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            background: var(--panel-soft);
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+            transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+        }
+
+        .choice-button:hover,
+        .choice-button:focus-visible {
+            border-color: var(--accent);
+            outline: none;
+            background: var(--accent-soft);
+            transform: translateY(-1px);
+        }
+
+        .choice-title {
+            display: block;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            min-height: 36px;
+            margin: 0 0 18px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #a9c2ff;
+            cursor: pointer;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .back-button:hover {
+            color: #fff;
+        }
+
+        .plain-talk {
+            margin-bottom: 24px;
+            padding: 14px 16px;
+            border: 1px solid rgba(47, 111, 237, 0.32);
+            border-radius: 14px;
+            background: var(--accent-soft);
+            color: #dbe7ff;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .plain-talk ol {
+            margin: 8px 0 0;
+            padding-left: 20px;
+        }
+
+        .plain-talk li + li {
+            margin-top: 5px;
+        }
+
+        form {
+            display: grid;
+            gap: 18px;
+        }
+
+        .field,
+        .mode-fields {
+            display: grid;
+            gap: 8px;
+        }
+
+        .mode-fields {
+            gap: 18px;
+        }
+
+        label {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        label span,
+        .field-help {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.45;
+        }
+
+        input {
+            width: 100%;
+            min-height: 52px;
+            padding: 13px 15px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            outline: none;
+            background: var(--panel-soft);
+            color: var(--text);
+            font: inherit;
+            font-size: 17px;
+            transition: border-color 150ms ease, box-shadow 150ms ease;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(47, 111, 237, 0.15);
+        }
+
+        input::placeholder {
+            color: #758094;
+        }
+
+        a {
+            color: #a9c2ff;
+        }
+
+        .confirmation {
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            padding: 14px 15px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--panel-soft);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 650;
+            line-height: 1.45;
+        }
+
+        .confirmation:hover {
+            border-color: rgba(47, 111, 237, 0.7);
+        }
+
+        .confirmation input {
+            flex: 0 0 auto;
+            width: 18px;
+            height: 18px;
+            min-height: 18px;
+            margin: 1px 0 0;
+            padding: 0;
+            border: 0;
+            border-radius: 4px;
+            accent-color: var(--accent);
+            box-shadow: none;
+        }
+
+        .slug-preview {
+            min-height: 22px;
+            margin: -4px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .slug-preview code {
+            color: #fff;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        .submit-button {
+            min-height: 54px;
+            margin-top: 2px;
+            padding: 14px 18px;
+            border: 0;
+            border-radius: 13px;
+            background: var(--accent);
+            color: #fff;
+            cursor: pointer;
+            font: inherit;
+            font-size: 17px;
+            font-weight: 800;
+            transition: background 150ms ease, transform 150ms ease, opacity 150ms ease;
+        }
+
+        .submit-button:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .submit-button:disabled {
+            cursor: wait;
+            opacity: 0.68;
+        }
+
+        .error {
+            min-height: 22px;
+            margin: -4px 0 0;
+            color: var(--danger);
+            font-size: 14px;
+            font-weight: 650;
+            line-height: 1.45;
+        }
+
+        .fine-print {
+            margin: 20px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        @media (max-width: 520px) {
+            body {
+                align-items: flex-start;
+                padding-top: 20px;
+            }
+
+            .card {
+                border-radius: 19px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Make your map</div>
+        <section class="card" aria-labelledby="page-title">
+            <div id="choice-panel">
+                <h1 id="page-title" class="intervals-wordmark">Intervals.icu</h1>
+                <div class="choice-grid">
+                    <button class="choice-button" type="button" data-mode="existing">
+                        <span class="choice-title">I have an existing map</span>
+                    </button>
+                    <button class="choice-button" type="button" data-mode="new">
+                        <span class="choice-title">I want to make a map for myself</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="form-panel" hidden>
+                <button id="back-button" class="back-button" type="button">&larr; Back</button>
+                <p class="eyebrow">Bookmark your map link once done</p>
+                <h1 id="form-title">Connect Intervals.icu</h1>
+                <p id="form-intro" class="intro"></p>
+
+                <div id="existing-instructions" class="plain-talk" hidden>
+                    Paste your entire existing map URL. We will automatically find the map ID inside it.
+                    <ol>
+                        <li>Open your existing Make Your Map page.</li>
+                        <li>Copy the full URL from your browser's address bar.</li>
+                        <li>Paste the full URL below.</li>
+                    </ol>
+                </div>
+
+                <form id="intervals-user-form" novalidate>
+                    <div id="existing-fields" class="mode-fields" hidden>
+                        <div class="field">
+                            <label for="existing-slug">Your existing map URL</label>
+                            <input id="existing-slug" name="slug" type="url" inputmode="url" autocomplete="off" maxlength="500" placeholder="Paste your full map URL">
+                        </div>
+                        <p id="existing-slug-preview" class="slug-preview" aria-live="polite"></p>
+                    </div>
+
+                    <div id="new-fields" class="mode-fields" hidden>
+                        <div class="field">
+                            <label for="first-name">First name <span>(letters only)</span></label>
+                            <input id="first-name" name="first_name" type="text" autocomplete="given-name" maxlength="32" pattern="[A-Za-z]+" placeholder="First Name">
+                        </div>
+                        <div class="field">
+                            <label for="last-name">Last name <span>(letters only)</span></label>
+                            <input id="last-name" name="last_name" type="text" autocomplete="family-name" maxlength="32" pattern="[A-Za-z]+" placeholder="Last Name">
+                        </div>
+                        <p id="new-slug-preview" class="slug-preview" aria-live="polite"></p>
+                    </div>
+
+                    <div class="field">
+                        <label for="athlete-id">Intervals.icu Athlete ID</label>
+                        <input id="athlete-id" name="athlete_id" type="text" autocomplete="off" maxlength="128" placeholder="For example: i123456" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="api-key">Intervals.icu API Key</label>
+                        <input id="api-key" name="api_key" type="password" autocomplete="new-password" maxlength="512" placeholder="Personal API Key" spellcheck="false" required>
+                        <span class="field-help">Find your Athlete ID and personal API key in <a href="https://intervals.icu/settings" target="_blank" rel="noreferrer">Intervals.icu Settings</a>. The API key is stored encrypted.</span>
+                    </div>
+
+                    <label id="existing-confirmation-wrap" class="confirmation" for="existing-confirmation" hidden>
+                        <input id="existing-confirmation" type="checkbox">
+                        <span>I confirm the URL is my existing map and not someone else's.</span>
+                    </label>
+
+                    <label id="new-confirmation-wrap" class="confirmation" for="new-confirmation" hidden>
+                        <input id="new-confirmation" type="checkbox">
+                        <span>I agree to make this map</span>
+                    </label>
+
+                    <p id="form-error" class="error" role="alert" aria-live="assertive"></p>
+                    <button id="submit-button" class="submit-button" type="submit">Create my Intervals.icu map</button>
+                </form>
+
+                <p class="fine-print">Anyone with your map link can view cached activities. Only your temporary owner session can sync or edit the map.</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        (function () {
+            const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
+            const apiBase = isLocalHost
+                ? window.location.origin
+                : 'https://stravamap-production-7f28.up.railway.app';
+            const slugPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+            const namePattern = /^[A-Za-z]{1,32}$/;
+            const choicePanel = document.getElementById('choice-panel');
+            const formPanel = document.getElementById('form-panel');
+            const form = document.getElementById('intervals-user-form');
+            const formTitle = document.getElementById('form-title');
+            const formIntro = document.getElementById('form-intro');
+            const existingInstructions = document.getElementById('existing-instructions');
+            const existingFields = document.getElementById('existing-fields');
+            const newFields = document.getElementById('new-fields');
+            const existingSlugInput = document.getElementById('existing-slug');
+            const existingSlugPreview = document.getElementById('existing-slug-preview');
+            const firstNameInput = document.getElementById('first-name');
+            const lastNameInput = document.getElementById('last-name');
+            const newSlugPreview = document.getElementById('new-slug-preview');
+            const athleteIdInput = document.getElementById('athlete-id');
+            const apiKeyInput = document.getElementById('api-key');
+            const existingConfirmationWrap = document.getElementById('existing-confirmation-wrap');
+            const newConfirmationWrap = document.getElementById('new-confirmation-wrap');
+            const existingConfirmation = document.getElementById('existing-confirmation');
+            const newConfirmation = document.getElementById('new-confirmation');
+            const formError = document.getElementById('form-error');
+            const submitButton = document.getElementById('submit-button');
+            let mode = '';
+
+            function escapeHtml(value) {
+                return String(value).replace(/[&<>"']/g, function (character) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    }[character];
+                });
+            }
+
+            function deriveNewSlug() {
+                const firstName = firstNameInput.value.trim();
+                const lastName = lastNameInput.value.trim();
+                if (!namePattern.test(firstName) || !namePattern.test(lastName)) {
+                    return '';
+                }
+                return (firstName + lastName).toLowerCase();
+            }
+
+            function parseExistingSlug(value) {
+                const raw = String(value || '').trim();
+                if (!/^https?:\/\//i.test(raw)) {
+                    return '';
+                }
+                let candidate = '';
+                try {
+                    const parsed = new URL(raw);
+                    candidate = parsed.searchParams.get('user') || '';
+                } catch (error) {
+                    return '';
+                }
+                candidate = String(candidate).trim().toLowerCase();
+                return slugPattern.test(candidate) ? candidate : '';
+            }
+
+            function updateSlugPreviews() {
+                formError.textContent = '';
+                const existingSlug = parseExistingSlug(existingSlugInput.value);
+                existingSlugPreview.innerHTML = existingSlug
+                    ? 'We found your map ID: <code>' + escapeHtml(existingSlug) + '</code>.'
+                    : '';
+                const newSlug = deriveNewSlug();
+                newSlugPreview.innerHTML = newSlug
+                    ? 'Your map link will use <code>' + escapeHtml(newSlug) + '</code>.'
+                    : '';
+            }
+
+            function setMode(nextMode) {
+                mode = nextMode;
+                choicePanel.hidden = true;
+                formPanel.hidden = false;
+                formError.textContent = '';
+                existingInstructions.hidden = mode !== 'existing';
+                existingFields.hidden = mode !== 'existing';
+                newFields.hidden = mode !== 'new';
+                existingConfirmationWrap.hidden = mode !== 'existing';
+                newConfirmationWrap.hidden = mode !== 'new';
+                existingConfirmation.checked = false;
+                newConfirmation.checked = false;
+                existingConfirmation.required = mode === 'existing';
+                newConfirmation.required = mode === 'new';
+                existingSlugInput.required = mode === 'existing';
+                firstNameInput.required = mode === 'new';
+                lastNameInput.required = mode === 'new';
+                formTitle.textContent = mode === 'existing' ? 'Connect your existing map' : 'Create your map';
+                formIntro.textContent = mode === 'existing'
+                    ? 'Paste your current map URL, then connect your Intervals.icu account.'
+                    : 'Enter your name, then connect your Intervals.icu account.';
+                window.setTimeout(function () {
+                    (mode === 'existing' ? existingSlugInput : firstNameInput).focus();
+                }, 0);
+            }
+
+            function resetToChoices() {
+                mode = '';
+                formPanel.hidden = true;
+                choicePanel.hidden = false;
+                formError.textContent = '';
+                document.querySelector('[data-mode="existing"]').focus();
+            }
+
+            document.querySelectorAll('[data-mode]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    setMode(button.getAttribute('data-mode'));
+                });
+            });
+            document.getElementById('back-button').addEventListener('click', resetToChoices);
+            existingSlugInput.addEventListener('input', updateSlugPreviews);
+            firstNameInput.addEventListener('input', updateSlugPreviews);
+            lastNameInput.addEventListener('input', updateSlugPreviews);
+
+            form.addEventListener('submit', async function (event) {
+                event.preventDefault();
+                formError.textContent = '';
+
+                const athleteId = athleteIdInput.value.trim();
+                const apiKey = apiKeyInput.value.trim();
+                if (!athleteId || !apiKey) {
+                    formError.textContent = 'Enter both your Intervals.icu Athlete ID and API Key.';
+                    return;
+                }
+
+                const payload = {
+                    mode: mode,
+                    athlete_id: athleteId,
+                    api_key: apiKey
+                };
+                if (mode === 'existing') {
+                    payload.slug = parseExistingSlug(existingSlugInput.value);
+                    if (!payload.slug) {
+                        formError.textContent = 'Paste the full URL for your existing map. It must include your map ID.';
+                        return;
+                    }
+                    if (!existingConfirmation.checked) {
+                        formError.textContent = 'Confirm that this URL is your existing map and not someone else\'s.';
+                        return;
+                    }
+                } else if (mode === 'new') {
+                    payload.first_name = firstNameInput.value.trim();
+                    payload.last_name = lastNameInput.value.trim();
+                    if (!deriveNewSlug()) {
+                        formError.textContent = 'Enter a first and last name using letters only.';
+                        return;
+                    }
+                    if (!newConfirmation.checked) {
+                        formError.textContent = 'You must agree to make this map.';
+                        return;
+                    }
+                } else {
+                    resetToChoices();
+                    return;
+                }
+                payload.confirmed = true;
+
+                const returnUrl = new URL('icu_map.html', window.location.href);
+                returnUrl.search = '';
+                returnUrl.hash = '';
+                payload.return_url = returnUrl.toString();
+
+                submitButton.disabled = true;
+                submitButton.textContent = 'Checking your Intervals.icu account...';
+                try {
+                    const response = await fetch(apiBase + '/api/intervals/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json().catch(function () { return {}; });
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Your Intervals.icu map could not be created. Please try again.');
+                    }
+                    if (!result.map_url) {
+                        throw new Error('Your map was connected, but its link was not returned. Please try again.');
+                    }
+
+                    apiKeyInput.value = '';
+                    submitButton.textContent = 'Opening your map...';
+                    window.location.assign(result.map_url);
+                } catch (error) {
+                    formError.textContent = error && error.message
+                        ? error.message
+                        : 'Your Intervals.icu map could not be created. Please try again.';
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Create my Intervals.icu map';
+                }
+            });
+        }());
+    </script>
+</body>
+
+</html>

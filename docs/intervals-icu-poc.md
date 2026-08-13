@@ -1,6 +1,12 @@
-# Intervals.icu Map Proof-of-Concept Operations Guide
+# Intervals.icu Map Operations Guide
 
-The proof of concept currently uses Intervals.icu personal API keys instead of OAuth. This avoids OAuth application registration while the map is being tested with a small number of manually approved accounts.
+The Intervals.icu map uses personal API keys for a small friends-and-family onboarding flow. This avoids requiring a registered OAuth application while still verifying each Intervals.icu account before it can be connected.
+
+Start onboarding at:
+
+```text
+https://fluffy-druid-f9a1d0.netlify.app/intervals_new_user.html
+```
 
 Each Intervals.icu account is assigned its own public map slug:
 
@@ -19,40 +25,35 @@ The corresponding Strava URLs and Strava synchronization remain unchanged.
 
 ## What the API-key flow does
 
-Intervals.icu personal API keys use HTTP Basic authentication. The username is the literal value `API_KEY` and the password is the personal API key. The server uses `/api/v1/athlete/0` to verify that the key belongs to the Athlete ID supplied during provisioning.
+Intervals.icu personal API keys use HTTP Basic authentication. The username is the literal value `API_KEY` and the password is the personal API key. The server uses `/api/v1/athlete/0` to verify that the key belongs to the Athlete ID supplied during onboarding.
 
 After verification, the server:
 
-- Links the Intervals.icu Athlete ID to one approved user slug.
+- Links the Intervals.icu Athlete ID to one stored user slug.
 - Encrypts the personal API key with AES-256-GCM in `provider_connections`.
 - Stores `auth_type: "api_key"` so synchronization uses Basic authentication.
 - Rejects an Athlete ID already assigned to another slug.
 - Rejects replacing an existing slug with a different athlete, preventing activity data from two accounts from being mixed.
-- Produces a signed owner link that is valid for eight hours.
+- Returns a signed owner link that is valid for eight hours.
 
-The personal API key is never included in a map URL, returned by an API endpoint, or sent to the browser. Personal API keys are more powerful than an OAuth `ACTIVITY:READ` token; although this code calls only activity read endpoints, keys must be handled like passwords.
+The personal API key is accepted only in the HTTPS registration request. It is never included in a map URL, returned by an API endpoint, or logged by the application. Personal API keys are more powerful than an OAuth `ACTIVITY:READ` token; although this code calls only activity read endpoints, keys must be handled like passwords.
 
 ## Permanent Railway variables
 
 Add these variables to the Railway service:
 
 ```text
-INTERVALS_ENABLED_SLUGS=connor
 PROVIDER_TOKEN_ENCRYPTION_KEY=<at least 32 random characters>
 OWNER_SESSION_SECRET=<a different value with at least 32 random characters>
 INTERVALS_SYNC_OLDEST=1970-01-01
 FRONTEND_BASE_URL=https://fluffy-druid-f9a1d0.netlify.app
 ```
 
-List every approved ICU slug in `INTERVALS_ENABLED_SLUGS`, separated by commas. For example:
+Generate independent random values for the encryption and owner-session secrets. Do not reuse a MongoDB password, Strava secret, API key, or OAuth-state secret.
 
-```text
-INTERVALS_ENABLED_SLUGS=connor,matthew,testaccount
-```
+Personal API-key onboarding does not use `INTERVALS_ENABLED_SLUGS`. Once a verified connection is stored, that slug is eligible for the Intervals map, status, sync, and widget routes. The variable remains only as an optional rollout control for the legacy Connor-only OAuth path.
 
-Do not use `*` in production. Generate independent random values for the encryption and owner-session secrets. Do not reuse a MongoDB password, Strava secret, API key, or OAuth-state secret.
-
-The following OAuth variables are not required for API-key testing:
+The following OAuth variables are not required for personal API-key onboarding:
 
 ```text
 INTERVALS_CLIENT_ID
@@ -71,13 +72,22 @@ The account owner must sign in to Intervals.icu and open **Settings → Develope
 1. The Intervals.icu Athlete ID exactly as displayed. Some IDs begin with `i`; older IDs might not.
 2. The personal API key.
 
-Never paste the API key into GitHub, a frontend file, a map URL, chat, or a shell command argument. If it is exposed, regenerate it immediately in Intervals.icu.
+Enter the key only on the onboarding page. Never paste it into GitHub, a frontend file, a map URL, chat, or a shell command argument. If it is exposed, regenerate it immediately in Intervals.icu.
 
-## Provision one slug
+## Onboard a map
 
-First, add the slug to `INTERVALS_ENABLED_SLUGS` and allow Railway to deploy that variable change.
+Open `intervals_new_user.html` and choose one of the two paths:
 
-Next, temporarily add these three variables to the Railway service:
+- **I have an existing map:** Paste the entire existing Make Your Map URL. The page extracts the `user` value automatically, and the user must confirm that the URL belongs to them. The map ID must already exist in the `users` collection. Connecting Intervals.icu does not alter that user's Strava credentials, map settings, or Strava activities.
+- **I want to make a map for myself:** Enter a first and last name and agree to create the map. The server derives the lowercase `firstnamelastname` slug using the same validation and defaults as Strava onboarding.
+
+Both paths require the Intervals.icu Athlete ID, personal API key, and their mode-specific confirmation checkbox. On submit, `POST /api/intervals/register` verifies the confirmation and the key/athlete match before creating or changing records. A new-user failure leaves no partial user or provider connection. Re-entering the same slug and Athlete ID is allowed and rotates the stored key; changing the athlete assigned to a slug is refused.
+
+After registration, the browser opens the returned owner link. The owner token is placed in `sessionStorage` and removed from the visible URL immediately. The map then performs the initial synchronization and caches the results in MongoDB for future visits.
+
+## Administrative provisioning fallback
+
+The command-line provisioner remains available for recovery or administration. Temporarily add these three variables to the Railway service:
 
 ```text
 INTERVALS_SETUP_SLUG=connor
@@ -104,11 +114,11 @@ Copy the `ownerLink`, then immediately delete all three `INTERVALS_SETUP_*` vari
 
 Open the owner link in the browser that should be allowed to synchronize and edit the map. The signed owner token is placed in `sessionStorage` and removed from the visible URL immediately. Opening the connected map starts the initial synchronization; provisioning by itself does not start a sync.
 
-Repeat this process with a different enabled slug and that account's own Athlete ID and API key to test another Intervals.icu account.
-
 ## Create another owner link
 
-Owner browser sessions expire after eight hours. To authorize the browser again, open the Railway service shell and run:
+Owner browser sessions expire after eight hours. The user can submit the existing-map onboarding path again with the same slug, Athlete ID, and API key to receive a new owner session. This also safely replaces the encrypted copy of the same key.
+
+An administrator can instead open the Railway service shell and run:
 
 ```sh
 npm run intervals:owner-link -- connor
@@ -123,9 +133,9 @@ The ICU map allows up to ten minutes for background synchronization and large ca
 ## Initial synchronization and smoke test
 
 1. Deploy the GitHub changes to Railway and Netlify. Deployment does not initiate an ICU sync.
-2. Confirm `/api/health` reports `intervals.configured: true` and lists the intended enabled slugs.
-3. Provision the account and remove the temporary setup variables.
-4. Open the generated owner link.
+2. Confirm `/api/health` reports `intervals.configured: true`.
+3. Open `intervals_new_user.html` and complete one onboarding branch.
+4. Confirm the browser redirects to the generated owner map URL.
 5. Monitor `GET /api/intervals/user/<slug>/status` and Railway logs until `backfillComplete` is true.
 6. Compare `totalActivities` with the eligible directly sourced activity count in Intervals.icu. Hidden responses, incomplete responses, and records with `source: "STRAVA"` are intentionally excluded.
 7. Verify recent playback, charts, details, intervals, line settings, notes, collections, shared collections, and Garmin attribution.
@@ -177,10 +187,11 @@ If Intervals.icu returns `401` or `403` for a personal API-key connection, the s
 To rotate or replace a key for the same Athlete ID and slug:
 
 1. Generate the replacement key in Intervals.icu.
-2. Temporarily restore the three `INTERVALS_SETUP_*` Railway variables.
-3. Run `npm run provision:intervals-api-key` again.
-4. Delete the temporary variables again.
-5. Open the newly generated owner link.
+2. Open `intervals_new_user.html` and choose **I already have a map**.
+3. Enter the same slug and Athlete ID with the replacement key.
+4. Submit the form and open the returned owner map.
+
+The administrative provisioning command can perform the same rotation when browser onboarding is unavailable.
 
 Provisioning intentionally refuses to attach a different Athlete ID to a slug that already contains another account's data. Use a new slug for a different account. Deleting or reassigning an existing connection and its cached activities should be handled as a separate, deliberate administrative operation.
 
@@ -193,7 +204,7 @@ Provisioning intentionally refuses to attach a different Athlete ID to a slug th
 - Intervals.icu activity IDs remain strings throughout the API and browser.
 - The existing Strava `activities` collection is never read, written, or deleted by ICU synchronization or Strava-export import.
 - A Strava webhook deletion is retained as an upstream-deleted marker instead of removing the stored workout document.
-- API-key testing uses manual synchronization rather than the OAuth application's webhook flow.
+- Personal API-key connections synchronize from the owner map rather than using the OAuth application's webhook flow.
 
 ## MongoDB collections
 
@@ -206,6 +217,7 @@ The existing Strava `activities` and `activity_kpi_snapshots` collections are no
 ## Useful endpoints
 
 ```text
+POST  /api/intervals/register
 GET   /api/intervals/user/:slug/status
 POST  /api/intervals/sync/:slug
 POST  /api/intervals/import/strava-export/:slug
