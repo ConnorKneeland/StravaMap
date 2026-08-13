@@ -10,6 +10,7 @@ const {
     parseWidgetIndex,
     serializeScriptPayload,
     buildWidgetActivityPayload,
+    addLegacyWidgetRoute,
     getWidgetActivity
 } = require('../routes/widget');
 
@@ -31,6 +32,7 @@ test('widget query rejects missing slugs and invalid indices', () => {
     assert.throws(() => MapWidget.parseWidgetRequest('https://example.com/sMap_Widget.html'), /valid user slug/);
     assert.throws(() => MapWidget.parseWidgetRequest('https://example.com/sMap_Widget.html?user=connor&index=-1'), /whole number/);
     assert.throws(() => MapWidget.parseWidgetRequest('https://example.com/sMap_Widget.html?user=connor&index=1.5'), /whole number/);
+    assert.throws(() => MapWidget.parseWidgetRequest('https://example.com/sMap_Widget.html?user=connor&index=100'), /too large/);
 });
 
 test('widget selects activities newest-first without mutating the response', () => {
@@ -43,6 +45,14 @@ test('widget selects activities newest-first without mutating the response', () 
     assert.equal(MapWidget.selectIndexedActivity(activities, 1).id, 2);
     assert.deepEqual(activities.map((activity) => activity.id), [2, 1, 3]);
     assert.throws(() => MapWidget.selectIndexedActivity(activities, 3), /not available/);
+});
+
+test('widget fallback explicitly opts into the paginated activity-list contract', () => {
+    assert.deepEqual(MapWidget.buildActivityListQuery('connor', 2), {
+        user: 'connor',
+        limit: 3,
+        activity_list_version: 2
+    });
 });
 
 test('widget KPI values use fixed workout formats', () => {
@@ -90,6 +100,7 @@ test('widget loader builds the provider activity-script URL from page parameters
 test('widget backend index and script serialization reject unsafe values', () => {
     assert.equal(parseWidgetIndex('0'), 0);
     assert.equal(parseWidgetIndex('42'), 42);
+    assert.equal(parseWidgetIndex('100'), null);
     assert.equal(parseWidgetIndex('-1'), null);
     assert.equal(parseWidgetIndex('1.5'), null);
     assert.equal(serializeScriptPayload({ name: '</script>\u2028' }), '{"name":"\\u003c/script>\\u2028"}');
@@ -110,6 +121,26 @@ test('widget backend payload excludes heavy workout streams when a summary route
     assert.equal(payload.stream_latlng, undefined);
     assert.equal(payload.stream_data, undefined);
     assert.equal(payload.laps, undefined);
+});
+
+test('widget makes a targeted legacy route read only when a compact summary is missing', async () => {
+    let readCount = 0;
+    const store = {
+        findOne: async (_filter, options) => {
+            readCount += 1;
+            assert.deepEqual(options.select, { _id: 0, 'stream_data.latlng': 1, stream_latlng: 1 });
+            return { stream_data: { latlng: [[38.5, -120.2], [40.7, -120.95]] } };
+        }
+    };
+    const legacy = await addLegacyWidgetRoute(store, { user_slug: 'tim', strava_id: 1 }, {
+        user_slug: 'tim', strava_id: 1
+    });
+    assert.ok(legacy.summary_polyline);
+    assert.equal(readCount, 1);
+
+    const compact = { user_slug: 'tim', strava_id: 2, summary_polyline: 'already-small' };
+    assert.equal(await addLegacyWidgetRoute(store, { user_slug: 'tim', strava_id: 2 }, compact), compact);
+    assert.equal(readCount, 1);
 });
 
 test('preloaded widget payload must match the page request', () => {

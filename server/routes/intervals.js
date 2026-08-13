@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const express = require('express');
 const ActivityTypes = require('../../js/strava_activity_types');
 const { SNAPSHOT_SCHEMA_VERSION } = require('../activity_kpis');
+const { normalizeStreamKeys } = require('../stream_config');
 const { normalizeSlug } = require('../services/connection');
 const { getIntervalsConfig } = require('../config/intervals');
 const {
@@ -23,6 +24,7 @@ const {
 const { registerIntervalsAccount } = require('../services/intervals_registration');
 const {
     getIntervalsActivityStore,
+    getIntervalsActivityStreamStore,
     getIntervalsKpiStore,
     fetchIntervalsActivityDetail,
     fetchIntervalsActivityStreams,
@@ -37,6 +39,16 @@ const {
     saveRequestToTemporaryZip,
     removeTemporaryZip
 } = require('../services/strava_export_import');
+const {
+    ActivityPageError,
+    INTERVALS_SUMMARY_FIELDS,
+    STREAM_SAMPLE_FIELDS,
+    findActivityPage,
+    findLegacyActivities,
+    parseActivityIds,
+    stripStreamSamples,
+    useLegacyActivityListContract
+} = require('../activity_pagination');
 
 const router = express.Router();
 
@@ -189,29 +201,60 @@ router.post('/intervals/sync/:slug', requireIntervalsOwner, async (req, res) => 
     }
 });
 
-router.get('/intervals/activities', async (req, res) => {
+router.get('/intervals/activities', async (req, res, next) => {
     const slug = normalizeSlug(req.query.user);
     if (!slug || !(await isIntervalsSlugAccessible(slug))) {
         res.status(400).json({ error: 'A valid Intervals.icu user slug is required' });
         return;
     }
-    const filter = { user_slug: slug };
+    const filter = { user_slug: slug, dedupe_hidden: { $ne: true } };
     if (req.query.from || req.query.to) {
         filter.start_date = {};
         if (req.query.from) filter.start_date.$gte = req.query.from;
         if (req.query.to) filter.start_date.$lte = req.query.to;
     }
-    let activities = (await getIntervalsActivityStore().find(filter, { sort: { start_date: -1 } }))
-        .filter((activity) => activity.dedupe_hidden !== true);
     const requestedTypes = parseList(req.query.types || req.query.type)
-        .map((value) => ActivityTypes.normalizeActivityTypeKey(value));
+        .map((value) => ActivityTypes.normalizeActivityTypeKey(value))
+        .filter(Boolean);
     if (requestedTypes.length) {
-        activities = activities.filter((activity) => requestedTypes.includes(ActivityTypes.normalizeActivityTypeKey(activity)));
+        const requestedTypeKeys = Array.from(new Set(requestedTypes));
+        filter.$or = [
+            { activity_type_override: { $in: requestedTypeKeys } },
+            {
+                activity_type_override: { $in: ['', null] },
+                activity_type_key: { $in: requestedTypeKeys }
+            },
+            {
+                activity_type_override: { $exists: false },
+                activity_type_key: { $in: requestedTypeKeys }
+            }
+        ];
     }
-    if (req.query.limit) {
-        activities = activities.slice(0, Math.max(0, Number(req.query.limit) || 0));
+    try {
+        const ids = parseActivityIds(req.query.ids, 'intervals_icu');
+        if (ids.length) filter.intervals_activity_id = { $in: ids };
+        if (useLegacyActivityListContract(req.query)) {
+            const records = await findLegacyActivities({
+                store: getIntervalsActivityStore(), filter, fields: INTERVALS_SUMMARY_FIELDS, query: req.query
+            });
+            res.json(records);
+            return;
+        }
+        res.json(await findActivityPage({
+            store: getIntervalsActivityStore(),
+            filter,
+            provider: 'intervals_icu',
+            idField: 'intervals_activity_id',
+            fields: INTERVALS_SUMMARY_FIELDS,
+            query: req.query
+        }));
+    } catch (error) {
+        if (error instanceof ActivityPageError) {
+            res.status(error.statusCode).json({ error: error.message, code: error.code });
+            return;
+        }
+        next(error);
     }
-    res.json(activities);
 });
 
 router.post('/intervals/import/strava-export/:slug', requireIntervalsOwner, async (req, res) => {
@@ -265,7 +308,14 @@ router.get('/intervals/activities/:id', async (req, res) => {
         res.status(400).json({ error: 'A valid activity id and user slug are required' });
         return;
     }
-    let activity = await getIntervalsActivityStore().findOne({ user_slug: slug, intervals_activity_id: id });
+    const detailProjection = STREAM_SAMPLE_FIELDS.reduce((projection, field) => {
+        projection[field] = 0;
+        return projection;
+    }, {});
+    let activity = await getIntervalsActivityStore().findOne(
+        { user_slug: slug, intervals_activity_id: id },
+        { select: detailProjection }
+    );
     const hydrationRequested = isTruthy(req.query.hydrate) || isTruthy(req.query.refresh);
     if (hydrationRequested && hasOwnerAccess(req, slug)) {
         try {
@@ -279,7 +329,7 @@ router.get('/intervals/activities/:id', async (req, res) => {
         res.status(404).json({ error: 'Activity not found in the public cache' });
         return;
     }
-    res.json(activity);
+    res.json(stripStreamSamples(activity));
 });
 
 router.patch('/intervals/activities/:id', requireIntervalsOwner, async (req, res) => {
@@ -327,29 +377,43 @@ router.patch('/intervals/activities/:id', requireIntervalsOwner, async (req, res
     if (Object.prototype.hasOwnProperty.call(updates, 'activity_type_override')) {
         await recomputeIntervalsKpis(slug);
     }
-    res.json(updated);
+    res.json(stripStreamSamples(updated));
 });
 
 function buildStreamResponse(activity, cached) {
     const streams = activity.stream_data || {};
     return {
+        activity_id: activity.intervals_activity_id,
         id: activity.intervals_activity_id,
         intervals_activity_id: activity.intervals_activity_id,
-        stream_resolution: activity.stream_resolution || 'high',
-        stream_series_type: activity.stream_series_type || 'time',
-        stream_data: streams,
+        provider: 'intervals_icu',
         streams,
         stream_keys: activity.stream_keys || Object.keys(streams),
-        stream_requested_keys: activity.stream_requested_keys || [],
-        stream_metadata: activity.stream_metadata || {},
-        stream_latlng: streams.latlng || activity.stream_latlng || [],
-        stream_velocity_smooth: streams.velocity_smooth || activity.stream_velocity_smooth || [],
-        stream_time: streams.time || activity.stream_time || [],
-        latlng: streams.latlng || activity.stream_latlng || [],
-        velocity_smooth: streams.velocity_smooth || activity.stream_velocity_smooth || [],
-        time: streams.time || activity.stream_time || [],
+        requested_keys: activity.stream_requested_keys || [],
+        resolution: activity.stream_resolution || 'high',
+        series_type: activity.stream_series_type || 'time',
+        metadata: activity.stream_metadata || {},
+        fetched_at: activity.stream_fetched_at || null,
         cached: Boolean(cached)
     };
+}
+
+function hasStreamSamples(activity) {
+    return Boolean(activity && activity.stream_data
+        && Object.values(activity.stream_data).some((values) => Array.isArray(values) && values.length));
+}
+
+function hasRichStreamSamples(activity) {
+    return Boolean(activity && activity.stream_data
+        && Object.entries(activity.stream_data).some(([key, values]) => (
+            key !== 'latlng' && Array.isArray(values) && values.length
+        )));
+}
+
+function hasRequestedIntervalsStreamSamples(activity, requestedKeys) {
+    if (!requestedKeys.length) return hasRichStreamSamples(activity);
+    return requestedKeys.every((key) => Array.isArray(activity && activity.stream_data && activity.stream_data[key])
+        && activity.stream_data[key].length);
 }
 
 router.get('/intervals/activities/:id/streams', async (req, res) => {
@@ -359,20 +423,56 @@ router.get('/intervals/activities/:id/streams', async (req, res) => {
         res.status(400).json({ error: 'A valid activity id and user slug are required' });
         return;
     }
-    let activity = await getIntervalsActivityStore().findOne({ user_slug: slug, intervals_activity_id: id });
+    const filter = { user_slug: slug, intervals_activity_id: id };
+    const requestedKeys = normalizeStreamKeys(req.query.keys);
+    const activityStore = getIntervalsActivityStore();
+    const streamStore = getIntervalsActivityStreamStore();
+    const activity = await activityStore.findOne(filter, {
+        select: { _id: 0, user_slug: 1, intervals_activity_id: 1 }
+    });
     if (!activity) {
         res.status(404).json({ error: 'Activity not found' });
         return;
     }
-    const hasStreams = activity.stream_data && Object.keys(activity.stream_data).some((key) => key !== 'latlng');
-    if ((!activity.stream_fetched_at || isTruthy(req.query.refresh)) && hasOwnerAccess(req, slug)) {
-        try {
-            activity = await fetchIntervalsActivityStreams(slug, id);
-        } catch (error) {
-            if (!activity.stream_data) return sendIntervalsError(res, error, 503);
+    let streamActivity = await streamStore.findOne(filter);
+    if (!streamActivity) {
+        streamActivity = await activityStore.findOne(filter, {
+            select: {
+                _id: 0, intervals_activity_id: 1, stream_resolution: 1,
+                stream_series_type: 1, stream_data: 1, stream_keys: 1,
+                stream_requested_keys: 1, stream_metadata: 1, stream_latlng: 1,
+                stream_velocity_smooth: 1, stream_time: 1, stream_fetched_at: 1
+            }
+        });
+        if (streamActivity && !hasStreamSamples(streamActivity)) {
+            const legacyStreams = {};
+            if (Array.isArray(streamActivity.stream_latlng) && streamActivity.stream_latlng.length) {
+                legacyStreams.latlng = streamActivity.stream_latlng;
+            }
+            if (Array.isArray(streamActivity.stream_velocity_smooth) && streamActivity.stream_velocity_smooth.length) {
+                legacyStreams.velocity_smooth = streamActivity.stream_velocity_smooth;
+            }
+            if (Array.isArray(streamActivity.stream_time) && streamActivity.stream_time.length) {
+                legacyStreams.time = streamActivity.stream_time;
+            }
+            streamActivity.stream_data = legacyStreams;
         }
     }
-    res.json(buildStreamResponse(activity, hasStreams));
+    let servedFromCache = hasStreamSamples(streamActivity);
+    if ((isTruthy(req.query.refresh)
+        || !hasRequestedIntervalsStreamSamples(streamActivity, requestedKeys)) && hasOwnerAccess(req, slug)) {
+        try {
+            streamActivity = await fetchIntervalsActivityStreams(slug, id);
+            servedFromCache = false;
+        } catch (error) {
+            if (!hasStreamSamples(streamActivity)) return sendIntervalsError(res, error, 503);
+            servedFromCache = true;
+        }
+    }
+    res.json(buildStreamResponse(
+        streamActivity || { intervals_activity_id: id, stream_data: {} },
+        servedFromCache
+    ));
 });
 
 function timingSafeSecret(received, expected) {

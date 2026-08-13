@@ -7,6 +7,7 @@ const {
     recomputeActivityKpiSnapshots,
     getUserStore,
     getActivityStore,
+    getActivityStreamStore,
     getActivityKpiSnapshotStore
 } = require('../services/sync');
 const {
@@ -16,6 +17,16 @@ const {
 const { isMongoConnected } = require('../db');
 const ActivityTypes = require('../../js/strava_activity_types');
 const { SNAPSHOT_SCHEMA_VERSION } = require('../activity_kpis');
+const {
+    ActivityPageError,
+    STRAVA_SUMMARY_FIELDS,
+    STREAM_SAMPLE_FIELDS,
+    findActivityPage,
+    findLegacyActivities,
+    parseActivityIds,
+    stripStreamSamples,
+    useLegacyActivityListContract
+} = require('../activity_pagination');
 const {
     normalizeSlug,
     isUserConnected,
@@ -61,6 +72,20 @@ function buildActivityFilter(query) {
             filter.start_date.$lte = query.to;
         }
     }
+    const requestedTypeKeys = getRequestedActivityTypeKeys(query);
+    if (requestedTypeKeys.length) {
+        filter.$or = [
+            { activity_type_override: { $in: requestedTypeKeys } },
+            {
+                activity_type_override: { $in: ['', null] },
+                activity_type_key: { $in: requestedTypeKeys }
+            },
+            {
+                activity_type_override: { $exists: false },
+                activity_type_key: { $in: requestedTypeKeys }
+            }
+        ];
+    }
     return filter;
 }
 
@@ -85,10 +110,7 @@ async function findActivitiesForQuery(query, options) {
     if (requestedTypeKeys.length && requestedLimit !== null) {
         delete findOptions.limit;
     }
-    let activities = await getActivityStore().find(buildActivityFilter(query || {}), findOptions);
-    activities = requestedTypeKeys.length
-        ? activities.filter((activity) => matchesRequestedActivityTypes(activity, requestedTypeKeys))
-        : activities;
+    const activities = await getActivityStore().find(buildActivityFilter(query || {}), findOptions);
     return requestedLimit !== null ? activities.slice(0, requestedLimit) : activities;
 }
 
@@ -197,56 +219,29 @@ function getActivityStreamData(activity) {
     return streamData;
 }
 
-function hasLegacyStreamCache(activity, streamRequest) {
-    if (!activity || activity.stream_resolution !== streamRequest.resolution || activity.stream_series_type !== streamRequest.seriesType) {
-        return false;
-    }
-    const requestedKeys = normalizeStreamKeys(streamRequest.keys);
-    return requestedKeys.every((key) => {
-        if (key === 'latlng') {
-            return Array.isArray(activity.stream_latlng) && activity.stream_latlng.length;
-        }
-        if (key === 'velocity_smooth') {
-            return Array.isArray(activity.stream_velocity_smooth) && activity.stream_velocity_smooth.length;
-        }
-        if (key === 'time') {
-            return Array.isArray(activity.stream_time) && activity.stream_time.length;
-        }
-        return false;
-    });
-}
-
 function hasRequestedStreamCache(activity, streamRequest) {
     if (!activity || activity.stream_resolution !== streamRequest.resolution || activity.stream_series_type !== streamRequest.seriesType) {
         return false;
     }
     const requestedKeys = normalizeStreamKeys(streamRequest.keys);
-    const priorRequestedKeys = normalizeStreamKeys(activity.stream_requested_keys);
-    if (priorRequestedKeys.length) {
-        return requestedKeys.every((key) => priorRequestedKeys.includes(key));
-    }
-    return hasLegacyStreamCache(activity, streamRequest);
+    const canonicalStreams = getActivityStreamData(activity);
+    return requestedKeys.every((key) => Array.isArray(canonicalStreams[key]) && canonicalStreams[key].length);
 }
 
 function buildActivityStreamResponse(activity, cached) {
     const streams = getActivityStreamData(activity);
     const streamKeys = normalizeStreamKeys(activity.stream_keys && activity.stream_keys.length ? activity.stream_keys : Object.keys(streams));
     return {
+        activity_id: activity.strava_id,
         strava_id: activity.strava_id,
-        stream_resolution: activity.stream_resolution || 'high',
-        stream_series_type: activity.stream_series_type || 'time',
-        stream_data: streams,
+        provider: 'strava',
         streams: streams,
         stream_keys: streamKeys,
-        stream_requested_keys: normalizeStreamKeys(activity.stream_requested_keys),
-        stream_metadata: activity.stream_metadata || {},
-        stream_latlng: streams.latlng || activity.stream_latlng || [],
-        stream_velocity_smooth: streams.velocity_smooth || activity.stream_velocity_smooth || [],
-        stream_time: streams.time || activity.stream_time || [],
-        latlng: streams.latlng || activity.stream_latlng || [],
-        velocity_smooth: streams.velocity_smooth || activity.stream_velocity_smooth || [],
-        time: streams.time || activity.stream_time || [],
-        stream_fetched_at: activity.stream_fetched_at || null,
+        requested_keys: normalizeStreamKeys(activity.stream_requested_keys),
+        resolution: activity.stream_resolution || 'high',
+        series_type: activity.stream_series_type || 'time',
+        metadata: activity.stream_metadata || {},
+        fetched_at: activity.stream_fetched_at || null,
         cached: Boolean(cached)
     };
 }
@@ -354,15 +349,36 @@ router.get('/users/:slug/activity-kpis', async (req, res) => {
     res.json(snapshots);
 });
 
-router.get('/activities', async (req, res) => {
+router.get('/activities', async (req, res, next) => {
     if (!hasUserScope(req.query)) {
         res.status(400).json({ error: 'A user slug is required' });
         return;
     }
-    res.json(await findActivitiesForQuery(req.query, {
-        sort: { start_date: -1 },
-        limit: req.query.limit ? Number(req.query.limit) : void 0
-    }));
+    try {
+        const ids = parseActivityIds(req.query.ids, 'strava');
+        const filter = buildActivityFilter(req.query);
+        if (ids.length) filter.strava_id = { $in: ids };
+        if (useLegacyActivityListContract(req.query)) {
+            res.json(await findLegacyActivities({
+                store: getActivityStore(), filter, fields: STRAVA_SUMMARY_FIELDS, query: req.query
+            }));
+            return;
+        }
+        res.json(await findActivityPage({
+            store: getActivityStore(),
+            filter,
+            provider: 'strava',
+            idField: 'strava_id',
+            fields: STRAVA_SUMMARY_FIELDS,
+            query: req.query
+        }));
+    } catch (error) {
+        if (error instanceof ActivityPageError) {
+            res.status(error.statusCode).json({ error: error.message, code: error.code });
+            return;
+        }
+        next(error);
+    }
 });
 
 router.get('/activities/stats', async (req, res) => {
@@ -370,7 +386,12 @@ router.get('/activities/stats', async (req, res) => {
         res.status(400).json({ error: 'A user slug is required' });
         return;
     }
-    const activities = await findActivitiesForQuery(req.query, { sort: { start_date: -1 } });
+    const activities = await findActivitiesForQuery(req.query, {
+        select: {
+            _id: 0, activity_type_key: 1, activity_type_override: 1, sport_type: 1,
+            type: 1, distance: 1, elapsed_time: 1, total_elevation_gain: 1
+        }
+    });
     const stats = activities.reduce((accumulator, activity) => {
         accumulator.distance += Number(activity.distance || 0);
         accumulator.time += Number(activity.elapsed_time || 0);
@@ -388,7 +409,12 @@ router.get('/activities/types', async (req, res) => {
         res.status(400).json({ error: 'A user slug is required' });
         return;
     }
-    const activities = await findActivitiesForQuery(req.query, { sort: { type: 1 } });
+    const activities = await findActivitiesForQuery(req.query, {
+        select: {
+            _id: 0, activity_type_key: 1, activity_type_override: 1,
+            activity_type_override_label: 1, sport_type: 1, type: 1
+        }
+    });
     res.json(ActivityTypes.sortActivityTypesByCount(ActivityTypes.countActivityTypes(activities)).map((entry) => entry.key));
 });
 
@@ -406,7 +432,11 @@ router.get('/activities/:id', async (req, res) => {
     }
     const filter = { strava_id: activityId, user_slug: userSlug };
 
-    let activity = await getActivityStore().findOne(filter);
+    const detailProjection = STREAM_SAMPLE_FIELDS.reduce((projection, field) => {
+        projection[field] = 0;
+        return projection;
+    }, {});
+    let activity = await getActivityStore().findOne(filter, { select: detailProjection });
     const shouldRefresh = isTruthy(req.query.refresh);
     const shouldHydrate = isTruthy(req.query.hydrate);
 
@@ -419,7 +449,7 @@ router.get('/activities/:id', async (req, res) => {
         try {
             activity = await fetchActivityDetail(user, activityId);
             await recomputeActivityKpiSnapshots(userSlug);
-            res.json(activity);
+            res.json(stripStreamSamples(activity));
         } catch (error) {
             console.warn('[Strava Activity Detail Unavailable]', {
                 activityId: activityId,
@@ -447,7 +477,7 @@ router.get('/activities/:id', async (req, res) => {
         }
     }
 
-    res.json(activity);
+    res.json(stripStreamSamples(activity));
 });
 
 router.patch('/activities/:id', async (req, res) => {
@@ -539,7 +569,7 @@ router.patch('/activities/:id', async (req, res) => {
     if (hasActivityTypeOverride) {
         await recomputeActivityKpiSnapshots(userSlug);
     }
-    res.json(updated);
+    res.json(stripStreamSamples(updated));
 });
 
 router.get('/activities/:id/streams', async (req, res) => {
@@ -562,14 +592,30 @@ router.get('/activities/:id/streams', async (req, res) => {
     }
     const filter = { strava_id: activityId, user_slug: userSlug };
 
-    let activity = await getActivityStore().findOne(filter);
+    const activityStore = getActivityStore();
+    const streamStore = getActivityStreamStore();
+    const activity = await activityStore.findOne(filter, {
+        select: { _id: 0, strava_id: 1, user_slug: 1 }
+    });
     if (!activity) {
         res.status(404).json({ error: 'Activity not found' });
         return;
     }
 
-    if (hasRequestedStreamCache(activity, streamRequest) && !isTruthy(req.query.refresh)) {
-        res.json(buildActivityStreamResponse(activity, true));
+    let streamActivity = await streamStore.findOne(filter);
+    if (!streamActivity) {
+        streamActivity = await activityStore.findOne(filter, {
+            select: {
+                _id: 0, strava_id: 1, stream_resolution: 1, stream_series_type: 1,
+                stream_data: 1, stream_keys: 1, stream_requested_keys: 1,
+                stream_metadata: 1, stream_latlng: 1, stream_velocity_smooth: 1,
+                stream_time: 1, stream_fetched_at: 1
+            }
+        });
+    }
+
+    if (hasRequestedStreamCache(streamActivity, streamRequest) && !isTruthy(req.query.refresh)) {
+        res.json(buildActivityStreamResponse(streamActivity, true));
         return;
     }
 
@@ -580,17 +626,17 @@ router.get('/activities/:id/streams', async (req, res) => {
     }
 
     try {
-        const streamActivity = await fetchActivityStreams(user, activityId, streamRequest);
-        res.json(buildActivityStreamResponse(streamActivity, false));
+        const refreshedStreamActivity = await fetchActivityStreams(user, activityId, streamRequest);
+        res.json(buildActivityStreamResponse(refreshedStreamActivity, false));
     } catch (error) {
         console.warn('[Strava Activity Streams Unavailable]', {
             activityId: activityId,
             user: activity.user_slug,
-            cached: hasAnyStreamData(activity),
+            cached: hasAnyStreamData(streamActivity),
             error: getExternalErrorMessage(error)
         });
-        if (hasAnyStreamData(activity)) {
-            res.json(Object.assign(buildActivityStreamResponse(activity, true), {
+        if (hasAnyStreamData(streamActivity)) {
+            res.json(Object.assign(buildActivityStreamResponse(streamActivity, true), {
                 partial: true,
                 refreshError: getExternalErrorMessage(error)
             }));

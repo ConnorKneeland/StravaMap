@@ -11,6 +11,7 @@
     'use strict';
 
     const PRODUCTION_API_BASE = 'https://stravamap-production-7f28.up.railway.app';
+    const MAX_WIDGET_INDEX = 99;
     const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
     const PROVIDERS = {
         strava: {
@@ -37,7 +38,7 @@
             throw new Error('The index must be a whole number of 0 or greater.');
         }
         const index = Number(rawIndex);
-        if (!Number.isSafeInteger(index)) {
+        if (!Number.isSafeInteger(index) || index > MAX_WIDGET_INDEX) {
             throw new Error('The requested workout index is too large.');
         }
         return { slug: slug, index: index };
@@ -141,6 +142,26 @@
         return options;
     }
 
+    function normalizeActivityListResponse(payload) {
+        const activities = Array.isArray(payload)
+            ? payload
+            : payload && Array.isArray(payload.activities)
+                ? payload.activities
+                : null;
+        if (!activities) {
+            throw new Error('The workout service returned an unexpected response.');
+        }
+        return activities;
+    }
+
+    function buildActivityListQuery(slug, index) {
+        return {
+            user: slug,
+            limit: index + 1,
+            activity_list_version: 2
+        };
+    }
+
     async function refreshProviderCache(app, apiBase, provider, slug, ownerToken) {
         if (provider === 'intervals' && !ownerToken) {
             return;
@@ -159,15 +180,13 @@
     }
 
     async function fetchActivities(app, apiBase, provider, slug, index, ownerToken) {
-        const activities = await app.apiGet(
+        const payload = await app.apiGet(
             apiBase,
             PROVIDERS[provider].activitiesPath,
-            { user: slug, limit: index + 1 },
+            buildActivityListQuery(slug, index),
             getRequestOptions(provider, ownerToken, 45000)
         );
-        if (!Array.isArray(activities)) {
-            throw new Error('The workout service returned an unexpected response.');
-        }
+        const activities = normalizeActivityListResponse(payload);
         return activities.map(app.normalizeActivityRecord);
     }
 
@@ -351,6 +370,7 @@
         formatDistanceMiles: formatDistanceMiles,
         formatActivityDate: formatActivityDate,
         buildActivityKpis: buildActivityKpis,
+        buildActivityListQuery: buildActivityListQuery,
         getPreloadedActivity: getPreloadedActivity
     };
 }));

@@ -96,9 +96,12 @@ If `MONGODB_URI` and legacy `MONGO_URI` are blank, the backend still runs for lo
 | `POST` | `/api/users` | Create a user |
 | `PUT` | `/api/users/:slug` | Update or upsert a user |
 | `POST` | `/api/sync/:slug` | Refresh Strava token and sync activities for one user |
-| `GET` | `/api/activities` | Read activities with optional `user`, `type`, `from`, `to`, `limit` filters |
+| `GET` | `/api/activities` | Read a cursor-paginated page of lightweight Strava activity summaries |
 | `GET` | `/api/activities/stats` | Aggregate stats over filtered activities |
 | `GET` | `/api/activities/types` | List detected activity types |
+| `GET` | `/api/activities/:id/streams` | Read one Strava activity's canonical full telemetry |
+| `GET` | `/api/intervals/activities` | Read a cursor-paginated page of lightweight Intervals activity summaries |
+| `GET` | `/api/intervals/activities/:id/streams` | Read one Intervals activity's canonical full telemetry |
 | `GET` | `/api/widget/activity-script` | Supply one parser-blocking activity payload for a screenshot widget |
 | `GET` | `/api/competitions` | List competitions |
 | `POST` | `/api/competitions` | Create a competition |
@@ -106,6 +109,41 @@ If `MONGODB_URI` and legacy `MONGO_URI` are blank, the backend still runs for lo
 | `GET` | `/api/competitions/:id/leaderboard` | Build a leaderboard for one competition |
 | `PUT` | `/api/competitions/:id` | Update a competition |
 | `DELETE` | `/api/competitions/:id` | Delete a competition |
+
+Version 2 activity-list responses use `{ activities, pagination: { limit, has_more, next_cursor } }`.
+The current map clients request this contract with `activity_list_version=2`; unversioned legacy clients
+continue receiving a bare array until the global rollout switch is enabled.
+Pass the opaque `next_cursor` back as `cursor`; `limit` defaults to 50 and is capped at 100.
+The existing user, date, location, and workout-type filters remain provider-specific. `ids` accepts
+up to 100 comma-separated provider activity IDs for bounded shared-collection lookups. Full stream
+arrays are never included in list or detail responses. `include_preview=1` adds only the bounded,
+downsampled telemetry preview needed for initial animation; full-resolution arrays are returned once,
+under `streams`, by the provider-specific stream endpoint.
+
+Full telemetry is stored separately in `activity_streams` for Strava and
+`intervals_activity_streams` for Intervals.icu and Strava ZIP imports. Existing databases can be
+migrated safely with `npm run migrate:activity-streams`, which is a read-only dry run by default.
+Review its counts, then run `npm run migrate:activity-streams -- --apply`; each canonical stream
+copy is verified and compact preview fields are populated while legacy arrays remain available for
+rollback. After the new deployment is verified, run
+`npm run migrate:activity-streams -- --apply --cleanup` to remove the duplicate/full arrays. The
+cleanup pass recounts legacy candidates and exits unsuccessfully if live writes reintroduce any. Both
+passes are idempotent and can be restricted with `--provider=strava` or `--provider=intervals`.
+The dry run is safe against the current database and performs no writes; it also reports whether the
+four required indexes are present. Every apply pass creates and re-verifies the provider's unique
+stream-identity index and compound pagination index before copying telemetry. The command aborts
+before stream writes if an index cannot be established. Cleanup also stops on equal-length conflicting
+stream arrays instead of guessing which copy is authoritative. Copy and cleanup writes use bounded
+optimistic retries against both the activity and canonical stream timestamps, so a concurrent sync or
+import cannot be overwritten by a stale migration snapshot.
+
+For production rollout, deploy this server with `ACTIVITY_LIST_V2_ENABLED` unset or `false`; that
+keeps the existing bare-array activity-list contract for old clients while making the migration
+available. Run and verify the copy-only migration, then deploy the compatible frontend; it explicitly
+opts into lightweight pagination per request. Once that frontend is cache-verified, set
+`ACTIVITY_LIST_V2_ENABLED=true` and redeploy the server to make V2 the unversioned default. Run
+`--cleanup` only after both providers and widgets have been smoke-tested and the rollback window has
+passed.
 
 ## Add a New User
 

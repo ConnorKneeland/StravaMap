@@ -3,8 +3,18 @@ const { normalizeSlug } = require('../services/connection');
 const { getActivityStore } = require('../services/sync');
 const { getIntervalsActivityStore } = require('../services/intervals_sync');
 const { isIntervalsSlugAccessible } = require('../services/intervals_auth');
+const {
+    STRAVA_SUMMARY_FIELDS,
+    INTERVALS_SUMMARY_FIELDS,
+    buildProjection
+} = require('../activity_pagination');
+const {
+    extractCanonicalStreamData,
+    encodeCompactPolyline
+} = require('../services/stream_storage');
 
 const router = express.Router();
+const MAX_WIDGET_INDEX = 99;
 
 function parseWidgetIndex(value) {
     const raw = String(value === undefined || value === null || value === '' ? '0' : value).trim();
@@ -12,7 +22,7 @@ function parseWidgetIndex(value) {
         return null;
     }
     const index = Number(raw);
-    return Number.isSafeInteger(index) ? index : null;
+    return Number.isSafeInteger(index) && index <= MAX_WIDGET_INDEX ? index : null;
 }
 
 function serializeScriptPayload(payload) {
@@ -67,23 +77,56 @@ function buildWidgetActivityPayload(activity) {
     return payload;
 }
 
+function hasWidgetSummaryRoute(activity) {
+    const record = activity || {};
+    const recordMap = record.map && typeof record.map === 'object' ? record.map : {};
+    return Boolean(recordMap.summary_polyline || record.map_summary_polyline
+        || record.summary_polyline || recordMap.polyline || record.map_polyline);
+}
+
+async function addLegacyWidgetRoute(store, filter, activity) {
+    if (!activity || hasWidgetSummaryRoute(activity)) return activity;
+    const legacy = await store.findOne(filter, {
+        select: { _id: 0, 'stream_data.latlng': 1, stream_latlng: 1 }
+    });
+    const coordinates = extractCanonicalStreamData(legacy || {}).latlng || [];
+    const summaryPolyline = encodeCompactPolyline(coordinates);
+    return summaryPolyline ? Object.assign({}, activity, { summary_polyline: summaryPolyline }) : activity;
+}
+
 async function getWidgetActivity(provider, slug, index) {
     if (provider === 'intervals') {
         if (!(await isIntervalsSlugAccessible(slug))) {
             throw new Error('Intervals.icu is not enabled for this user.');
         }
         const activities = (await getIntervalsActivityStore().find(
-            { user_slug: slug },
-            { sort: { start_date: -1 } }
-        )).filter((activity) => activity.dedupe_hidden !== true);
-        return activities[index] || null;
+            { user_slug: slug, dedupe_hidden: { $ne: true } },
+            {
+                sort: { start_date: -1, intervals_activity_id: -1 },
+                limit: index + 1,
+                select: buildProjection(INTERVALS_SUMMARY_FIELDS, false)
+            }
+        ));
+        const activity = activities[index] || null;
+        return addLegacyWidgetRoute(getIntervalsActivityStore(), {
+            user_slug: slug,
+            intervals_activity_id: activity && activity.intervals_activity_id
+        }, activity);
     }
 
     const activities = await getActivityStore().find(
         { user_slug: slug },
-        { sort: { start_date: -1 }, limit: index + 1 }
+        {
+            sort: { start_date: -1, strava_id: -1 },
+            limit: index + 1,
+            select: buildProjection(STRAVA_SUMMARY_FIELDS, false)
+        }
     );
-    return activities[index] || null;
+    const activity = activities[index] || null;
+    return addLegacyWidgetRoute(getActivityStore(), {
+        user_slug: slug,
+        strava_id: activity && activity.strava_id
+    }, activity);
 }
 
 router.get('/widget/activity-script', async (req, res) => {
@@ -128,5 +171,6 @@ module.exports = {
     parseWidgetIndex,
     serializeScriptPayload,
     buildWidgetActivityPayload,
+    addLegacyWidgetRoute,
     getWidgetActivity
 };

@@ -81,6 +81,9 @@ const activitySchema = new mongoose.Schema({
     stream_keys: { type: [String], default: void 0 },
     stream_requested_keys: { type: [String], default: void 0 },
     stream_metadata: { type: Mixed },
+    stream_preview: { type: Mixed },
+    stream_preview_metadata: { type: Mixed },
+    stream_preview_source_updated_at: { type: Date },
     stream_latlng: { type: [[Number]], default: void 0 },
     stream_velocity_smooth: { type: [Number], default: void 0 },
     stream_time: { type: [Number], default: void 0 },
@@ -94,6 +97,10 @@ activitySchema.index({ user_id: 1, type: 1 });
 activitySchema.index({ user_id: 1, start_date: 1 });
 activitySchema.index({ type: 1, start_date: 1 });
 activitySchema.index({ user_slug: 1, start_date: -1 });
+activitySchema.index(
+    { user_slug: 1, start_date: -1, strava_id: -1 },
+    { name: 'activities_user_slug_start_date_strava_id_pagination' }
+);
 
 module.exports = function getActivityModel() {
     return mongoose.models.Activity || mongoose.model('Activity', activitySchema);

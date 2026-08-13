@@ -128,26 +128,32 @@ Replace `connor` with the provisioned slug. The command reads the encrypted conn
 
 Anyone without a current owner link can still view cached map data, but cannot synchronize, change line styles, edit activity types, add notes, or mutate collections.
 
-The ICU map allows up to ten minutes for background synchronization and large cached-map reads. The normal Strava map retains its shorter request timeout. Background-sync failures are handled immediately while cached routes remain visible. A browser timeout does not roll back a server-side synchronization or a completed ZIP import, but the ICU-specific allowance prevents a healthy long-running sync from appearing as an uncaught console error.
+The ICU map allows up to ten minutes for background synchronization. Cached-map reads use small cursor-paginated summary pages, so they no longer depend on that extended timeout. Background-sync failures are handled immediately while cached routes remain visible. A browser timeout does not roll back a server-side synchronization or a completed ZIP import.
 
 ## Initial synchronization and smoke test
 
-1. Deploy the GitHub changes to Railway and Netlify. Deployment does not initiate an ICU sync.
-2. Confirm `/api/health` reports `intervals.configured: true`.
-3. Open `intervals_new_user.html` and complete one onboarding branch.
-4. Confirm the browser redirects to the generated owner map URL.
-5. Monitor `GET /api/intervals/user/<slug>/status` and Railway logs until `backfillComplete` is true.
-6. Compare `totalActivities` with the eligible directly sourced activity count in Intervals.icu. Hidden responses, incomplete responses, and records with `source: "STRAVA"` are intentionally excluded.
-7. Verify recent playback, charts, details, intervals, line settings, notes, collections, shared collections, and Garmin attribution.
-8. Open the normal URL in a private browser window and confirm that cached data is public but all mutation controls are read-only.
-9. Exercise both provider URLs and confirm the Strava map is unchanged:
+1. Deploy this Railway server with `ACTIVITY_LIST_V2_ENABLED` unset or `false`. The migration command and new storage are available, but existing frontend clients continue receiving the old bare-array list response.
+2. Run `npm run migrate:activity-streams -- --provider=intervals` in the Railway shell and review the read-only candidate and required-index report.
+3. Run `npm run migrate:activity-streams -- --provider=intervals --apply`. The unique stream-identity and compound pagination indexes are created and re-verified before telemetry writes begin. Each stream copy is hash-verified and compact route/preview fields are populated, while legacy arrays remain available for rollback. Optimistic timestamp checks reread and retry if a live sync or import changes either record. An index failure or equal-length conflicting stream arrays abort safely without cleanup.
+4. Deploy the compatible static frontend to Netlify and verify its CDN cache. This frontend requests `activity_list_version=2` explicitly, while older cached clients remain on the bare-array response.
+5. Set `ACTIVITY_LIST_V2_ENABLED=true` in Railway and redeploy to make lightweight cursor pagination the unversioned default. Do this only after the copy pass, index verification, and compatible frontend all succeed.
+6. Confirm `/api/health` reports `intervals.configured: true`.
+7. Open `intervals_new_user.html` and complete one onboarding branch.
+8. Confirm the browser redirects to the generated owner map URL.
+9. Monitor `GET /api/intervals/user/<slug>/status` and Railway logs until `backfillComplete` is true.
+10. Compare `totalActivities` with the eligible directly sourced activity count in Intervals.icu. Hidden responses, incomplete responses, and records with `source: "STRAVA"` are intentionally excluded.
+11. Verify recent playback, charts, details, intervals, line settings, notes, collections, shared collections, and Garmin attribution.
+12. Open the normal URL in a private browser window and confirm that cached data is public but all mutation controls are read-only.
+13. Exercise both provider URLs and confirm the Strava map is unchanged:
 
 ```text
 https://fluffy-druid-f9a1d0.netlify.app/strava_user.html?user=connor
 https://fluffy-druid-f9a1d0.netlify.app/icu_map.html?user=<slug>
 ```
 
-No migration command is needed. In particular, do not rerun the Strava primary-OAuth campaign for this provider.
+14. After the rollback window, run `npm run migrate:activity-streams -- --provider=intervals --apply --cleanup` to remove the verified duplicate/full arrays from `intervals_activities`. The command performs a final candidate recount and fails if concurrent or old application code reintroduced any legacy arrays; do not consider cleanup complete unless `remaining_candidates` is `0`.
+
+The activity-stream migration is separate from authentication. Do not rerun the Strava primary-OAuth campaign for this provider. Both migration passes are idempotent.
 
 ## Import historical activities from a Strava export
 
@@ -162,7 +168,7 @@ The importer reads `activities.csv` and the linked workout files under `activiti
 
 Import behavior is deliberately non-destructive:
 
-- Imported workouts are written only to `intervals_activities`, with `provider: "strava_export"` and an ID based on the Strava export Activity ID.
+- Imported workout summaries are written only to `intervals_activities`, with `provider: "strava_export"` and an ID based on the Strava export Activity ID. Their full telemetry is written only to `intervals_activity_streams`.
 - The importer never writes to or deletes from the existing Strava `activities` collection.
 - Re-importing the same archive updates the same records and preserves previously stored richer stream data.
 - Regular Intervals.icu synchronization neither hydrates nor deletes Strava-export records.
@@ -209,6 +215,7 @@ Provisioning intentionally refuses to attach a different Athlete ID to a slug th
 ## MongoDB collections
 
 - `intervals_activities`: normalized Intervals.icu map records
+- `intervals_activity_streams`: canonical full telemetry for native Intervals.icu and imported Strava-export workouts
 - `provider_connections`: encrypted provider credentials and synchronization state
 - `intervals_activity_kpi_snapshots`: provider-specific KPI summaries
 
@@ -221,12 +228,17 @@ POST  /api/intervals/register
 GET   /api/intervals/user/:slug/status
 POST  /api/intervals/sync/:slug
 POST  /api/intervals/import/strava-export/:slug
-GET   /api/intervals/activities?user=:slug
+GET   /api/intervals/activities?user=:slug&limit=50&cursor=:opaque_cursor
 GET   /api/intervals/activities/:id?user=:slug
 GET   /api/intervals/activities/:id/streams?user=:slug
 PATCH /api/intervals/activities/:id?user=:slug
 ```
 
 Owner-only requests use `Authorization: Bearer <owner-session-token>`. That token authorizes map operations only; it is not the Intervals.icu API key.
+
+The activity-list endpoint returns `{ activities, pagination }`, never full stream arrays. `limit`
+defaults to 50 and is capped at 100; pass `pagination.next_cursor` back as `cursor`. The initial map
+request uses `include_preview=1` for a bounded route-aligned preview. Full telemetry is returned once,
+under `streams`, only by the provider-specific stream endpoint.
 
 OAuth callback and webhook routes remain in the code for a future registered OAuth application, but they are not part of the current API-key rollout.
