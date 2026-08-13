@@ -16,6 +16,23 @@ const CUSTOMIZATION_FIELDS = Object.freeze([
     'line_color', 'line_thickness', 'line_opacity', 'animation_speed_multiplier',
     'activity_type_override', 'activity_type_override_label'
 ]);
+const DEDUPE_ACTIVITY_SELECT = Object.freeze(
+    SUMMARY_FIELDS.concat(CUSTOMIZATION_FIELDS, [
+        'activity_key', 'intervals_activity_id', 'provider', 'import_source',
+        'source_activity_id', 'source_datapoint_count', 'source_stream_count',
+        'data_richness_score', 'stream_preview_metadata', 'summary_polyline',
+        'map_summary_polyline', 'external_id'
+    ]).reduce((projection, field) => {
+        projection[field] = 1;
+        return projection;
+    }, { _id: 0 })
+);
+const DEDUPE_LEGACY_RICHNESS_SELECT = Object.freeze({
+    _id: 0,
+    activity_key: 1,
+    stream_data: 1,
+    stream_latlng: 1
+});
 
 function getIntervalsActivityStore() {
     return isMongoConnected() ? wrapModel(getIntervalsActivityModel()) : memoryStore.intervalsActivities;
@@ -40,11 +57,14 @@ function countStreamDatapoints(streamData) {
 }
 
 function getDataRichness(activity) {
-    const streamData = activity && activity.stream_data || {};
+    const streamData = activity && (activity.stream_data || activity.stream_preview) || {};
     const streamKeys = Object.keys(streamData).filter((key) => Array.isArray(streamData[key])
         && streamData[key].some((value) => value !== undefined && value !== null));
     const datapoints = Math.max(
         Number(activity && activity.source_datapoint_count || 0),
+        Number(activity && activity.data_richness_score || 0),
+        Number(activity && activity.stream_preview_metadata
+            && activity.stream_preview_metadata.original_point_count || 0),
         countStreamDatapoints(streamData)
     );
     const populatedSummaryFields = SUMMARY_FIELDS.reduce((count, key) => count + (hasValue(activity && activity[key]) ? 1 : 0), 0);
@@ -52,7 +72,12 @@ function getDataRichness(activity) {
         datapoints,
         streamCount: Math.max(Number(activity && activity.source_stream_count || 0), streamKeys.length),
         populatedSummaryFields,
-        hasRoute: Number(Array.isArray(activity && activity.stream_latlng) && activity.stream_latlng.length || 0)
+        hasRoute: Number(Boolean(
+            activity && (activity.summary_polyline || activity.map_summary_polyline)
+            || Array.isArray(activity && activity.stream_latlng) && activity.stream_latlng.length
+            || activity && activity.stream_preview && Array.isArray(activity.stream_preview.latlng)
+                && activity.stream_preview.latlng.length
+        ))
     };
 }
 
@@ -173,7 +198,30 @@ async function reconcileDuplicateActivitiesForSlug(slugValue, providedStore) {
     const slug = normalizeSlug(slugValue);
     if (!slug) throw new Error('A valid slug is required for activity deduplication');
     const store = providedStore || getIntervalsActivityStore();
-    const activities = await store.find({ user_slug: slug }, { sort: { start_date: 1 } });
+    const activities = await store.find({ user_slug: slug }, {
+        sort: { start_date: 1 },
+        select: DEDUPE_ACTIVITY_SELECT
+    });
+    const missingRichnessKeys = activities.filter((activity) => !(
+        Number(activity.source_datapoint_count || 0)
+        || Number(activity.data_richness_score || 0)
+        || Number(activity.stream_preview_metadata && activity.stream_preview_metadata.original_point_count || 0)
+    )).map((activity) => activity.activity_key).filter(Boolean);
+    if (missingRichnessKeys.length) {
+        const legacyRecords = await store.find({
+            user_slug: slug,
+            activity_key: { $in: missingRichnessKeys }
+        }, { select: DEDUPE_LEGACY_RICHNESS_SELECT });
+        const legacyByKey = new Map(legacyRecords.map((activity) => [activity.activity_key, activity]));
+        activities.forEach((activity) => {
+            const legacy = legacyByKey.get(activity.activity_key);
+            if (!legacy) return;
+            activity.data_richness_score = getDataRichness(legacy).datapoints;
+            if (!activity.summary_polyline && Array.isArray(legacy.stream_latlng) && legacy.stream_latlng.length) {
+                activity.stream_preview_metadata = { original_point_count: legacy.stream_latlng.length };
+            }
+        });
+    }
     const groups = buildGroups(activities);
     let duplicateGroups = 0;
     let hidden = 0;

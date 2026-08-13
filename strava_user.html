@@ -1163,6 +1163,29 @@
         .intro-animation-control[hidden]{
             display:none;
         }
+        .older-workout-load-status{
+            position:fixed;
+            right:18px;
+            bottom:18px;
+            z-index:1250;
+            max-width:min(360px, calc(100vw - 36px));
+            padding:9px 12px;
+            border:1px solid rgba(96,165,250,0.38);
+            border-radius:10px;
+            background:rgba(8,13,20,0.92);
+            box-shadow:0 12px 30px rgba(0,0,0,0.28);
+            color:#dbeafe;
+            font-size:12px;
+            line-height:1.35;
+            pointer-events:none;
+        }
+        .older-workout-load-status[hidden]{
+            display:none;
+        }
+        .older-workout-load-status.is-error{
+            border-color:rgba(248,113,113,0.52);
+            color:#fecaca;
+        }
         .intro-kpi-panel{
             position:static;
             width:max-content;
@@ -1863,6 +1886,11 @@
                 bottom:max(14px, env(safe-area-inset-bottom));
                 gap:7px;
             }
+            .older-workout-load-status{
+                right:14px;
+                bottom:max(14px, env(safe-area-inset-bottom));
+                max-width:calc(100vw - 28px);
+            }
             .collection-playback{
                 left:10px;
                 right:10px;
@@ -2123,6 +2151,7 @@
     </nav>
 
     <div id="map"></div>
+    <div id="older-workout-load-status" class="older-workout-load-status" role="status" aria-live="polite" hidden></div>
     <div id="workout-stepper" class="workout-stepper" hidden>
         <button id="workout-step-prev" class="workout-step-button" type="button" aria-label="Previous workout">‹</button>
         <button id="intro-animation-control" class="intro-animation-control" type="button" hidden>Skip Animation</button>
@@ -2451,6 +2480,7 @@
         const collectionNoteDetail = document.getElementById('collection-note-detail');
         const collectionPlaybackMembership = document.getElementById('collection-playback-membership');
         const introKpiPanel = document.getElementById('intro-kpi-panel');
+        const olderWorkoutLoadStatus = document.getElementById('older-workout-load-status');
         const splashText = document.getElementById('splash-text');
         const connectionGate = document.getElementById('connection-gate');
         const connectionTitle = document.getElementById('connection-title');
@@ -2610,6 +2640,206 @@
                 : 'Backend API';
         }
 
+        function normalizeActivityPage(payload, requestedLimit) {
+            if (Array.isArray(payload)) {
+                return {
+                    activities: payload,
+                    pagination: {
+                        limit: Number(requestedLimit || payload.length || 0),
+                        has_more: false,
+                        next_cursor: null
+                    }
+                };
+            }
+            if (!payload || typeof payload !== 'object' || !Array.isArray(payload.activities)) {
+                throw new Error('The workout service returned an unexpected activity-list response.');
+            }
+            const page = payload;
+            const pagination = page.pagination && typeof page.pagination === 'object'
+                ? page.pagination
+                : {};
+            return {
+                activities: page.activities,
+                pagination: {
+                    limit: Number(pagination.limit || requestedLimit || 0),
+                    has_more: Boolean(pagination.has_more),
+                    next_cursor: pagination.next_cursor ? String(pagination.next_cursor) : null
+                }
+            };
+        }
+
+        const ICU_INITIAL_ROUTE_POLL_TIMEOUT_MS = 120000;
+        const ICU_INITIAL_ROUTE_POLL_MAX_DELAY_MS = 2500;
+
+        function activityHasDrawableRoute(activity) {
+            return Boolean(activity && typeof StravaApp.getActivityRouteCoordinates === 'function'
+                && StravaApp.getActivityRouteCoordinates(activity).length > 1);
+        }
+
+        function activityPageHasDrawableRoute(page) {
+            return Boolean(page && Array.isArray(page.activities)
+                && page.activities.some(activityHasDrawableRoute));
+        }
+
+        function mergeRoutedActivityIntoInitialPage(initialPage, routedActivity) {
+            const originalPage = initialPage && typeof initialPage === 'object' ? initialPage : {};
+            const routedId = String(getActivityId(routedActivity) || '');
+            const activities = (Array.isArray(originalPage.activities) ? originalPage.activities : []).slice();
+            const existingIndex = activities.findIndex(function (activity) {
+                return routedId && String(getActivityId(activity) || '') === routedId;
+            });
+            if (existingIndex >= 0) {
+                activities[existingIndex] = StravaApp.normalizeActivityRecord(Object.assign(
+                    {}, activities[existingIndex], routedActivity
+                ));
+            } else if (routedActivity) {
+                activities.push(StravaApp.normalizeActivityRecord(routedActivity));
+            }
+            return {
+                activities: activities,
+                pagination: originalPage.pagination
+            };
+        }
+
+        async function scanForFirstOlderRoutedActivity(initialPage, requestOptions, maximumPages) {
+            let pagination = initialPage && initialPage.pagination || {};
+            let nextCursor = pagination.next_cursor || null;
+            let hasMore = Boolean(pagination.has_more);
+            const pageLimit = Number.isFinite(Number(maximumPages))
+                ? Math.max(0, Number(maximumPages))
+                : Infinity;
+            let pagesScanned = 0;
+            const seenCursors = new Set();
+            setOlderWorkoutLoadStatus('Checking older workouts for the first available route...');
+
+            while (hasMore && pagesScanned < pageLimit) {
+                if (!nextCursor || seenCursors.has(nextCursor)) {
+                    throw new Error('The workout service returned an invalid pagination cursor.');
+                }
+                seenCursors.add(nextCursor);
+                pagesScanned += 1;
+                const summaryPage = await fetchActivityPage({
+                    user: userConfig.slug,
+                    limit: 50,
+                    cursor: nextCursor
+                }, Object.assign({}, requestOptions || {}, { timeoutMs: 10000 }));
+                const routedSummary = summaryPage.activities.find(activityHasDrawableRoute);
+                if (routedSummary) {
+                    const routedId = getActivityId(routedSummary);
+                    const previewPage = await fetchActivityPage({
+                        user: userConfig.slug,
+                        ids: String(routedId),
+                        limit: 1,
+                        include_preview: 1
+                    }, Object.assign({}, requestOptions || {}, { timeoutMs: 10000 }));
+                    const routedPreview = previewPage.activities.find(function (activity) {
+                        return String(getActivityId(activity) || '') === String(routedId || '');
+                    });
+                    return mergeRoutedActivityIntoInitialPage(
+                        initialPage,
+                        Object.assign({}, routedSummary, routedPreview || {})
+                    );
+                }
+                pagination = summaryPage.pagination || {};
+                hasMore = Boolean(pagination.has_more);
+                nextCursor = pagination.next_cursor || null;
+            }
+            return initialPage;
+        }
+
+        async function pollForInitialRoutedActivityPage(initialPage, requestOptions, syncTracker) {
+            let activityPage = initialPage;
+            let delayMs = 300;
+            let lastPollError = null;
+            const deadline = Date.now() + ICU_INITIAL_ROUTE_POLL_TIMEOUT_MS;
+            let attempt = 0;
+
+            while (!activityPageHasDrawableRoute(activityPage) && Date.now() < deadline) {
+                if (syncTracker && syncTracker.error) {
+                    lastPollError = syncTracker.error;
+                    break;
+                }
+                attempt += 1;
+                const visibleCount = activityPage && Array.isArray(activityPage.activities)
+                    ? activityPage.activities.length
+                    : 0;
+                const statusMessage = visibleCount
+                    ? 'Preparing route ' + (attempt > 1 ? 'maps' : 'map') + ' for your recent workouts...'
+                    : 'Finding your recent Intervals.icu workouts...';
+                splashText.textContent = statusMessage;
+                setOlderWorkoutLoadStatus(statusMessage);
+                await StravaApp.wait(Math.min(delayMs, Math.max(0, deadline - Date.now())));
+                try {
+                    activityPage = await fetchActivityPage({
+                        user: userConfig.slug,
+                        limit: 3,
+                        include_preview: 1
+                    }, Object.assign({}, requestOptions || {}, { timeoutMs: 10000 }));
+                    lastPollError = null;
+                } catch (error) {
+                    lastPollError = error;
+                }
+                if (!activityPageHasDrawableRoute(activityPage)
+                    && syncTracker && !syncTracker.settled && !syncTracker.error) {
+                    try {
+                        // One bounded older page per poll finds a recent routed
+                        // workout without repeatedly walking the full history.
+                        activityPage = await scanForFirstOlderRoutedActivity(
+                            activityPage, requestOptions, 1
+                        );
+                    } catch (error) {
+                        lastPollError = error;
+                    }
+                }
+                if (syncTracker && syncTracker.settled && !syncTracker.error
+                    && !activityPageHasDrawableRoute(activityPage)) {
+                    break;
+                }
+                delayMs = Math.min(ICU_INITIAL_ROUTE_POLL_MAX_DELAY_MS, Math.round(delayMs * 1.45));
+            }
+
+            if (!activityPageHasDrawableRoute(activityPage)
+                && syncTracker && syncTracker.settled) {
+                try {
+                    activityPage = await scanForFirstOlderRoutedActivity(activityPage, requestOptions);
+                } catch (error) {
+                    lastPollError = error;
+                }
+            }
+
+            if (activityPageHasDrawableRoute(activityPage)) {
+                setOlderWorkoutLoadStatus('Your first routes are ready. Loading the rest in the background...');
+                return activityPage;
+            }
+            if (lastPollError) {
+                throw lastPollError;
+            }
+            throw new Error(syncTracker && syncTracker.settled
+                ? 'No routed Intervals.icu workouts are available for this map.'
+                : 'Intervals.icu is still preparing route maps. Reload this page in a moment.');
+        }
+
+        async function fetchActivityPage(query, requestOptions) {
+            const versionedQuery = Object.assign({}, query || {}, { activity_list_version: 2 });
+            const requestedLimit = Math.max(1, Number(versionedQuery.limit || 50));
+            const payload = await StravaApp.apiGet(
+                runtimeDataSource.apiBase,
+                providerPaths.activities,
+                providerQuery(versionedQuery),
+                providerRequestOptions(requestOptions)
+            );
+            return normalizeActivityPage(payload, requestedLimit);
+        }
+
+        function setOlderWorkoutLoadStatus(message, stateName) {
+            if (!olderWorkoutLoadStatus) {
+                return;
+            }
+            olderWorkoutLoadStatus.textContent = String(message || '');
+            olderWorkoutLoadStatus.hidden = !message;
+            olderWorkoutLoadStatus.classList.toggle('is-error', stateName === 'error');
+        }
+
         function getMapReturnUrl() {
             const returnUrl = new URL(window.location.href);
             returnUrl.searchParams.set('user', userConfig.slug);
@@ -2759,6 +2989,8 @@
             introCameraResizeTimer: 0,
             introKpiActivity: null,
             introKpiProgress: 0,
+            backgroundRenderQueue: [],
+            backgroundRenderScheduled: false,
             collections: [],
             collectionsById: new Map(),
             activityCollectionsById: new Map(),
@@ -2818,7 +3050,9 @@
             });
             return {
                 latestCenter: results[0],
-                activities: results[1]
+                activities: results[1],
+                pagination: { limit: results[1].length, has_more: false, next_cursor: null },
+                requestOptions: {}
             };
         }
 
@@ -4700,7 +4934,11 @@
                 ? streamData.streams
                 : streamData && streamData.stream_data && typeof streamData.stream_data === 'object'
                     ? streamData.stream_data
+                    : streamData && streamData.stream_preview && typeof streamData.stream_preview === 'object'
+                        ? streamData.stream_preview
                     : {};
+            const isPreview = Boolean(streamData && streamData.stream_preview && streams === streamData.stream_preview)
+                || Boolean(streamData && streamData.preview);
             return {
                 streams: streams,
                 latlng: Array.isArray(streams.latlng) ? streams.latlng : Array.isArray(streamData && streamData.latlng) ? streamData.latlng : Array.isArray(streamData && streamData.stream_latlng) ? streamData.stream_latlng : [],
@@ -4709,11 +4947,33 @@
                 resolution: streamData && (streamData.resolution || streamData.stream_resolution) ? streamData.resolution || streamData.stream_resolution : SPEED_STREAM_OPTIONS.resolution,
                 series_type: streamData && (streamData.series_type || streamData.stream_series_type) ? streamData.series_type || streamData.stream_series_type : SPEED_STREAM_OPTIONS.seriesType,
                 stream_keys: Array.isArray(streamData && streamData.stream_keys) ? streamData.stream_keys : Object.keys(streams),
-                stream_requested_keys: Array.isArray(streamData && streamData.stream_requested_keys) ? streamData.stream_requested_keys : [],
-                stream_metadata: streamData && streamData.stream_metadata && typeof streamData.stream_metadata === 'object' ? streamData.stream_metadata : {},
+                stream_requested_keys: Array.isArray(streamData && streamData.stream_requested_keys)
+                    ? streamData.stream_requested_keys
+                    : Array.isArray(streamData && streamData.requested_keys)
+                        ? streamData.requested_keys
+                        : [],
+                stream_metadata: streamData && streamData.stream_metadata && typeof streamData.stream_metadata === 'object'
+                    ? streamData.stream_metadata
+                    : streamData && streamData.metadata && typeof streamData.metadata === 'object'
+                        ? streamData.metadata
+                        : {},
                 cached: Boolean(streamData && streamData.cached),
-                fetched_at: streamData && (streamData.fetched_at || streamData.stream_fetched_at) ? streamData.fetched_at || streamData.stream_fetched_at : ''
+                fetched_at: streamData && (streamData.fetched_at || streamData.stream_fetched_at) ? streamData.fetched_at || streamData.stream_fetched_at : '',
+                preview: isPreview,
+                preview_metadata: streamData && streamData.stream_preview_metadata && typeof streamData.stream_preview_metadata === 'object'
+                    ? streamData.stream_preview_metadata
+                    : streamData && streamData.preview_metadata && typeof streamData.preview_metadata === 'object'
+                        ? streamData.preview_metadata
+                        : {}
             };
+        }
+
+        function getActivityPreviewStream(activity, metricId) {
+            const normalized = normalizeStreamPayload(activity || {});
+            if (!normalized.preview || normalized.latlng.length < 2) {
+                return null;
+            }
+            return normalized;
         }
 
         function smoothNumericSeries(values, radius) {
@@ -5449,9 +5709,11 @@
                 layer._stravaDescriptor.renderCoordinates = typeof StravaApp.getMapRenderRouteCoordinates === 'function'
                     ? StravaApp.getMapRenderRouteCoordinates(streamCoordinates)
                     : streamCoordinates;
-                layer._stravaDescriptor.activity = StravaApp.normalizeActivityRecord(Object.assign({}, layer._stravaDescriptor.activity, {
-                    stream_latlng: streamCoordinates
-                }));
+                if (!normalizedStream.preview) {
+                    layer._stravaDescriptor.activity = StravaApp.normalizeActivityRecord(Object.assign({}, layer._stravaDescriptor.activity, {
+                        stream_latlng: streamCoordinates
+                    }));
+                }
                 normalizedStream.streams.latlng = streamCoordinates;
                 normalizedStream.latlng = streamCoordinates;
             }
@@ -5512,7 +5774,7 @@
             if (!activityId) {
                 return Promise.resolve(null);
             }
-            if (layer._speedStream && layer._speedSeries && requiredKeys.every(function (key) {
+            if (layer._speedStream && !layer._speedStream.preview && layer._speedSeries && requiredKeys.every(function (key) {
                 return key === 'latlng' || key === 'time' || key === 'velocity_smooth' || hasMetricStreamData(layer._speedStream, metric.id);
             })) {
                 syncSpeedOverlayVisibility(layer, shouldShowSpeedOverlay(layer));
@@ -6127,9 +6389,14 @@
                 temporaryLayer.setStyle({ opacity: 0 });
                 return animateLayerPlain(temporaryLayer, opts);
             }
-            await fetchActivityDetailForDescriptor(descriptor);
-            if (shouldCancel()) {
-                return createRouteLayer(descriptor, descriptor.renderCoordinates || descriptor.coordinates);
+            const previewStream = getActivityPreviewStream(descriptor.activity, opts.metricId || getActiveStreamColorMetricId());
+            if (previewStream) {
+                const previewLayer = createRouteLayer(descriptor, descriptor.coordinates.length ? [descriptor.coordinates[0]] : []);
+                previewLayer.setStyle({ opacity: 0 });
+                applySpeedDataToLayer(previewLayer, previewStream);
+                const previewResultLayer = await animateLayerWithSpeed(previewLayer, opts);
+                syncSpeedOverlayVisibility(previewResultLayer, false);
+                return previewResultLayer;
             }
             const streamData = await fetchSpeedStreamForDescriptor(descriptor, opts.metricId || getActiveStreamColorMetricId());
             if (shouldCancel()) {
@@ -10072,6 +10339,238 @@
             return layers;
         }
 
+        function createDescriptorForActivityItem(item) {
+            const lineStyle = StravaApp.getLineStyle();
+            const descriptor = StravaApp.createActivityDescriptor(item.activity, {
+                userSlug: userConfig.slug,
+                lineWeight: lineStyle.LINE_WEIGHT,
+                opacityWeight: lineStyle.OPACITY_WEIGHT
+            });
+            if (!descriptor) {
+                return null;
+            }
+            descriptor.meta.filterMeta = item.filterMeta;
+            return descriptor;
+        }
+
+        function updateDescriptorFromSummary(descriptor, nextDescriptor) {
+            if (!descriptor || !nextDescriptor) {
+                return descriptor || nextDescriptor || null;
+            }
+            descriptor.activity = nextDescriptor.activity;
+            descriptor.coordinates = nextDescriptor.coordinates;
+            descriptor.renderCoordinates = nextDescriptor.renderCoordinates;
+            descriptor.style = nextDescriptor.style;
+            descriptor.tooltipHtml = nextDescriptor.tooltipHtml;
+            descriptor.meta = Object.assign(descriptor.meta || {}, nextDescriptor.meta || {});
+
+            const layer = getLayerForActivityKey(descriptor.meta.activityKey);
+            if (layer) {
+                layer._stravaDescriptor = descriptor;
+                layer._stravaMeta = descriptor.meta;
+                if (!isRouteAnimationSuppressed(layer) && typeof layer.setLatLngs === 'function') {
+                    layer.setLatLngs(descriptor.renderCoordinates || descriptor.coordinates);
+                }
+                if (!isRouteAnimationSuppressed(layer) && typeof layer.setStyle === 'function') {
+                    layer.setStyle(descriptor.style);
+                }
+                if (typeof layer.setTooltipContent === 'function') {
+                    layer.setTooltipContent(descriptor.tooltipHtml);
+                }
+                if (state.selectedLayer === layer && detailsPanelIsOpen()) {
+                    renderDetailsPanel(layer);
+                }
+            }
+            return descriptor;
+        }
+
+        function appendActivitySummaries(activityRecords, options) {
+            const opts = options || {};
+            const addedDescriptors = [];
+            const descriptorsByKey = new Map(state.allDescriptors.map(function (descriptor) {
+                return [descriptor && descriptor.meta ? descriptor.meta.activityKey : '', descriptor];
+            }));
+            StravaApp.sortActivitiesNewestFirst((activityRecords || []).map(StravaApp.normalizeActivityRecord)).forEach(function (activity) {
+                const activityKey = StravaApp.getActivityKey(activity);
+                if (!activityKey) {
+                    return;
+                }
+                let item = state.activityItemsByKey.get(activityKey);
+                if (item) {
+                    item.activity = StravaApp.normalizeActivityRecord(Object.assign({}, item.activity, activity));
+                    item.filterMeta = buildActivityFilterMeta(item.activity);
+                } else {
+                    item = {
+                        activity: activity,
+                        filterMeta: buildActivityFilterMeta(activity)
+                    };
+                    state.activityItems.push(item);
+                    state.activityItemsByKey.set(activityKey, item);
+                }
+                const activityId = getActivityId(item.activity);
+                if (activityId) {
+                    state.activityItemsById.set(activityId, item);
+                }
+                const nextDescriptor = createDescriptorForActivityItem(item);
+                const existingDescriptor = descriptorsByKey.get(activityKey);
+                if (existingDescriptor && nextDescriptor) {
+                    updateDescriptorFromSummary(existingDescriptor, nextDescriptor);
+                } else if (!existingDescriptor && nextDescriptor) {
+                    state.allDescriptors.push(nextDescriptor);
+                    descriptorsByKey.set(activityKey, nextDescriptor);
+                    addedDescriptors.push(nextDescriptor);
+                }
+            });
+
+            state.activityItems.sort(function (left, right) {
+                return getActivityDate(right.activity).getTime() - getActivityDate(left.activity).getTime();
+            });
+            state.allDescriptors.sort(function (left, right) {
+                return getActivityDate(right.activity).getTime() - getActivityDate(left.activity).getTime();
+            });
+
+            if (!addedDescriptors.length || opts.initial) {
+                if (opts.refresh !== false) {
+                    rebuildFilterOptions();
+                    refreshFilterSummary({ skipMapRefresh: true });
+                }
+                return addedDescriptors;
+            }
+
+            if (state.introAllWorkoutsRendered) {
+                queueBackgroundDescriptorRender(addedDescriptors);
+            } else {
+                const remainingKeys = new Set(state.introRemainingDescriptors.map(function (descriptor) {
+                    return descriptor && descriptor.meta ? descriptor.meta.activityKey : '';
+                }));
+                addedDescriptors.forEach(function (descriptor) {
+                    if (descriptor.meta && !remainingKeys.has(descriptor.meta.activityKey) && !state.renderedKeys.has(descriptor.meta.activityKey)) {
+                        state.introRemainingDescriptors.push(descriptor);
+                        remainingKeys.add(descriptor.meta.activityKey);
+                    }
+                });
+                if (!state.introAnimationActive && !state.shareMode) {
+                    setIntroAnimationControl('showAll');
+                }
+            }
+            rebuildFilterOptions();
+            refreshFilterSummary({ skipMapRefresh: true });
+            syncWorkoutStepperState();
+            if (state.playback.collection && state.playback.sourceType === 'collection') {
+                state.playback.items = getCollectionPlaybackItems(state.playback.collection);
+                renderCollectionPlaybackPanel();
+            }
+            return addedDescriptors;
+        }
+
+        function queueBackgroundDescriptorRender(descriptors) {
+            const queuedKeys = new Set(state.backgroundRenderQueue.map(function (descriptor) {
+                return descriptor && descriptor.meta ? descriptor.meta.activityKey : '';
+            }));
+            (descriptors || []).forEach(function (descriptor) {
+                const key = descriptor && descriptor.meta ? descriptor.meta.activityKey : '';
+                if (key && !queuedKeys.has(key) && !state.renderedKeys.has(key)) {
+                    state.backgroundRenderQueue.push(descriptor);
+                    queuedKeys.add(key);
+                }
+            });
+            if (state.backgroundRenderScheduled || !state.backgroundRenderQueue.length) {
+                return;
+            }
+            state.backgroundRenderScheduled = true;
+            window.requestAnimationFrame(function renderNextBackgroundBatch() {
+                const nextBatch = state.backgroundRenderQueue.splice(0, 10);
+                renderDescriptorBatch(nextBatch);
+                if (state.backgroundRenderQueue.length) {
+                    window.requestAnimationFrame(renderNextBackgroundBatch);
+                    return;
+                }
+                state.backgroundRenderScheduled = false;
+            });
+        }
+
+        async function loadRemainingActivityPages(initialPagination, requestOptions) {
+            let pagination = initialPagination || {};
+            let nextCursor = pagination.next_cursor || null;
+            let hasMore = Boolean(pagination.has_more);
+            const seenCursors = new Set();
+            if (!hasMore) {
+                return { loaded: 0, complete: true };
+            }
+            let loaded = 0;
+            setOlderWorkoutLoadStatus('Loading older workouts in the background...');
+            try {
+                while (hasMore) {
+                    if (!nextCursor || seenCursors.has(nextCursor)) {
+                        throw new Error('The workout service returned an invalid pagination cursor.');
+                    }
+                    seenCursors.add(nextCursor);
+                    const page = await fetchActivityPage({
+                        user: userConfig.slug,
+                        limit: 50,
+                        cursor: nextCursor
+                    }, requestOptions);
+                    loaded += appendActivitySummaries(page.activities).length;
+                    pagination = page.pagination;
+                    hasMore = Boolean(pagination.has_more);
+                    nextCursor = pagination.next_cursor || null;
+                    setOlderWorkoutLoadStatus('Loading older workouts... ' + state.activityItems.length + ' ready');
+                    await StravaApp.wait(16);
+                }
+                const completionMessage = 'All ' + state.activityItems.length + ' workouts are ready.';
+                setOlderWorkoutLoadStatus(completionMessage);
+                window.setTimeout(function () {
+                    if (olderWorkoutLoadStatus && olderWorkoutLoadStatus.textContent === completionMessage) {
+                        setOlderWorkoutLoadStatus('');
+                    }
+                }, 1400);
+                return { loaded: loaded, complete: true };
+            } catch (error) {
+                console.warn('Older ' + providerLabel + ' workouts could not be loaded.', error);
+                setOlderWorkoutLoadStatus('Older workouts could not be loaded. The current map is still available.', 'error');
+                return { loaded: loaded, complete: false, error: error };
+            }
+        }
+
+        async function refreshActivitySummariesAfterSync(requestOptions) {
+            const firstPage = await fetchActivityPage({
+                user: userConfig.slug,
+                limit: 3,
+                include_preview: 1
+            }, requestOptions);
+            appendActivitySummaries(firstPage.activities);
+            await loadRemainingActivityPages(firstPage.pagination, requestOptions);
+            return firstPage.activities.length;
+        }
+
+        async function loadMissingSharedCollectionActivities(collection, requestOptions) {
+            const missingIds = (collection && collection.activity_ids ? collection.activity_ids : []).filter(function (activityId) {
+                return !state.activityItemsById.has(normalizeActivityReference(activityId));
+            });
+            if (!missingIds.length) {
+                return 0;
+            }
+            let loaded = 0;
+            setOlderWorkoutLoadStatus('Loading workouts from this shared collection...');
+            try {
+                for (let offset = 0; offset < missingIds.length; offset += 50) {
+                    const chunk = missingIds.slice(offset, offset + 50);
+                    const page = await fetchActivityPage({
+                        user: userConfig.slug,
+                        ids: chunk.join(','),
+                        limit: Math.max(1, chunk.length)
+                    }, requestOptions);
+                    loaded += appendActivitySummaries(page.activities).length;
+                }
+                setOlderWorkoutLoadStatus('Shared collection ready.');
+                return loaded;
+            } catch (error) {
+                console.warn('Some shared collection workouts could not be loaded.', error);
+                setOlderWorkoutLoadStatus('Some shared collection workouts are unavailable. Other workouts remain usable.', 'error');
+                return loaded;
+            }
+        }
+
         function renderRemainingIntroWorkouts(options) {
             if (state.introAllWorkoutsRendered) {
                 hideIntroKpiPanel();
@@ -10085,7 +10584,12 @@
                 : state.allDescriptors.filter(function (descriptor) {
                     return descriptor && descriptor.meta && !state.renderedKeys.has(descriptor.meta.activityKey);
                 });
-            const layers = renderDescriptorBatch(remainingDescriptors);
+            const layers = options && options.immediate
+                ? renderDescriptorBatch(remainingDescriptors)
+                : [];
+            if (!options || !options.immediate) {
+                queueBackgroundDescriptorRender(remainingDescriptors);
+            }
             state.introRemainingDescriptors = [];
             state.introAllWorkoutsRendered = true;
             clearWorkoutNavigatorFocus();
@@ -10104,6 +10608,11 @@
             const fallbackCenter = [userConfig.lat, userConfig.lng];
             state.map = await initializeActiveMap(fallbackCenter, 8);
             let backgroundSyncPromise = null;
+            const activityKpisPromise = loadActivityKpisData([]).catch(function (error) {
+                console.warn('Stored activity KPI snapshots are unavailable.', error);
+                return new Map();
+            });
+            const collectionsPromise = loadCollectionsData();
 
             const loadResult = await runtimeDataSource.runWithFallback('user activity load', async function (requestOptions) {
                 let syncSummary = {
@@ -10111,13 +10620,32 @@
                     storage: 'MongoDB',
                     syncAvailable: false
                 };
-                let backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, providerPaths.activities, {
-                    user: userConfig.slug
-                }, providerRequestOptions(requestOptions));
+                let activityPage = await fetchActivityPage({
+                    user: userConfig.slug,
+                    limit: 3,
+                    include_preview: 1
+                }, requestOptions);
                 if (window.STRAVA_CONFIG.syncOnLoad === true && isOwnerWritable()) {
                     body.dataset.connectionState = 'syncing';
                     const syncRequest = StravaApp.apiPost(runtimeDataSource.apiBase, providerPaths.sync, {}, providerRequestOptions(requestOptions));
-                    if (backendActivities.length) {
+                    if (isIntervalsProvider && !activityPageHasDrawableRoute(activityPage)) {
+                        const syncTracker = { settled: false, result: null, error: null };
+                        const trackedSyncRequest = syncRequest.then(function (summary) {
+                            syncTracker.settled = true;
+                            syncTracker.result = summary;
+                            return summary;
+                        }, function (error) {
+                            syncTracker.settled = true;
+                            syncTracker.error = error;
+                            throw error;
+                        });
+                        backgroundSyncPromise = trackedSyncRequest.catch(function (error) {
+                            console.warn('Background ' + providerLabel + ' sync unavailable while preparing the map.', error);
+                            body.dataset.connectionState = 'error';
+                            return null;
+                        });
+                        activityPage = await pollForInitialRoutedActivityPage(activityPage, requestOptions, syncTracker);
+                    } else if (activityPage.activities.length) {
                         backgroundSyncPromise = syncRequest.catch(function (error) {
                             console.warn('Background ' + providerLabel + ' sync unavailable; cached routes remain visible.', error);
                             body.dataset.connectionState = 'error';
@@ -10126,18 +10654,32 @@
                     } else {
                         try {
                             syncSummary = await syncRequest;
-                            backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, providerPaths.activities, {
-                                user: userConfig.slug
-                            }, providerRequestOptions(requestOptions));
+                            activityPage = await fetchActivityPage({
+                                user: userConfig.slug,
+                                limit: 3,
+                                include_preview: 1
+                            }, requestOptions);
                         } catch (error) {
                             console.warn('Initial ' + providerLabel + ' sync unavailable.', error);
-                            backendActivities = await StravaApp.apiGet(runtimeDataSource.apiBase, providerPaths.activities, {
-                                user: userConfig.slug
-                            }, providerRequestOptions(requestOptions));
+                            activityPage = await fetchActivityPage({
+                                user: userConfig.slug,
+                                limit: 3,
+                                include_preview: 1
+                            }, requestOptions);
                         }
                     }
                 }
-                const normalizedActivities = StravaApp.sortActivitiesNewestFirst(backendActivities.map(StravaApp.normalizeActivityRecord));
+                if (!activityPageHasDrawableRoute(activityPage)) {
+                    try {
+                        // Provider-neutral recovery: public maps and Strava maps
+                        // can also have indoor workouts in the newest page while
+                        // an older cached workout contains the first route.
+                        activityPage = await scanForFirstOlderRoutedActivity(activityPage, requestOptions);
+                    } catch (error) {
+                        console.warn('Unable to find an older cached route for ' + providerLabel + '.', error);
+                    }
+                }
+                const normalizedActivities = StravaApp.sortActivitiesNewestFirst(activityPage.activities.map(StravaApp.normalizeActivityRecord));
                 if (!normalizedActivities.length) {
                     throw new Error('No cached backend activities are available for ' + userConfig.slug + '.');
                 }
@@ -10159,7 +10701,9 @@
                 }
                 return {
                     activities: normalizedActivities,
-                    latestCenter: latestCenter
+                    latestCenter: latestCenter,
+                    pagination: activityPage.pagination,
+                    requestOptions: requestOptions
                 };
             }, function (error) {
                 if (window.STRAVA_CONFIG.allowDirectStravaFallback !== true) {
@@ -10168,33 +10712,30 @@
                 return fetchUserActivitiesDirect(fallbackCenter);
             });
 
-            let activities = loadResult.activities;
-            let latestCenter = loadResult.latestCenter;
-            const latestActivityId = activities[0] ? getActivityId(activities[0]) : '';
-            if (latestActivityId && !activities[0].detail_fetched_at) {
-                try {
-                    const latestDetail = await fetchActivityDetailData(latestActivityId);
-                    activities[0] = StravaApp.normalizeActivityRecord(Object.assign({}, activities[0], latestDetail));
-                } catch (error) {
-                    console.warn('Latest activity detail is unavailable; intro KPIs will use cached metrics.', error);
-                }
+            const activities = loadResult.activities;
+            const latestCenter = loadResult.latestCenter;
+            state.activityItems = [];
+            state.activityItemsByKey = new Map();
+            state.activityItemsById = new Map();
+            state.allDescriptors = [];
+            appendActivitySummaries(activities, { initial: true, refresh: false });
+            state.activityKpisByCategory = await activityKpisPromise;
+            if (!state.activityKpisByCategory.size && isIntervalsProvider && backgroundSyncPromise) {
+                state.activityKpisByCategory = await loadActivityKpisData(state.activityItems.map(function (item) {
+                    return item.activity;
+                })).catch(function (error) {
+                    console.warn('Fresh Intervals.icu KPI snapshots are not ready yet.', error);
+                    return new Map();
+                });
             }
-            state.activityKpisByCategory = await loadActivityKpisData(activities);
+            if (!state.activityKpisByCategory.size && !(loadResult.pagination && loadResult.pagination.has_more)) {
+                state.activityKpisByCategory = buildActivityKpiSnapshots(state.activityItems.map(function (item) {
+                    return item.activity;
+                }));
+            }
 
-            state.activityItems = activities.map(function (activity) {
-                return {
-                    activity: activity,
-                    filterMeta: buildActivityFilterMeta(activity)
-                };
-            });
-            state.activityItemsByKey = new Map(state.activityItems.map(function (item) {
-                return [item.filterMeta.key, item];
-            }));
-            state.activityItemsById = new Map(state.activityItems.map(function (item) {
-                return [getActivityId(item.activity), item];
-            }));
             let sharedCollection = null;
-            let loadedCollections = await loadCollectionsData();
+            let loadedCollections = await collectionsPromise;
             if (requestedCollectionToken) {
                 try {
                     sharedCollection = await fetchSharedCollection(requestedCollectionToken);
@@ -10210,20 +10751,19 @@
             renderPrimaryFilterTriggers();
             refreshFilterSummary();
 
-            const lineStyle = StravaApp.getLineStyle();
-            state.allDescriptors = state.activityItems.map(function (item) {
-                const descriptor = StravaApp.createActivityDescriptor(item.activity, {
-                    userSlug: userConfig.slug,
-                    lineWeight: lineStyle.LINE_WEIGHT,
-                    opacityWeight: lineStyle.OPACITY_WEIGHT
-                });
-                if (!descriptor) {
-                    return null;
+            const backgroundActivitiesPromise = loadRemainingActivityPages(
+                loadResult.pagination,
+                loadResult.requestOptions || { timeoutMs: window.STRAVA_CONFIG.requestTimeoutMs }
+            );
+            backgroundActivitiesPromise.then(function () {
+                if (!state.activityKpisByCategory.size) {
+                    state.activityKpisByCategory = buildActivityKpiSnapshots(state.activityItems.map(function (item) {
+                        return item.activity;
+                    }));
                 }
-                descriptor.meta.filterMeta = item.filterMeta;
-                return descriptor;
-            }).filter(Boolean);
+            });
 
+            const lineStyle = StravaApp.getLineStyle();
             const animatedSelection = StravaAnimated.selectRecentDescriptors(state.allDescriptors, StravaAnimated.ANIMATE_COUNT);
             emphasizeLatestAnimatedRoute(animatedSelection, lineStyle);
             const flyCenter = animatedSelection.center ? [animatedSelection.center.lat, animatedSelection.center.lng] : latestCenter;
@@ -10289,14 +10829,36 @@
             }
 
             if (sharedCollection) {
-                renderRemainingIntroWorkouts({ hideControl: true });
+                await loadMissingSharedCollectionActivities(
+                    sharedCollection,
+                    loadResult.requestOptions || { timeoutMs: window.STRAVA_CONFIG.requestTimeoutMs }
+                );
+                renderRemainingIntroWorkouts({ hideControl: true, immediate: true });
                 await startCollectionPlayback(sharedCollection, { readOnly: true, applyFilter: true });
             }
 
             if (backgroundSyncPromise) {
-                backgroundSyncPromise.then(function (summary) {
+                backgroundSyncPromise.then(async function (summary) {
+                    if (!summary) {
+                        return;
+                    }
+                    const inserted = Number(summary && (summary.recordsInserted || summary.inserted) || 0);
+                    const updated = Number(summary && (summary.recordsUpdated || summary.updated) || 0);
+                    const mapsHydrated = Number(summary && summary.mapsHydrated || 0);
+                    if (isIntervalsProvider && summary && (inserted > 0 || updated > 0 || mapsHydrated > 0)) {
+                        await refreshActivitySummariesAfterSync(
+                            loadResult.requestOptions || { timeoutMs: window.STRAVA_CONFIG.requestTimeoutMs }
+                        );
+                        state.activityKpisByCategory = await loadActivityKpisData(state.activityItems.map(function (item) {
+                            return item.activity;
+                        }));
+                        if (state.introKpiActivity) {
+                            state.introKpiLastRenderAt = 0;
+                            updateIntroKpiPanel(state.introKpiActivity, state.introKpiProgress);
+                        }
+                    }
                     body.dataset.connectionState = 'ready';
-                    if (Number(summary && (summary.recordsInserted || summary.inserted)) > 0) {
+                    if (!isIntervalsProvider && inserted > 0) {
                         window.setTimeout(function () {
                             window.location.reload();
                         }, 250);
@@ -10365,7 +10927,11 @@
             state.introAnimationActive = false;
             hideIntroKpiPanel();
             body.dataset.connectionState = 'error';
-            splashText.textContent = 'Unable to load cached ' + providerLabel + ' data';
+            const message = error && error.message
+                ? error.message
+                : 'Unable to load cached ' + providerLabel + ' data';
+            splashText.textContent = message;
+            setOlderWorkoutLoadStatus(message, 'error');
         });
     </script>
 </body>

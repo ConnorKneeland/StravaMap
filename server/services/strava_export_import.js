@@ -15,6 +15,7 @@ const {
 } = require('./intervals_auth');
 const {
     getIntervalsActivityStore,
+    getIntervalsActivityStreamStore,
     recomputeIntervalsKpis
 } = require('./intervals_sync');
 const {
@@ -22,12 +23,32 @@ const {
     compareActivityRichness,
     reconcileDuplicateActivitiesForSlug
 } = require('./intervals_dedupe');
+const {
+    extractCanonicalStreamData,
+    loadProviderStreamSources,
+    mergeStreamRecordWithRetry,
+    updateActivityStreamPreview,
+    buildStreamArtifacts,
+    buildActivityStreamFields
+} = require('./stream_storage');
 
 const DEFAULT_MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 50000;
 const MAX_CSV_BYTES = 20 * 1024 * 1024;
 const MAX_ACTIVITY_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_TARGET_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024;
+const IMPORTED_ACTIVITY_WITHOUT_EMBEDDED_STREAMS_SELECT = Object.freeze({
+    stream_data: 0,
+    stream_latlng: 0,
+    stream_velocity_smooth: 0,
+    stream_time: 0
+});
+const GUARDED_ACTIVITY_STREAM_FIELDS = Object.freeze([
+    'stream_keys', 'stream_requested_keys', 'stream_metadata', 'stream_resolution',
+    'stream_series_type', 'stream_fetched_at', 'stream_preview',
+    'stream_preview_metadata', 'stream_preview_source_updated_at',
+    'summary_polyline', 'map_summary_polyline'
+]);
 const SUPPORTED_ACTIVITY_SUFFIXES = Object.freeze(['.fit.gz', '.gpx.gz', '.tcx.gz', '.fit', '.gpx', '.tcx']);
 const activeImports = new Set();
 let fitSdkPromise;
@@ -549,14 +570,6 @@ function preserveRicherStoredData(existing, incoming) {
         source_datapoint_count: existing.source_datapoint_count,
         source_stream_count: existing.source_stream_count,
         data_richness_score: existing.data_richness_score,
-        stream_latlng: existing.stream_latlng,
-        stream_velocity_smooth: existing.stream_velocity_smooth,
-        stream_time: existing.stream_time,
-        stream_data: existing.stream_data,
-        stream_keys: existing.stream_keys,
-        stream_requested_keys: existing.stream_requested_keys,
-        stream_metadata: existing.stream_metadata,
-        stream_fetched_at: existing.stream_fetched_at,
         map_fetched_at: existing.map_fetched_at,
         detail_fetched_at: existing.detail_fetched_at,
         start_latlng: existing.start_latlng,
@@ -564,6 +577,21 @@ function preserveRicherStoredData(existing, incoming) {
         intervals: existing.intervals,
         sport_metrics: existing.sport_metrics
     });
+}
+
+function buildImportedActivityStorage(transformed, streamData, streamMetadata) {
+    const stored = Object.assign({}, transformed);
+    delete stored.stream_data;
+    delete stored.stream_latlng;
+    delete stored.stream_velocity_smooth;
+    delete stored.stream_time;
+    Object.assign(stored, buildActivityStreamFields(streamData, streamMetadata || transformed));
+    const artifacts = buildStreamArtifacts(streamData);
+    if (artifacts.summary_polyline) {
+        stored.summary_polyline = artifacts.summary_polyline;
+        stored.map_summary_polyline = artifacts.summary_polyline;
+    }
+    return stored;
 }
 
 function getEntrySize(entry) {
@@ -631,6 +659,7 @@ async function importStravaExportZipFile(zipPath, slugValue) {
         }
 
         const store = getIntervalsActivityStore();
+        const streamStore = getIntervalsActivityStreamStore();
         const importedAt = new Date();
         const result = {
             slug,
@@ -678,8 +707,68 @@ async function importStravaExportZipFile(zipPath, slugValue) {
                 continue;
             }
             const filter = { user_slug: slug, intervals_activity_id: transformed.intervals_activity_id };
-            const existing = await store.findOne(filter);
-            await store.upsertOne(filter, preserveRicherStoredData(existing, transformed));
+            const {
+                activity: existing,
+                streamRecord: initiallyObservedStream,
+                streamSource: existingStreamSource
+            } = await loadProviderStreamSources(
+                store,
+                streamStore,
+                filter,
+                IMPORTED_ACTIVITY_WITHOUT_EMBEDDED_STREAMS_SELECT
+            );
+            const incomingStreamData = extractCanonicalStreamData(transformed);
+            const existingStreamData = extractCanonicalStreamData(existingStreamSource || {});
+            const shouldUseIncomingStreams = Boolean(Object.keys(incomingStreamData).length)
+                && (!Object.keys(existingStreamData).length
+                    || !existing || compareActivityRichness(transformed, existing) >= 0);
+            const canonicalStreamData = shouldUseIncomingStreams
+                ? incomingStreamData
+                : existingStreamData;
+            const streamSource = shouldUseIncomingStreams ? transformed : (existingStreamSource || {});
+            let canonicalStreamRecord = existingStreamSource || {};
+            if (Object.keys(canonicalStreamData).length) {
+                const incomingRecord = shouldUseIncomingStreams ? {
+                    schema_version: 1,
+                    user_slug: slug,
+                    intervals_activity_id: transformed.intervals_activity_id,
+                    provider: 'strava_export',
+                    stream_data: incomingStreamData,
+                    stream_keys: Object.keys(incomingStreamData),
+                    stream_requested_keys: streamSource.stream_requested_keys || Object.keys(canonicalStreamData),
+                    stream_metadata: streamSource.stream_metadata || {},
+                    stream_resolution: streamSource.stream_resolution || 'high',
+                    stream_series_type: streamSource.stream_series_type || 'time',
+                    stream_fetched_at: streamSource.stream_fetched_at
+                } : {};
+                canonicalStreamRecord = await mergeStreamRecordWithRetry(
+                    streamStore,
+                    filter,
+                    initiallyObservedStream ? null : existingStreamSource,
+                    incomingRecord,
+                    {
+                        prepareIncoming: (observed, legacy, candidate) => {
+                            if (!shouldUseIncomingStreams) return {};
+                            const currentData = extractCanonicalStreamData(observed || legacy || {});
+                            if (!Object.keys(currentData).length) return candidate;
+                            return countStreamDatapoints(incomingStreamData)
+                                >= countStreamDatapoints(currentData) ? candidate : {};
+                        }
+                    }
+                );
+            }
+            const finalStreamData = extractCanonicalStreamData(canonicalStreamRecord);
+            const activityRecord = buildImportedActivityStorage(
+                transformed,
+                finalStreamData,
+                canonicalStreamRecord
+            );
+            const summaryRecord = preserveRicherStoredData(existing, activityRecord);
+            GUARDED_ACTIVITY_STREAM_FIELDS.forEach((field) => delete summaryRecord[field]);
+            await store.upsertOne(filter, summaryRecord);
+            if (Object.keys(finalStreamData).length) {
+                await updateActivityStreamPreview(store, filter, canonicalStreamRecord);
+            }
             existing ? result.updated += 1 : result.inserted += 1;
         }
         result.deduplication = await reconcileDuplicateActivitiesForSlug(slug, store);

@@ -11,7 +11,8 @@
     "provision:intervals-api-key": "node server/provision_intervals_api_key.js",
     "intervals:owner-link": "node server/provision_intervals_api_key.js --owner-link",
     "sync:users": "node server/bulk_sync_users.js",
-    "backfill:locations": "node server/backfill_activity_locations.js"
+    "backfill:locations": "node server/backfill_activity_locations.js",
+    "migrate:activity-streams": "node server/migrate_activity_streams.js"
   },
   "dependencies": {
     "@garmin/fitsdk": "^21.208.0",

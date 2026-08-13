@@ -890,6 +890,52 @@
             state.map._stravaPolylines = [];
         }
 
+        async function fetchComparisonActivityPages(users) {
+            const activitiesByKey = new Map();
+            const seenCursors = new Set();
+            let nextCursor = null;
+            let hasMore = true;
+            while (hasMore) {
+                const query = {
+                    users: users.join(','),
+                    limit: 100,
+                    activity_list_version: 2
+                };
+                if (nextCursor) {
+                    query.cursor = nextCursor;
+                }
+                const payload = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', query);
+                if (!Array.isArray(payload) && (!payload || !Array.isArray(payload.activities))) {
+                    throw new Error('The workout service returned an unexpected activity-list response.');
+                }
+                const pageActivities = Array.isArray(payload)
+                    ? payload
+                    : payload && Array.isArray(payload.activities)
+                        ? payload.activities
+                        : [];
+                pageActivities.forEach(function (activity) {
+                    const normalized = StravaApp.normalizeActivityRecord(activity);
+                    const key = String(normalized.user_slug || '') + ':' + String(normalized.id || normalized.strava_id || '');
+                    if (key !== ':' && !activitiesByKey.has(key)) {
+                        activitiesByKey.set(key, normalized);
+                    }
+                });
+                setupMessage.textContent = 'Loading from database... ' + activitiesByKey.size + ' workouts ready';
+                const pagination = !Array.isArray(payload) && payload && payload.pagination
+                    ? payload.pagination
+                    : {};
+                hasMore = Boolean(pagination.has_more);
+                nextCursor = pagination.next_cursor ? String(pagination.next_cursor) : null;
+                if (hasMore && (!nextCursor || seenCursors.has(nextCursor))) {
+                    throw new Error('The workout service returned an invalid pagination cursor.');
+                }
+                if (nextCursor) {
+                    seenCursors.add(nextCursor);
+                }
+            }
+            return Array.from(activitiesByKey.values());
+        }
+
         async function loadComparison() {
             if (state.selectedUsers.size < 2) {
                 return;
@@ -900,12 +946,10 @@
             clearRenderedLayers();
             const users = Array.from(state.selectedUsers);
             try {
-                const activities = await StravaApp.apiGet(runtimeDataSource.apiBase, '/api/activities', {
-                    users: users.join(',')
-                });
+                const activities = await fetchComparisonActivityPages(users);
                 state.loadedUsers = new Set(users);
                 state.filters.users = new Set(users);
-                state.activities = StravaApp.sortActivitiesNewestFirst((activities || []).map(StravaApp.normalizeActivityRecord));
+                state.activities = StravaApp.sortActivitiesNewestFirst(activities);
                 const lineStyle = StravaApp.getLineStyle();
                 state.descriptors = state.activities.map(function (activity) {
                     const config = userConfig(activity.user_slug);

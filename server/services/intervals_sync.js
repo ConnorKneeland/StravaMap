@@ -1,5 +1,6 @@
 const { isMongoConnected, memoryStore, wrapModel } = require('../db');
 const getIntervalsActivityModel = require('../models/intervals_activity');
+const getIntervalsActivityStreamModel = require('../models/intervals_activity_stream');
 const getIntervalsActivityKpiSnapshotModel = require('../models/intervals_activity_kpi_snapshot');
 const { buildKpiSnapshots, extractSportMetrics } = require('../activity_kpis');
 const ActivityTypes = require('../../js/strava_activity_types');
@@ -11,12 +12,65 @@ const {
 } = require('./intervals_auth');
 const { normalizeSlug } = require('./connection');
 const { reconcileDuplicateActivitiesForSlug } = require('./intervals_dedupe');
+const {
+    loadProviderStreamSources,
+    mergeStreamRecordWithRetry,
+    updateActivityStreamPreview
+} = require('./stream_storage');
 
 const REQUEST_SPACING_MS = 140;
 const MAX_RATE_LIMIT_RETRIES = 5;
 const MAX_LIST_ACTIVITIES = 20000;
 const activeSyncs = new Map();
 let nextRequestAt = 0;
+const KPI_ACTIVITY_SELECT = Object.freeze({
+    _id: 0,
+    intervals_activity_id: 1,
+    id: 1,
+    provider: 1,
+    import_source: 1,
+    type: 1,
+    sport_type: 1,
+    sub_type: 1,
+    activity_type_key: 1,
+    activity_type_override: 1,
+    start_date: 1,
+    distance: 1,
+    moving_time: 1,
+    elapsed_time: 1,
+    total_elevation_gain: 1,
+    calories: 1,
+    sport_metrics: 1,
+    dedupe_hidden: 1
+});
+const RECONCILIATION_ACTIVITY_SELECT = Object.freeze({
+    _id: 0,
+    activity_key: 1,
+    intervals_activity_id: 1,
+    import_source: 1,
+    provider: 1
+});
+const HYDRATION_ACTIVITY_SELECT = Object.freeze({
+    _id: 0,
+    intervals_activity_id: 1,
+    import_source: 1,
+    provider: 1,
+    start_date: 1,
+    map_fetched_at: 1,
+    detail_fetched_at: 1
+});
+const STREAM_ACTIVITY_METADATA_SELECT = Object.freeze({
+    _id: 0,
+    provider: 1,
+    summary_polyline: 1,
+    map_summary_polyline: 1
+});
+const ACTIVITY_WITHOUT_EMBEDDED_STREAMS_SELECT = Object.freeze({
+    stream_data: 0,
+    stream_latlng: 0,
+    stream_velocity_smooth: 0,
+    stream_time: 0
+});
 
 class IntervalsRequestError extends Error {
     constructor(message, status, retryAfterSeconds, code) {
@@ -31,6 +85,12 @@ class IntervalsRequestError extends Error {
 
 function getIntervalsActivityStore() {
     return isMongoConnected() ? wrapModel(getIntervalsActivityModel()) : memoryStore.intervalsActivities;
+}
+
+function getIntervalsActivityStreamStore() {
+    return isMongoConnected()
+        ? wrapModel(getIntervalsActivityStreamModel())
+        : memoryStore.intervalsActivityStreams;
 }
 
 function getIntervalsKpiStore() {
@@ -357,18 +417,46 @@ async function fetchIntervalsMap(connection, activityId) {
         if (error.status !== 404) throw error;
         mapPayload = { latlngs: [] };
     }
-    const update = transformIntervalsMap(mapPayload);
+    const transformedMap = transformIntervalsMap(mapPayload);
     const filter = {
         user_slug: connection.user_slug,
         intervals_activity_id: String(activityId)
     };
-    const existing = await getIntervalsActivityStore().findOne(filter);
-    if (existing && existing.stream_data) {
-        update.stream_data = Object.assign({}, existing.stream_data, update.stream_data);
-        update.stream_keys = Array.from(new Set([...(existing.stream_keys || []), ...(update.stream_keys || [])]));
-    }
-    await getIntervalsActivityStore().updateOne(filter, update);
-    return update;
+    const activityStore = getIntervalsActivityStore();
+    const streamStore = getIntervalsActivityStreamStore();
+    const {
+        activity: existingActivity,
+        streamRecord: initiallyObservedStream,
+        streamSource: legacyOrCanonical
+    } = await loadProviderStreamSources(
+        activityStore,
+        streamStore,
+        filter,
+        STREAM_ACTIVITY_METADATA_SELECT
+    );
+    const incomingRecord = compactObject({
+        schema_version: 1,
+        user_slug: connection.user_slug,
+        intervals_activity_id: String(activityId),
+        provider: existingActivity && existingActivity.provider || 'intervals_icu',
+        stream_data: transformedMap.stream_data,
+        stream_keys: Object.keys(transformedMap.stream_data)
+    });
+    const legacySource = initiallyObservedStream ? null : legacyOrCanonical;
+    const streamRecord = await mergeStreamRecordWithRetry(
+        streamStore,
+        filter,
+        legacySource,
+        incomingRecord
+    );
+    await updateActivityStreamPreview(activityStore, filter, streamRecord, {
+        fields: {
+            start_latlng: transformedMap.start_latlng,
+            end_latlng: transformedMap.end_latlng,
+            map_fetched_at: transformedMap.map_fetched_at
+        }
+    });
+    return streamRecord;
 }
 
 async function fetchIntervalsActivityDetail(slugValue, activityId) {
@@ -385,7 +473,7 @@ async function fetchIntervalsActivityDetail(slugValue, activityId) {
     return getIntervalsActivityStore().findOne({
         user_slug: connection.user_slug,
         intervals_activity_id: String(activityId)
-    });
+    }, { select: ACTIVITY_WITHOUT_EMBEDDED_STREAMS_SELECT });
 }
 
 async function fetchIntervalsActivityStreams(slugValue, activityId) {
@@ -397,22 +485,60 @@ async function fetchIntervalsActivityStreams(slugValue, activityId) {
         if (error.status !== 404) throw error;
         payload = [];
     }
-    const update = transformIntervalsStreams(payload);
-    await getIntervalsActivityStore().updateOne({
+    const transformed = transformIntervalsStreams(payload);
+    const filter = {
         user_slug: connection.user_slug,
         intervals_activity_id: String(activityId)
-    }, update);
-    return getIntervalsActivityStore().findOne({
+    };
+    const activityStore = getIntervalsActivityStore();
+    const streamStore = getIntervalsActivityStreamStore();
+    const {
+        activity: existingActivity,
+        streamRecord: initiallyObservedStream,
+        streamSource: legacyOrCanonical
+    } = await loadProviderStreamSources(
+        activityStore,
+        streamStore,
+        filter,
+        STREAM_ACTIVITY_METADATA_SELECT
+    );
+    const incomingRecord = {
+        schema_version: 1,
         user_slug: connection.user_slug,
-        intervals_activity_id: String(activityId)
-    });
+        intervals_activity_id: String(activityId),
+        provider: existingActivity && existingActivity.provider || 'intervals_icu',
+        stream_data: transformed.stream_data,
+        stream_keys: Object.keys(transformed.stream_data),
+        stream_requested_keys: transformed.stream_requested_keys || Object.keys(transformed.stream_data),
+        stream_metadata: transformed.stream_metadata || {},
+        stream_resolution: transformed.stream_resolution,
+        stream_series_type: transformed.stream_series_type,
+        stream_fetched_at: transformed.stream_fetched_at
+    };
+    const legacySource = initiallyObservedStream ? null : legacyOrCanonical;
+    const streamRecord = await mergeStreamRecordWithRetry(
+        streamStore,
+        filter,
+        legacySource,
+        incomingRecord
+    );
+    if (existingActivity) {
+        await updateActivityStreamPreview(activityStore, filter, streamRecord, {
+            existingActivity,
+            preserveSummaryPolyline: true
+        });
+    }
+    return streamRecord;
 }
 
 async function recomputeIntervalsKpis(slugValue) {
     const slug = normalizeSlug(slugValue);
     const activityStore = getIntervalsActivityStore();
     const snapshotStore = getIntervalsKpiStore();
-    const activities = (await activityStore.find({ user_slug: slug }, { sort: { start_date: 1 } }))
+    const activities = (await activityStore.find({ user_slug: slug }, {
+        sort: { start_date: 1 },
+        select: KPI_ACTIVITY_SELECT
+    }))
         .filter((activity) => activity.dedupe_hidden !== true);
     const snapshots = buildKpiSnapshots(slug, activities, {
         idPrefix: PROVIDER,
@@ -455,7 +581,9 @@ async function performIntervalsSync(connection) {
         for (let index = 0; index < eligible.length; index += 1) {
             const payload = eligible[index];
             const filter = { user_slug: slug, intervals_activity_id: String(payload.id) };
-            const exists = await activityStore.findOne(filter);
+            const exists = await activityStore.findOne(filter, {
+                select: { _id: 1, intervals_metrics: 1 }
+            });
             const transformed = transformIntervalsActivity(slug, connection.provider_athlete_id, payload);
             if (exists && exists.intervals_metrics && transformed.intervals_metrics) {
                 transformed.intervals_metrics = Object.assign({}, exists.intervals_metrics, transformed.intervals_metrics);
@@ -471,18 +599,32 @@ async function performIntervalsSync(connection) {
 
         let deleted = 0;
         if (providerListComplete) {
-            for (const stored of await activityStore.find({ user_slug: slug })) {
+            for (const stored of await activityStore.find({ user_slug: slug }, {
+                select: RECONCILIATION_ACTIVITY_SELECT
+            })) {
                 if (stored.import_source !== 'strava_export'
                     && stored.provider !== 'strava_export'
                     && !providerIds.has(String(stored.intervals_activity_id))) {
                     await activityStore.deleteOne({ activity_key: stored.activity_key });
+                    await getIntervalsActivityStreamStore().deleteOne({
+                        user_slug: slug,
+                        intervals_activity_id: String(stored.intervals_activity_id)
+                    });
                     deleted += 1;
                 }
             }
         }
 
+        // Make authoritative totals available before the slower route-map
+        // backfill so a brand-new map can paint its first route with complete
+        // KPIs while the remaining maps continue in the background.
+        await recomputeIntervalsKpis(slug);
+
         let mapsHydrated = 0;
-        const storedActivities = (await activityStore.find({ user_slug: slug }, { sort: { start_date: -1 } }))
+        const storedActivities = (await activityStore.find({ user_slug: slug }, {
+            sort: { start_date: -1 },
+            select: HYDRATION_ACTIVITY_SELECT
+        }))
             .filter((activity) => activity.import_source !== 'strava_export' && activity.provider !== 'strava_export');
         for (let index = 0; index < storedActivities.length; index += 1) {
             const activity = storedActivities[index];
@@ -492,9 +634,6 @@ async function performIntervalsSync(connection) {
             }
             if (index < 12 && !activity.detail_fetched_at) {
                 await fetchIntervalsActivityDetail(slug, activity.intervals_activity_id);
-            }
-            if (index < 12 && !activity.stream_fetched_at) {
-                await fetchIntervalsActivityStreams(slug, activity.intervals_activity_id);
             }
             await connectionStore.updateOne({ connection_key: connection.connection_key }, {
                 sync_progress: {
@@ -557,6 +696,10 @@ async function reconcileIntervalsActivity(slugValue, activityId) {
     } catch (error) {
         if (error.status === 404) {
             await getIntervalsActivityStore().deleteOne({ user_slug: slug, intervals_activity_id: String(activityId) });
+            await getIntervalsActivityStreamStore().deleteOne({
+                user_slug: slug,
+                intervals_activity_id: String(activityId)
+            });
             await recomputeIntervalsKpis(slug);
             return null;
         }
@@ -574,7 +717,9 @@ async function reconcileRecentIntervalsActivities(slugValue, daysValue) {
     for (const activity of activities) {
         const transformed = transformIntervalsActivity(slug, connection.provider_athlete_id, activity);
         const filter = { user_slug: slug, intervals_activity_id: transformed.intervals_activity_id };
-        const existing = await getIntervalsActivityStore().findOne(filter);
+        const existing = await getIntervalsActivityStore().findOne(filter, {
+            select: { _id: 1, intervals_metrics: 1, map_fetched_at: 1 }
+        });
         if (existing && existing.intervals_metrics && transformed.intervals_metrics) {
             transformed.intervals_metrics = Object.assign({}, existing.intervals_metrics, transformed.intervals_metrics);
         }
@@ -590,6 +735,7 @@ async function reconcileRecentIntervalsActivities(slugValue, daysValue) {
 module.exports = {
     IntervalsRequestError,
     getIntervalsActivityStore,
+    getIntervalsActivityStreamStore,
     getIntervalsKpiStore,
     isHiddenIntervalsActivity,
     isEligibleIntervalsActivity,

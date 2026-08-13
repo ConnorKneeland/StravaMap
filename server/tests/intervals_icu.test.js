@@ -16,6 +16,7 @@ process.env.INTERVALS_ENABLED_SLUGS = 'connor';
 process.env.INTERVALS_WEBHOOK_SECRET = 'icu-webhook-secret';
 process.env.PROVIDER_TOKEN_ENCRYPTION_KEY = 'test-provider-encryption-secret-with-32-characters';
 process.env.OWNER_SESSION_SECRET = 'test-owner-session-secret-with-at-least-thirty-two-characters';
+process.env.ACTIVITY_LIST_V2_ENABLED = 'true';
 process.env.INTERVALS_SYNC_OLDEST = '1970-01-01';
 
 const { memoryState, memoryStore } = require('../db');
@@ -26,7 +27,8 @@ const {
     transformIntervalsStreams,
     intervalsFetchJson,
     syncIntervalsActivities,
-    getIntervalsActivityStore
+    getIntervalsActivityStore,
+    getIntervalsActivityStreamStore
 } = require('../services/intervals_sync');
 const {
     parseCsvRows,
@@ -672,6 +674,7 @@ test('an interrupted map backfill resumes from cached progress without refetchin
         await assert.rejects(() => syncIntervalsActivities('connor'), /failed with 500/);
         assert.equal(mapCalls.i1, 1);
         assert.equal(mapCalls.i2, 1);
+        assert.ok(await memoryStore.intervalsActivityKpiSnapshots.count({ user_slug: 'connor' }));
         assert.ok((await memoryStore.intervalsActivities.findOne({ intervals_activity_id: 'i1' })).map_fetched_at);
 
         failSecondMap = false;
@@ -696,7 +699,7 @@ test('cached ICU reads are public while sync and mutations require the owner tok
 
     const publicList = await request(server, '/api/intervals/activities?user=connor');
     assert.equal(publicList.status, 200);
-    assert.equal(JSON.parse(publicList.body)[0].intervals_activity_id, 'i-public');
+    assert.equal(JSON.parse(publicList.body).activities[0].intervals_activity_id, 'i-public');
 
     const deniedSync = await request(server, '/api/intervals/sync/connor', { method: 'POST', body: {} });
     assert.equal(deniedSync.status, 401);
@@ -788,7 +791,13 @@ test('owner ZIP upload imports activities into ICU storage, is repeatable, and n
     });
     assert.ok(imported);
     assert.equal(imported.import_source, 'strava_export');
-    assert.equal(imported.stream_latlng.length, 3);
+    assert.equal(imported.stream_data, undefined);
+    assert.equal(imported.stream_latlng, undefined);
+    assert.equal(imported.stream_preview.latlng.length, 3);
+    const importedStreams = await getIntervalsActivityStreamStore().findOne({
+        user_slug: 'connor', intervals_activity_id: 'strava_export:123'
+    });
+    assert.equal(importedStreams.stream_data.latlng.length, 3);
 
     const second = await request(server, '/api/intervals/import/strava-export/connor', options);
     assert.equal(second.status, 200, second.body);

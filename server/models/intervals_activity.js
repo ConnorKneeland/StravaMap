@@ -57,6 +57,8 @@ const intervalsActivitySchema = new mongoose.Schema({
     perceived_exertion: { type: Number },
     start_latlng: { type: [Number], default: void 0 },
     end_latlng: { type: [Number], default: void 0 },
+    summary_polyline: { type: String },
+    map_summary_polyline: { type: String },
     stream_latlng: { type: [[Number]], default: void 0 },
     stream_velocity_smooth: { type: [Number], default: void 0 },
     stream_time: { type: [Number], default: void 0 },
@@ -64,6 +66,9 @@ const intervalsActivitySchema = new mongoose.Schema({
     stream_keys: { type: [String], default: void 0 },
     stream_requested_keys: { type: [String], default: void 0 },
     stream_metadata: { type: Mixed },
+    stream_preview: { type: Mixed },
+    stream_preview_metadata: { type: Mixed },
+    stream_preview_source_updated_at: { type: Date },
     stream_resolution: { type: String },
     stream_series_type: { type: String },
     stream_fetched_at: { type: Date },
@@ -88,6 +93,10 @@ const intervalsActivitySchema = new mongoose.Schema({
 intervalsActivitySchema.index({ user_slug: 1, intervals_activity_id: 1 }, { unique: true });
 intervalsActivitySchema.index({ user_slug: 1, activity_key: 1 }, { unique: true });
 intervalsActivitySchema.index({ user_slug: 1, start_date: -1 });
+intervalsActivitySchema.index(
+    { user_slug: 1, start_date: -1, intervals_activity_id: -1 },
+    { name: 'intervals_activities_user_slug_start_date_intervals_activity_id_pagination' }
+);
 
 module.exports = function getIntervalsActivityModel() {
     return mongoose.models.IntervalsActivity || mongoose.model('IntervalsActivity', intervalsActivitySchema);
