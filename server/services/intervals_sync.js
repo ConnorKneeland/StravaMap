@@ -334,10 +334,12 @@ async function intervalsFetchJson(connection, path, params, attempt) {
 
 async function getConnectedIntervalsAccount(slugValue) {
     const slug = normalizeSlug(slugValue);
-    if (!isIntervalsSlugEnabled(slug)) {
+    const connection = slug
+        ? await getConnectionStore().findOne({ connection_key: `${PROVIDER}:${slug}` })
+        : null;
+    if (!connection && !isIntervalsSlugEnabled(slug)) {
         throw new IntervalsRequestError('Intervals.icu is not enabled for this user', 404, 0, 'provider_not_enabled');
     }
-    const connection = await getConnectionStore().findOne({ connection_key: `${PROVIDER}:${slug}` });
     if (!connection || connection.connection_status !== 'connected' || connection.needs_reconnect) {
         throw new IntervalsRequestError('Intervals.icu connection required', 401, 0, 'reconnect_required');
     }

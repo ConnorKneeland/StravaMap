@@ -2,7 +2,7 @@ const express = require('express');
 const { normalizeSlug } = require('../services/connection');
 const { getActivityStore } = require('../services/sync');
 const { getIntervalsActivityStore } = require('../services/intervals_sync');
-const { isIntervalsSlugEnabled } = require('../config/intervals');
+const { isIntervalsSlugAccessible } = require('../services/intervals_auth');
 
 const router = express.Router();
 
@@ -69,7 +69,7 @@ function buildWidgetActivityPayload(activity) {
 
 async function getWidgetActivity(provider, slug, index) {
     if (provider === 'intervals') {
-        if (!isIntervalsSlugEnabled(slug)) {
+        if (!(await isIntervalsSlugAccessible(slug))) {
             throw new Error('Intervals.icu is not enabled for this user.');
         }
         const activities = (await getIntervalsActivityStore().find(

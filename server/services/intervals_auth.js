@@ -336,27 +336,53 @@ async function bindIntervalsConnection(slugValue, tokenData) {
     }));
 }
 
-async function bindIntervalsApiKeyConnection(slugValue, athleteIdValue, apiKeyValue) {
+async function getIntervalsConnection(slugValue) {
     const slug = normalizeSlug(slugValue);
-    if (!slug || !isIntervalsSlugEnabled(slug)) {
+    if (!slug) {
+        return null;
+    }
+    return getConnectionStore().findOne({ connection_key: `${PROVIDER}:${slug}` });
+}
+
+async function isIntervalsSlugAccessible(slugValue) {
+    const slug = normalizeSlug(slugValue);
+    if (!slug) {
+        return false;
+    }
+    if (isIntervalsSlugEnabled(slug)) {
+        return true;
+    }
+    return Boolean(await getIntervalsConnection(slug));
+}
+
+async function assertIntervalsApiKeyConnectionAvailable(slugValue, athleteIdValue) {
+    const slug = normalizeSlug(slugValue);
+    const athleteId = String(athleteIdValue || '').trim();
+    if (!slug) {
         throw new IntervalsAuthError(
-            'This slug is not listed in INTERVALS_ENABLED_SLUGS',
-            404,
-            'provider_not_enabled'
+            'A valid map slug is required',
+            400,
+            'invalid_slug'
         );
     }
-    const profile = await verifyIntervalsApiKey(apiKeyValue, athleteIdValue);
+    if (!athleteId) {
+        throw new IntervalsAuthError(
+            'An Intervals.icu athlete ID is required',
+            400,
+            'athlete_id_required'
+        );
+    }
     const store = getConnectionStore();
     const connectionKey = `${PROVIDER}:${slug}`;
     const existingConnection = await store.findOne({ connection_key: connectionKey });
-    if (existingConnection && String(existingConnection.provider_athlete_id) !== profile.id) {
+    if (existingConnection && String(existingConnection.provider_athlete_id) !== athleteId) {
         throw new IntervalsAuthError(
             `The slug ${slug} is already connected to a different Intervals.icu athlete`,
             409,
             'slug_already_connected'
         );
     }
-    const existingOwner = await store.findOne({ provider: PROVIDER, provider_athlete_id: profile.id });
+    const existingOwner = await store.findOne({ provider: PROVIDER, provider_athlete_id: athleteId });
     if (existingOwner && existingOwner.user_slug !== slug) {
         throw new IntervalsAuthError(
             'This Intervals.icu athlete is already connected to another slug',
@@ -364,13 +390,29 @@ async function bindIntervalsApiKeyConnection(slugValue, athleteIdValue, apiKeyVa
             'athlete_already_connected'
         );
     }
+    return existingConnection;
+}
+
+async function storeIntervalsApiKeyConnection(slugValue, profile, apiKeyValue) {
+    const slug = normalizeSlug(slugValue);
+    const apiKey = String(apiKeyValue || '').trim();
+    const athleteId = profile && String(profile.id || '').trim();
+    if (!apiKey || !athleteId) {
+        throw new IntervalsAuthError(
+            'An Intervals.icu athlete ID and API key are required',
+            400,
+            'api_key_required'
+        );
+    }
+    const existingConnection = await assertIntervalsApiKeyConnectionAvailable(slug, athleteId);
     const encrypted = encryptAccessToken(String(apiKeyValue || '').trim());
-    return store.upsertOne({ connection_key: connectionKey }, Object.assign({}, encrypted, {
+    const connectionKey = `${PROVIDER}:${slug}`;
+    return getConnectionStore().upsertOne({ connection_key: connectionKey }, Object.assign({}, encrypted, {
         connection_key: connectionKey,
         user_slug: slug,
         provider: PROVIDER,
-        provider_athlete_id: profile.id,
-        provider_athlete_name: profile.name,
+        provider_athlete_id: athleteId,
+        provider_athlete_name: String(profile.name || ''),
         auth_type: 'api_key',
         granted_scopes: ['PERSONAL_API_KEY'],
         connection_status: 'connected',
@@ -382,6 +424,11 @@ async function bindIntervalsApiKeyConnection(slugValue, athleteIdValue, apiKeyVa
         sync_retry_at: null,
         sync_error: ''
     }));
+}
+
+async function bindIntervalsApiKeyConnection(slugValue, athleteIdValue, apiKeyValue) {
+    const profile = await verifyIntervalsApiKey(apiKeyValue, athleteIdValue);
+    return storeIntervalsApiKeyConnection(slugValue, profile, apiKeyValue);
 }
 
 function createOwnerToken(slug, athleteId) {
@@ -457,6 +504,8 @@ module.exports = {
     buildIntervalsAuthorizationUrl,
     exchangeIntervalsCode,
     bindIntervalsConnection,
+    getIntervalsConnection,
+    isIntervalsSlugAccessible,
     normalizeIntervalsReturnUrl,
     encryptAccessToken,
     decryptAccessToken,
@@ -464,6 +513,8 @@ module.exports = {
     buildIntervalsProviderAuthorization,
     normalizeIntervalsAthleteProfile,
     verifyIntervalsApiKey,
+    assertIntervalsApiKeyConnectionAvailable,
+    storeIntervalsApiKeyConnection,
     bindIntervalsApiKeyConnection,
     createOwnerToken,
     verifyOwnerToken,

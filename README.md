@@ -6,11 +6,11 @@ The production map now uses one server-side Strava OAuth application with persis
 
 See [Shared Strava OAuth Operations Guide](docs/strava-multi-user-oauth.md) for the OAuth flow, endpoints, database fields, migration notes, Railway variables, Strava dashboard setup, and Tim acceptance run.
 
-## Intervals.icu personal API-key proof of concept
+## Intervals.icu maps and onboarding
 
-The separate Intervals.icu map is available at `icu_map.html?user=<slug>`. Test accounts are manually linked to slugs with an Athlete ID and personal API key. Credentials are verified, encrypted, and stored server-side in a separate provider connection; the existing Strava map and `activities` collection are not migrated or modified by ICU synchronization.
+The standalone onboarding page is available at `intervals_new_user.html`. A friend can attach Intervals.icu to an existing Make Your Map slug or create a new slug from their first and last name. The server verifies the supplied Athlete ID and personal API key, encrypts the key, and returns an owner link for `icu_map.html?user=<slug>`. Existing Strava credentials, maps, and the `activities` collection are not migrated or modified by ICU synchronization.
 
-See the [Intervals.icu Proof-of-Concept Operations Guide](docs/intervals-icu-poc.md) for Railway provisioning, owner links, key rotation, security behavior, API routes, and smoke tests. OAuth remains available in the code for a later public onboarding flow but is not required for personal API-key testing.
+See the [Intervals.icu Map Operations Guide](docs/intervals-icu-poc.md) for onboarding, the optional administrative fallback, owner links, key rotation, security behavior, API routes, and smoke tests. The legacy Connor-only OAuth path remains available but is not required for personal API-key onboarding.
 
 An authorized ICU-map owner can also use **Import Strava ZIP** to add historical workouts from a Strava account export. The importer reads `activities.csv` and linked FIT/GPX/TCX files into the separate `intervals_activities` collection. It never modifies or deletes the existing Strava `activities` collection; duplicate source records are retained in MongoDB while the richer copy is displayed on the ICU map.
 
