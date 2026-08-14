@@ -9253,7 +9253,7 @@
             });
             if (typeof state.map.once === 'function') {
                 state.map.once('moveend', function () {
-                    window.setTimeout(refreshVisibleRouteCulling, 120);
+                    window.setTimeout(refreshVisibleRouteCulling, 50);
                 });
             }
         }
@@ -10479,7 +10479,7 @@
             }
             state.backgroundRenderScheduled = true;
             window.requestAnimationFrame(function renderNextBackgroundBatch() {
-                const nextBatch = state.backgroundRenderQueue.splice(0, 10);
+                const nextBatch = state.backgroundRenderQueue.splice(0, 5);
                 renderDescriptorBatch(nextBatch);
                 if (state.backgroundRenderQueue.length) {
                     window.requestAnimationFrame(renderNextBackgroundBatch);
