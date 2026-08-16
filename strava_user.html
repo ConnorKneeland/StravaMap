@@ -2126,12 +2126,13 @@
                     <span class="hamburger-icon" aria-hidden="true"><span></span><span></span><span></span></span>
                 </button>
                 <div id="nav-action-menu" class="filter-menu nav-action-menu">
-                    <a class="menu-link" href="strava_compare.html">Comparison Map</a>
-                    <a class="menu-link" href="strava_competitions.html">Competitions Map</a>
+                    <a class="menu-link" href="MAP_FAQ.html">FAQ</a>
                     <a class="menu-link" href="strava_account_settings.html">Account Settings</a>
-                    <button id="strava-export-import-button" class="menu-link" type="button" hidden>Import Strava ZIP</button>
-                    <input id="strava-export-import-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
-                    <div id="strava-export-import-status" class="menu-import-status" hidden aria-live="polite"></div>
+                    <div id="strava-export-import-section" hidden>
+                        <button id="strava-export-import-button" class="menu-link" type="button" hidden>Import Strava ZIP</button>
+                        <input id="strava-export-import-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+                        <div id="strava-export-import-status" class="menu-import-status" hidden aria-live="polite"></div>
+                    </div>
                     <div class="menu-control-row map-style-row">
                         <div class="menu-toggle-copy">
                             <div class="menu-toggle-title">Map Style</div>
@@ -2144,6 +2145,8 @@
                         </div>
                         <div id="map-style-options" class="map-style-options" aria-label="Choose map style"></div>
                     </div>
+                    <a class="menu-link" href="strava_compare.html">Comparison Map</a>
+                    <a class="menu-link" href="strava_competitions.html">Competitions Map</a>
                     <button id="toggle-btn" class="menu-link" type="button">Show Analytics</button>
                 </div>
             </div>
@@ -7922,11 +7925,11 @@
                 return left.label.localeCompare(right.label);
             });
             const customSelected = Boolean(selectedKey && !options.some(function (entry) { return entry.key === selectedKey; }));
-            return "<option value=''" + (!selectedKey ? " selected" : "") + ">Use " + escapeHtml(providerLabel) + " type - " + escapeHtml(stravaTypeLabel) + "</option>"
+            return "<option value=''" + (!selectedKey ? " selected" : "") + ">" + escapeHtml(stravaTypeLabel) + "</option>"
+                + "<option value='__custom__'" + (customSelected ? " selected" : "") + ">Enter custom workout type...</option>"
                 + options.map(function (entry) {
                     return "<option value='" + escapeHtml(entry.key) + "'" + (entry.key === selectedKey ? " selected" : "") + ">" + escapeHtml(entry.label) + "</option>";
-                }).join('')
-                + "<option value='__custom__'" + (customSelected ? " selected" : "") + ">Enter custom workout type...</option>";
+                }).join('');
         }
 
         function renderDetailsLineColorCard(activity) {
