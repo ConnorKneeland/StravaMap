@@ -5,7 +5,7 @@
     const STRAVA_API_BASE_URL = 'https://www.strava.com/api/v3';
     const STRAVA_ACTIVITIES_URL = `${STRAVA_API_BASE_URL}/athlete/activities`;
     const MAPBOX_LIGHT_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/clczd9zd6001515pj5yvlalza/tiles/{z}/{x}/{y}?access_token={accessToken}';
-    const MAPBOX_DARK_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/cmnw43y4e004d01s3etqn419c/tiles/512/{z}/{x}/{y}?access_token=pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
+    const MAPBOX_DARK_STYLE_URL = 'https://api.mapbox.com/styles/v1/ckneeland/cmnw43y4e004d01s3etqn419c/tiles/512/{z}/{x}/{y}?access_token={accessToken}';
     const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MAPBOX_DARK_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
     const MOBILE_REGEX = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
@@ -1424,6 +1424,9 @@
     }
 
     function getMapAccessToken(theme) {
+        if (window.STRAVA_CONFIG.mapboxAccessToken !== undefined) {
+            return String(window.STRAVA_CONFIG.mapboxAccessToken || '').trim();
+        }
         return normalizeMapTheme(theme) === 'dark' ? MAPBOX_DARK_ACCESS_TOKEN : MAPBOX_ACCESS_TOKEN;
     }
 
@@ -1444,11 +1447,71 @@
         return window.L.tileLayer(styleUrl, {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery &copy; <a href="https://www.mapbox.com/">Mapbox</a>',
             maxZoom: 30,
+            maxNativeZoom: 22,
             id: 'mapbox/streets-v11',
             tileSize: 512,
             zoomOffset: -1,
             accessToken: accessToken
         });
+    }
+
+    function createFallbackTileLayer() {
+        return window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 30,
+            maxNativeZoom: 19,
+            tileSize: 256,
+            zoomOffset: 0
+        });
+    }
+
+    function installBaseTileLayer(map, theme, options) {
+        if (map._stravaBaseCleanup) map._stravaBaseCleanup();
+        if (map._stravaBaseTileLayer && map.hasLayer(map._stravaBaseTileLayer)) {
+            map.removeLayer(map._stravaBaseTileLayer);
+        }
+        const layer = createBaseTileLayer(theme, options);
+        let failures = 0;
+        let loaded = false;
+        let timer;
+        let active = true;
+        function cleanup() {
+            active = false;
+            window.clearTimeout(timer);
+            layer.off('tileerror', onError);
+            layer.off('tileload', onLoad);
+            map.off('unload', cleanup);
+        }
+        function fallback() {
+            if (!active || map._stravaBaseTileLayer !== layer) return;
+            cleanup();
+            map.removeLayer(layer);
+            map._stravaBaseTileLayer = createFallbackTileLayer();
+            map._stravaBaseProvider = 'openstreetmap';
+            map._stravaBaseTileLayer.addTo(map);
+            // Do not log tile URLs: they contain the provider's access token.
+            console.warn('Map imagery unavailable; showing OpenStreetMap instead.');
+            map.fire('basemapfallback', { provider: 'openstreetmap' });
+        }
+        function onError() {
+            failures += 1;
+            if (failures >= 3) fallback();
+        }
+        function onLoad() {
+            loaded = true;
+            failures = 0;
+            window.clearTimeout(timer);
+        }
+        layer.on('tileerror', onError);
+        layer.on('tileload', onLoad);
+        map.once('unload', cleanup);
+        map._stravaBaseCleanup = cleanup;
+        map._stravaBaseTheme = normalizeMapTheme(theme);
+        map._stravaBaseProvider = 'mapbox';
+        map._stravaBaseTileLayer = layer;
+        timer = window.setTimeout(function () { if (!loaded) fallback(); }, 5000);
+        layer.addTo(map);
+        return layer;
     }
 
     function initMap(elementId, center, zoom, options) {
@@ -1466,19 +1529,11 @@
         map.once('unload', function () {
             window.removeEventListener('resize', handleResize);
         });
-        map._stravaBaseTheme = theme;
-        map._stravaBaseTileLayer = createBaseTileLayer(theme, {
+        installBaseTileLayer(map, theme, {
             styleUrl: opts.styleUrl,
             tileUrl: opts.tileUrl,
             accessToken: opts.accessToken
         });
-        map._stravaBaseTileLayer.on('tileerror', function (event) {
-            console.warn('Mapbox tile failed to load', {
-                theme: map._stravaBaseTheme,
-                url: event && event.tile ? event.tile.src : ''
-            });
-        });
-        map._stravaBaseTileLayer.addTo(map);
         map._stravaPolylines = [];
         if (window.L.canvas) {
             map._stravaRouteRenderer = window.L.canvas({
@@ -1497,27 +1552,16 @@
         if (map._stravaBaseTheme === normalizedTheme && map._stravaBaseTileLayer) {
             return map._stravaBaseTileLayer;
         }
-        if (map._stravaBaseTileLayer && map.hasLayer(map._stravaBaseTileLayer)) {
-            map.removeLayer(map._stravaBaseTileLayer);
-        }
-        map._stravaBaseTheme = normalizedTheme;
-        map._stravaBaseTileLayer = createBaseTileLayer(normalizedTheme);
-        map._stravaBaseTileLayer.on('tileerror', function (event) {
-            console.warn('Mapbox tile failed to load', {
-                theme: map._stravaBaseTheme,
-                url: event && event.tile ? event.tile.src : ''
-            });
-        });
-        map._stravaBaseTileLayer.addTo(map);
-        return map._stravaBaseTileLayer;
+        return installBaseTileLayer(map, normalizedTheme);
     }
 
-    function flyIn(map, center) {
+    function flyIn(map, center, options) {
+        const opts = options || {};
         return new Promise(function (resolve) {
             window.setTimeout(function () {
                 map.once('moveend', resolve);
-                map.flyTo(center, 13, { animate: true, duration: 1.95 });
-            }, 3200);
+                map.flyTo(center, 13, { animate: true, duration: opts.duration === undefined ? 1.95 : opts.duration });
+            }, opts.delayMs === undefined ? 3200 : opts.delayMs);
         });
     }
 
@@ -1745,6 +1789,7 @@
         stravaFetchActivities: stravaFetchActivities,
         stravaGetLatestLocation: stravaGetLatestLocation,
         createBaseTileLayer: createBaseTileLayer,
+        getMapAccessToken: getMapAccessToken,
         initMap: initMap,
         setMapTheme: setMapTheme,
         flyIn: flyIn,
