@@ -2,6 +2,7 @@
 <html>
 
 <head>
+    <meta charset="utf-8">
     <!-- Favicon-->
     <link rel="icon" href="img/Strava_Favicon.png" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
@@ -2128,6 +2129,8 @@
                 <div id="nav-action-menu" class="filter-menu nav-action-menu">
                     <a class="menu-link" href="MAP_FAQ.html">FAQ</a>
                     <a class="menu-link" href="strava_account_settings.html">Account Settings</a>
+                    <div id="intervals-sync-status" class="menu-import-status" hidden aria-live="polite"></div>
+                    <a id="intervals-reconnect-link" class="menu-link" href="intervals_new_user.html" hidden>Refresh Intervals connection</a>
                     <div id="strava-export-import-section" hidden>
                         <button id="strava-export-import-button" class="menu-link" type="button" hidden>Import Strava ZIP</button>
                         <input id="strava-export-import-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
@@ -2247,10 +2250,10 @@
         (function () {
             const existingConfig = window.STRAVA_CONFIG || {};
             const isLocalHost = ['localhost', '127.0.0.1'].indexOf(window.location.hostname) !== -1;
-            const isIcuMapPath = /\/icu_map(?:\.html)?$/i.test(window.location.pathname);
             window.STRAVA_CONFIG = Object.assign({
                 apiBase: isLocalHost ? window.location.origin : 'https://stravamap-production-7f28.up.railway.app',
-                requestTimeoutMs: (isLocalHost || isIcuMapPath) ? 600000 : 30000,
+                requestTimeoutMs: 15000,
+                syncTimeoutMs: 600000,
                 syncOnLoad: true,
                 allowDirectStravaFallback: false
             }, existingConfig);
@@ -2315,7 +2318,7 @@
         const MAP_STYLE_SESSION_KEY = isIntervalsProvider
             ? providerStoragePrefix + '_map_style'
             : 'strava_map_style';
-        const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiY2tuZWVsYW5kIiwiYSI6ImNsY3pkNW8wdDAxcWozd21lMGhvczFuMHcifQ.GhhJgb3cpjIvHf8tz-gCFw';
+        const MAPBOX_ACCESS_TOKEN = StravaApp.getMapAccessToken('light');
         const DEFAULT_MAP_STYLE_ID = 'light';
         const MAP_STYLE_CONFIGS = {
             light: {
@@ -3347,6 +3350,17 @@
             }
             map.getPane(SPEED_PANE_NAME).style.zIndex = '625';
             map.getPane(SPEED_PANE_NAME).style.pointerEvents = 'none';
+            map.on('basemapfallback', function () {
+                const notice = window.L.control({ position: 'bottomright' });
+                notice.onAdd = function () {
+                    const element = window.L.DomUtil.create('div', 'leaflet-bar');
+                    element.style.cssText = 'background:#fff;color:#222;padding:8px 12px;max-width:240px;font-size:12px';
+                    element.setAttribute('role', 'status');
+                    element.textContent = 'Street map shown while the selected imagery is unavailable.';
+                    return element;
+                };
+                notice.addTo(map);
+            });
             map.on('zoomend', syncVisibleRouteStylesForZoom);
             map.on('moveend', refreshVisibleRouteCulling);
             return Promise.resolve(map);
@@ -4160,6 +4174,9 @@
                     state.collectionBackendAvailable = true;
                 }
                 return sortCollections(collections);
+            }).catch(function (error) {
+                markCollectionsUnavailable(error);
+                return getLocalCollections();
             });
         }
 
@@ -6400,6 +6417,13 @@
                 const previewResultLayer = await animateLayerWithSpeed(previewLayer, opts);
                 syncSpeedOverlayVisibility(previewResultLayer, false);
                 return previewResultLayer;
+            }
+            if (opts.performanceMode === 'intro') {
+                // Cached geometry is enough for the opening animation. Detailed
+                // telemetry is fetched only when the visitor selects a workout.
+                const routeLayer = createRouteLayer(descriptor, descriptor.coordinates.length ? [descriptor.coordinates[0]] : []);
+                routeLayer.setStyle({ opacity: 0 });
+                return animateLayerPlain(routeLayer, opts);
             }
             const streamData = await fetchSpeedStreamForDescriptor(descriptor, opts.metricId || getActiveStreamColorMetricId());
             if (shouldCancel()) {
@@ -10510,7 +10534,7 @@
                     seenCursors.add(nextCursor);
                     const page = await fetchActivityPage({
                         user: userConfig.slug,
-                        limit: 50,
+                        limit: 100,
                         cursor: nextCursor
                     }, requestOptions);
                     loaded += appendActivitySummaries(page.activities).length;
@@ -10630,7 +10654,9 @@
                 }, requestOptions);
                 if (window.STRAVA_CONFIG.syncOnLoad === true && isOwnerWritable()) {
                     body.dataset.connectionState = 'syncing';
-                    const syncRequest = StravaApp.apiPost(runtimeDataSource.apiBase, providerPaths.sync, {}, providerRequestOptions(requestOptions));
+                    const syncRequest = StravaApp.apiPost(runtimeDataSource.apiBase, providerPaths.sync, {}, providerRequestOptions(
+                        Object.assign({}, requestOptions, { timeoutMs: window.STRAVA_CONFIG.syncTimeoutMs })
+                    ));
                     if (isIntervalsProvider && !activityPageHasDrawableRoute(activityPage)) {
                         const syncTracker = { settled: false, result: null, error: null };
                         const trackedSyncRequest = syncRequest.then(function (summary) {
@@ -10722,23 +10748,27 @@
             state.activityItemsById = new Map();
             state.allDescriptors = [];
             appendActivitySummaries(activities, { initial: true, refresh: false });
-            state.activityKpisByCategory = await activityKpisPromise;
-            if (!state.activityKpisByCategory.size && isIntervalsProvider && backgroundSyncPromise) {
-                state.activityKpisByCategory = await loadActivityKpisData(state.activityItems.map(function (item) {
-                    return item.activity;
-                })).catch(function (error) {
-                    console.warn('Fresh Intervals.icu KPI snapshots are not ready yet.', error);
-                    return new Map();
-                });
-            }
-            if (!state.activityKpisByCategory.size && !(loadResult.pagination && loadResult.pagination.has_more)) {
+            activityKpisPromise.then(function (snapshots) {
+                if (snapshots.size) state.activityKpisByCategory = snapshots;
+                if (state.introKpiActivity) {
+                    state.introKpiLastRenderAt = 0;
+                    updateIntroKpiPanel(state.introKpiActivity, state.introKpiProgress);
+                }
+            });
+            if (!(loadResult.pagination && loadResult.pagination.has_more)) {
                 state.activityKpisByCategory = buildActivityKpiSnapshots(state.activityItems.map(function (item) {
                     return item.activity;
                 }));
             }
 
             let sharedCollection = null;
-            let loadedCollections = await collectionsPromise;
+            let loadedCollections = getLocalCollections();
+            if (requestedCollectionToken) loadedCollections = await collectionsPromise;
+            else collectionsPromise.then(function (collections) {
+                setCollections(collections);
+                renderPrimaryFilterTriggers();
+                refreshFilterSummary();
+            });
             if (requestedCollectionToken) {
                 try {
                     sharedCollection = await fetchSharedCollection(requestedCollectionToken);
@@ -10778,7 +10808,8 @@
             } else {
                 hideIntroKpiPanel();
             }
-            await StravaApp.flyIn(state.map, flyCenter);
+            document.getElementById('splash').style.display = 'none';
+            await StravaApp.flyIn(state.map, flyCenter, { delayMs: 0, duration: 0.6 });
             await focusAnimatedArea(animatedSelection, lineStyle);
 
             if (animatedSelection.animated.length) {
@@ -10896,8 +10927,8 @@
         async function bootstrapUserPage() {
             let connectionStatus;
             try {
-                await hydrateUserConfig();
-                connectionStatus = await fetchConnectionStatus();
+                const bootstrapResults = await Promise.all([hydrateUserConfig(), fetchConnectionStatus()]);
+                connectionStatus = bootstrapResults[1];
                 if (isIntervalsProvider && !hasPublicUserProfile && connectionStatus.athleteName) {
                     userConfig.displayName = String(connectionStatus.athleteName).trim() || userConfig.displayName;
                     userConfig.title = userConfig.displayName + "'s Map";
@@ -10919,6 +10950,17 @@
                 } catch (error) {
                     // The public cached map still works when session storage is unavailable.
                 }
+            }
+            if (isIntervalsProvider) {
+                const syncStatus = document.getElementById('intervals-sync-status');
+                const reconnectLink = document.getElementById('intervals-reconnect-link');
+                const lastSync = new Date(connectionStatus.lastSync || '');
+                syncStatus.hidden = false;
+                syncStatus.textContent = Number.isNaN(lastSync.getTime())
+                    ? 'This map has not synced yet.'
+                    : 'Map last synced ' + lastSync.toLocaleString() + '.';
+                if (!connectionStatus.owner) syncStatus.textContent += ' Open an owner connection to sync newer workouts.';
+                reconnectLink.hidden = Boolean(connectionStatus.owner) && !connectionStatus.needsReconnect;
             }
             syncStravaExportImportControls();
             body.dataset.connectionState = 'connected';

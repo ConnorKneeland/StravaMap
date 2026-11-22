@@ -442,7 +442,8 @@
 
     function getIntroDurationMs(activity) {
         const baseDuration = getDurationMs(activity || {});
-        return isMobileViewport() ? Math.round(baseDuration * getMobileIntroDurationMultiplier()) : baseDuration;
+        // Keep the landing animation brief; full replay keeps its original timing.
+        return Math.min(6000, isMobileViewport() ? Math.round(baseDuration * getMobileIntroDurationMultiplier()) : baseDuration);
     }
 
     function normalizeTimelineTimes(points, times, fallbackDurationSeconds) {
